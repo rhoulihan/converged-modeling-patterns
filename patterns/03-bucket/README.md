@@ -43,8 +43,14 @@ milliseconds**, and the read win was kept without maintaining a single bucket.
 |---|---|
 | `01-document-model.sql` | Per-hour bucket doc; each reading `$push` + counter re-serializes the growing bucket |
 | `02-converged.sql` | INTERVAL-partitioned readings (constant-cost inserts) + `GROUP BY` rollup + summary MV |
+| `01-document-model.js` | The MongoDB-lane `$push` bucket — the same write-amp, runnable in `mongosh` |
+| `02-sql-in-pipeline.js` | The hourly rollup as **full SQL over the Mongo wire** via a `$sql`-in-pipeline stage |
+| `03-parity.js` | Asserts the Mongo `$sql` rollup == the SQL `GROUP BY` == the maintained bucket counters |
+| `_capture.sql` | Helper: emits the SQL-lane rollup for the parity check |
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
-Run them with `../../run.sh 03-bucket`.
+Both lanes run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. The
+`$sql`-in-pipeline rollup returns over the Mongo wire, and the parity assertion confirms
+it equals the SQL `GROUP BY` (same machine/hour COUNT/AVG/MAX).
+Run with `../../run.sh 03-bucket`.

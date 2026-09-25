@@ -47,8 +47,12 @@ The rule this encodes:
 |---|---|
 | `01-document-model.sql` | Advisor embedded on every client doc; an office change fans out across all copies |
 | `02-converged.sql` | Advisor normalized once; duality view projects it live; the office change is one row |
+| `03-parity.js` ⭐ | Reads `xr_client_dv` via the **MongoDB API** and asserts it is byte-equal to the same view read via **SQL** — "one truth, many shapes" |
+| `_capture.sql` | Helper: emits the SQL-lane document that `03-parity.js` compares against |
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
-Run them with `../../run.sh 01-extended-reference` (or pipe each file to `sqlplus`).
+Both lanes run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. The
+cross-API parity assertion passes: the projected client document is identical through
+SQL and through the Oracle API for MongoDB.
+Run with `../../run.sh 01-extended-reference`.

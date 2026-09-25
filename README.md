@@ -6,7 +6,10 @@ runnable, side-by-side demonstration: the document-model starting point a develo
 would build, and the converged alternative that keeps the read win **without** paying
 the write-amplification the pattern was quietly charging you.
 
-Runs on **Oracle AI Database 26ai Free** — one container, one command.
+Runs on **Oracle AI Database 26ai Free** — one container, one command. Two lanes:
+the same data through **SQL** (`sqlplus`) and through the **Oracle API for MongoDB**
+(`mongosh`), with automated assertions that the two lanes return **byte-identical**
+results. One truth, many shapes — proven, not asserted.
 
 > **Data modeling is a physics problem, not a philosophy problem.** The famous
 > document patterns are not folklore — they are disciplined responses to real
@@ -58,7 +61,9 @@ making read-time compute cheap.
 
 Each folder holds a `README.md` (the teaching), `01-document-model.sql` (the starting
 point, with the write cost made explicit in comments), and `02-converged.sql` (the
-alternative, with the needle-flip explained).
+alternative, with the needle-flip explained). The four patterns that expose a duality
+view (01, 02, 06) or a rollup (03) also carry a **MongoDB lane** — `*.js` scripts that
+run through `mongosh` and assert cross-API parity (see below).
 
 Numbers above are **anonymized field results** from real engagements, cited as such —
 your mileage depends on scale, cardinality, and access mix. *A win at the wrong scale
@@ -69,24 +74,70 @@ is not a win.* Measure your own (see below).
 ## Quickstart
 
 ```bash
-./run.sh                 # brings up 26ai Free, then runs all six patterns
-./run.sh 03-bucket       # run just one pattern
+./run.sh                 # build/bring up the stack, then run ALL patterns, BOTH lanes
+./run.sh 03-bucket       # run just one pattern (both lanes)
 ```
 
-`run.sh` starts the container via `docker compose`, waits for it, grants the schema
-privileges the patterns use, and runs every `.sql` — grading each one (any ORA-/PLS-
-error is reported as FAIL). It is idempotent; rerun freely.
+`run.sh` builds and starts the container via `docker compose`, waits for the database
+**and** the MongoDB API, grants the schema privileges the patterns use, and then, per
+pattern, runs the **SQL lane** (`sqlplus`) followed by the **MongoDB lane** (`mongosh`,
+in-container). Every script is graded: any ORA-/PLS- error or any parity mismatch is a
+non-zero exit reported as **FAIL**. The run ends with a combined `N passed, 0 failed`.
+It is idempotent; rerun freely. SQL-only patterns (Subset, Tree) have no `*.js` and
+simply skip the Mongo lane.
 
-Prefer to drive it yourself:
+The image is built fresh from [`docker/`](docker/): Oracle AI Database 26ai Free
+(`gvenzl/oracle-free:23.26.3-faststart`) + **ORDS** (fronting the Database API and the
+Oracle API for MongoDB) + **mongosh**. No vector/ONNX layer — these patterns use no
+vectors. Ports (host → container), defaulted to **non-standard** values so nothing
+collides with another Oracle/ORDS/Mongo stack:
+
+| Service | In container | Host default | Override |
+|---|---|---|---|
+| SQL*Net | 1521 | **1522** | `CMP_PORT` |
+| ORDS / Database Actions | 8181 | **8182** | `CMP_ORDS_PORT` |
+| Oracle API for MongoDB | 27017 | **27018** | `CMP_MONGO_PORT` |
+
+Drive it yourself:
 
 ```bash
-docker compose up -d                                   # Oracle AI Database 26ai Free
-CONN=cmp_user/CmpUser2026@localhost:1521/FREEPDB1
-docker exec -i cmp-oracle sqlplus -s "$CONN" < patterns/01-extended-reference/01-document-model.sql
+docker compose up -d --build
+
+# SQL lane
+docker exec -i cmp-oracle sqlplus -s cmp_user/CmpUser2026@localhost:1521/FREEPDB1 \
+  < patterns/01-extended-reference/01-document-model.sql
+
+# MongoDB lane (in-container mongosh; TLS is off for local dev)
+MURI='mongodb://cmp_user:CmpUser2026@localhost:27017/CMP_USER?authMechanism=PLAIN&authSource=$external&retryWrites=false&loadBalanced=true'
+docker exec -i -e MURI="$MURI" cmp-oracle bash -lc 'mongosh "$MURI" --quiet --file /dev/stdin' \
+  < patterns/03-bucket/02-sql-in-pipeline.js
 ```
 
-Connection: `cmp_user / CmpUser2026` on `localhost:1521/FREEPDB1`. Set `CMP_PORT` if
-host port 1521 is taken; override `ORACLE_PASSWORD` / `CMP_PASSWORD` as you like.
+Login: `cmp_user / CmpUser2026`, service `FREEPDB1`, schema ORDS-enabled as `CMP_USER`.
+Override `ORACLE_PASSWORD` / `CMP_PASSWORD` as you like.
+
+## The MongoDB lane + cross-API parity
+
+The Oracle API for MongoDB surfaces the same schema over the Mongo wire protocol, so a
+MongoDB developer meets these patterns in their own tools — and the repo proves the two
+lanes agree:
+
+- **`$sql`-in-pipeline** (Bucket): `patterns/03-bucket/02-sql-in-pipeline.js` issues the
+  hourly time-series rollup as **full SQL through the Mongo wire** via Oracle's `$sql`
+  aggregation stage — parallel execution, cost-based optimization, and none of the
+  100 MB stage / 16 MB output caps a native pipeline hits.
+- **Rollup parity** (Bucket): `03-parity.js` asserts the Mongo `$sql` rollup equals the
+  SQL lane's `02-converged.sql` `GROUP BY` (same machine/hour COUNT/AVG/MAX), and that
+  both equal the hand-maintained document-model bucket counters.
+- **Document parity** (Extended Reference ⭐, Computed, Outlier): each `03-parity.js`
+  reads the **same duality-view document two ways** — `SELECT ... FROM <view>` (SQL) and
+  `db.<view>.findOne(...)` (MongoDB API) — and asserts they are **byte-equal** after
+  canonicalizing JSON and ignoring the duality `_metadata` (etag/asof). This is the
+  executable proof of *"one truth, many shapes."*
+
+Each parity script `quit(1)`s on any mismatch, so `run.sh` reports it as FAIL. Subset
+and Tree stay pure-SQL (no natural single Mongo collection for a claims table or an
+adjacency/graph traversal).
 
 ---
 
@@ -122,12 +173,13 @@ and slowest queries to the workshop lab.
 
 ## Notes
 
-- **26ai throughout.** Validated on Oracle AI Database 26ai Free (23.26.2), the
-  `gvenzl/oracle-free:latest-faststart` image.
+- **26ai throughout.** Validated on Oracle AI Database 26ai Free (`23.26.3-faststart`),
+  ORDS 26.2, mongosh from the current MongoDB 8.0 repo. Every `.sql`, every `.js`, and
+  every cross-API parity assertion runs clean on a live container (`18 passed, 0 failed`).
 - **Customer-neutral.** No named customers; the domains are illustrative and reusable.
-- **Pure SQL.** The `.sql` files validate in one lane via `sqlplus`; where a MongoDB-
-  API idiom is the natural on-ramp (`$sql`-in-pipeline, the Mongo shape of a
-  collection), it is described in the pattern README.
+- **Two lanes, asserted equal.** The SQL lane validates via `sqlplus`; the MongoDB lane
+  validates via `mongosh`, and the parity scripts assert the two lanes return identical
+  data. See *The MongoDB lane + cross-API parity* above.
 
 ## License
 

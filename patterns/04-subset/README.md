@@ -42,5 +42,7 @@ The rare full-history read is the same query without the `FETCH FIRST`.
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
+Both scripts run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. This
+pattern stays pure-SQL — a claims table has no natural single Mongo collection to read
+against, so there is no Mongo lane here.
 Run them with `../../run.sh 04-subset`.

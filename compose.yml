@@ -1,24 +1,33 @@
 name: converged-modeling-patterns
 
-# One service: Oracle AI Database 26ai Free. Pure-SQL patterns, so no ORDS/Mongo
-# sidecars are needed. Scaffold conventions (env var names, FREEPDB1, an APP_USER)
-# mirror converged-banking-labs so the two repos feel the same.
+# One service: Oracle AI Database 26ai Free + ORDS + the Oracle API for MongoDB,
+# built fresh from ./docker (see docker/Dockerfile). Exposes SQL (1521), ORDS
+# (8181), and the Mongo wire protocol (27017). Host ports default to NON-standard
+# values so this never collides with another Oracle/ORDS/Mongo stack on the host;
+# run.sh drives everything in-container, so the host mapping is only for your own
+# clients. Override with CMP_PORT / CMP_ORDS_PORT / CMP_MONGO_PORT.
 services:
   oracle:
-    image: gvenzl/oracle-free:latest-faststart   # ships Oracle AI Database 26ai Free (23.26.x)
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: converged-modeling-patterns-oracle:latest
     container_name: cmp-oracle
     ports:
-      - '${CMP_PORT:-1521}:1521'                  # SQL*Net (override CMP_PORT if 1521 is taken)
+      - '${CMP_PORT:-1522}:1521'          # SQL*Net
+      - '${CMP_ORDS_PORT:-8182}:8181'     # ORDS / Database Actions
+      - '${CMP_MONGO_PORT:-27018}:27017'  # Oracle API for MongoDB
     environment:
       ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'   # SYS / SYSTEM
       APP_USER: 'CMP_USER'
       APP_USER_PASSWORD: '${CMP_PASSWORD:-CmpUser2026}'
     healthcheck:
+      # DB readiness only; run.sh polls ORDS + Mongo itself before the Mongo lane.
       test: ['CMD', 'healthcheck.sh']
       interval: 10s
       timeout: 10s
-      retries: 40
-      start_period: 90s
+      retries: 60
+      start_period: 180s
     volumes:
       - cmp-data:/opt/oracle/oradata
 

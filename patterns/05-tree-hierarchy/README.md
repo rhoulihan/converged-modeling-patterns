@@ -52,5 +52,7 @@ not do at all (where-used across shared components) becomes one graph match.
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
+Both scripts run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. This
+pattern stays pure-SQL — adjacency/graph traversal (`CONNECT BY` / `GRAPH_TABLE`) has no
+single-collection Mongo shape, so there is no Mongo lane here.
 Run them with `../../run.sh 05-tree-hierarchy`.

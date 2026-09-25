@@ -44,8 +44,12 @@ document. The fat tail stops being an application special case.
 |---|---|
 | `01-document-model.sql` | Embedded book + `hasExtras` flag + overflow collection + reader branch |
 | `02-converged.sql` | One clients table; duality projects the typical book; the whale is paged rows |
+| `03-parity.js` | Reads `ol_advisor_dv` via the MongoDB API and asserts byte-equality with the SQL lane |
+| `_capture.sql` | Helper: emits the SQL-lane document for the parity check |
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
-Run them with `../../run.sh 06-outlier`.
+Both lanes run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. Cross-API
+parity passes: the typical-advisor document (client array projected from rows) is
+identical through SQL and the MongoDB API.
+Run with `../../run.sh 06-outlier`.

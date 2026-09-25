@@ -50,8 +50,12 @@ API? A duality view projects the subscriber with the live rollup included.
 |---|---|
 | `01-document-model.sql` | Baked `cycleUsage`; each CDR rewrites the whole subscriber doc; Top-N is a full scan |
 | `02-converged.sql` | Append-only CDRs + trigger-maintained summary (staleness 0) + descending Top-N index + duality projection |
+| `03-parity.js` | Reads `cp_subscriber_dv` (rollup included) via the MongoDB API and asserts byte-equality with the SQL lane |
+| `_capture.sql` | Helper: emits the SQL-lane document for the parity check |
 
 ## Validated
 
-Both scripts run clean on **Oracle AI Database 26ai Free (23.26.2)**.
-Run them with `../../run.sh 02-computed`.
+Both lanes run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. Cross-API
+parity passes: the subscriber document with its live rollup is identical through SQL and
+the MongoDB API.
+Run with `../../run.sh 02-computed`.
