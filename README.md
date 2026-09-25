@@ -256,4 +256,5 @@ and slowest queries to the workshop lab.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Universal Permissive License (UPL) 1.0 — see [LICENSE](LICENSE). Copyright (c) 2026
+Oracle and/or its affiliates.
