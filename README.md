@@ -48,6 +48,44 @@ making read-time compute cheap.
 
 ---
 
+## How this repo supports the presentation
+
+This repository is the **runnable backing** for the 90-minute lecture *"Model the
+Domain, Not the Engine."* Nothing in the talk is a claim you have to take on faith —
+every pattern, every needle-flip, and the "one truth, many shapes" thesis itself is a
+command you can run here, live, on a laptop. It serves two audiences:
+
+- **Presenters** — step out of the slides and into a terminal at any pattern.
+  `./run.sh 03-bucket` proves the Bucket `$sql` rollup and its cross-API parity in
+  front of the room; the numbers on the slides are reproduced by the same scripts.
+- **Developers you send here afterward** — the repo *is* the takeaway. Each pattern is
+  a side-by-side they can read, run, modify, and measure against their own cardinality.
+
+### Lecture → repo map
+
+| Lecture beat | What backs it, here |
+|---|---|
+| **Why converged / "model once, project many"** — one truth served as many shapes | The duality views (`xr_client_dv`, `cp_subscriber_dv`, `ol_advisor_dv`) read **identically** through SQL and the MongoDB API; the `03-parity.js` scripts assert it byte-for-byte |
+| **The physics** — three knobs, write amplification, the breakpoint | *The one idea* (above); every `01-document-model.sql` makes the write cost explicit in comments, every `02-converged.sql` shows where the needle flips |
+| **The pattern walk** — six patterns, six industries | `patterns/01…06`, **1:1 with the slides** — same patterns, same industries, same hard edges |
+| **Bucket's `$sql`-in-pipeline value-add** — parallel analytics, no pipeline caps | `patterns/03-bucket/02-sql-in-pipeline.js` — full SQL over the Mongo wire, runnable |
+| **"One truth, many shapes" — proven, not asserted** | The four cross-API parity scripts (`0{1,2,6}/03-parity.js`, `03/03-parity.js`) — SQL result and MongoDB result asserted equal |
+| **The honesty anchor** — where document still wins | *Where document still wins* (below) — the single-collection guidance, in words and as a rule |
+| **Measure, don't guess** — the bake-off | *Measure it, don't guess it* (below) + the reason-then-measure modeling skill |
+| **The anonymized proof numbers** (60s→500ms, 29s→sub-400ms, 9–15×) | Cited in the per-pattern READMEs, tagged as anonymized field results |
+
+### Live-demo playbook
+
+```bash
+./run.sh 01-extended-reference   # ⭐ flagship: the SAME document, SQL == MongoDB, byte-for-byte
+./run.sh 03-bucket               # the $sql-in-pipeline showcase + rollup parity
+./run.sh                         # the whole walk, both lanes → 18 passed, 0 failed
+```
+
+Run any of these live: each `[PASS]` line is a slide's claim, executed.
+
+---
+
 ## The six patterns (1:1 with the lecture)
 
 | # | Pattern | Industry | Where the needle flips | Converged softening |
@@ -68,6 +106,41 @@ run through `mongosh` and assert cross-API parity (see below).
 Numbers above are **anonymized field results** from real engagements, cited as such —
 your mileage depends on scale, cardinality, and access mix. *A win at the wrong scale
 is not a win.* Measure your own (see below).
+
+---
+
+## Repository layout
+
+```
+converged-modeling-patterns/
+├── run.sh               # one command: build, wait, grant, run every pattern × both lanes, graded
+├── compose.yml          # the 26ai + ORDS + Mongo-API service (non-default host ports)
+├── docker/              # the image, built from scratch — DB + ORDS + mongosh, no ONNX/vector layer
+│   ├── Dockerfile
+│   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
+│   └── init/            #   01-grants.sql, 02-ords-enable.sql
+└── patterns/
+    ├── 01-extended-reference/   # ⭐ wealth mgmt — duality projection
+    │   ├── README.md            #    the teaching: use case → hard edge → needle-flip → softening
+    │   ├── 01-document-model.sql#    the starting point (write cost made explicit in comments)
+    │   ├── 02-converged.sql     #    the converged alternative (the flip, explained)
+    │   ├── 03-parity.js         #    Mongo lane: SAME doc via SQL and MongoDB API, byte-equal
+    │   └── _capture.sql         #    captures the SQL-side result for the parity assertion
+    ├── 02-computed/             # telecom — rollup, staleness 0        (+ 03-parity.js, _capture.sql)
+    ├── 03-bucket/               # manufacturing/IoT — time-series
+    │   ├── 01-document-model.sql / .js   # the $push bucket that grows (SQL + Mongo lanes)
+    │   ├── 02-converged.sql     #    partitioned rows + GROUP BY rollup
+    │   ├── 02-sql-in-pipeline.js#    $sql over the Mongo wire (the value-add)
+    │   └── 03-parity.js         #    Mongo $sql rollup == SQL GROUP BY, asserted
+    ├── 04-subset/               # insurance — pure SQL (no natural single Mongo collection)
+    ├── 05-tree-hierarchy/       # manufacturing BOM — pure SQL (adjacency + CONNECT BY + GRAPH_TABLE)
+    └── 06-outlier/              # financial — duality projection       (+ 03-parity.js, _capture.sql)
+```
+
+Every pattern folder is self-contained and teaches the same four beats as its slide.
+`.sql` files run in the SQL lane; `.js` files run in the MongoDB lane; `03-parity.js`
+is the cross-API assertion; `_capture.sql` feeds the SQL side of that assertion to
+`run.sh`. Read a folder's `README.md` first, then the two model files side by side.
 
 ---
 
