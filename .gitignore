@@ -1,0 +1,9 @@
+# OS / editor
+.DS_Store
+*.swp
+*~
+
+# local env overrides
+.env
+
+# nothing generated is checked in; the DB lives in a docker volume

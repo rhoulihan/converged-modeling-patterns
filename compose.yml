@@ -1,0 +1,26 @@
+name: converged-modeling-patterns
+
+# One service: Oracle AI Database 26ai Free. Pure-SQL patterns, so no ORDS/Mongo
+# sidecars are needed. Scaffold conventions (env var names, FREEPDB1, an APP_USER)
+# mirror converged-banking-labs so the two repos feel the same.
+services:
+  oracle:
+    image: gvenzl/oracle-free:latest-faststart   # ships Oracle AI Database 26ai Free (23.26.x)
+    container_name: cmp-oracle
+    ports:
+      - '${CMP_PORT:-1521}:1521'                  # SQL*Net (override CMP_PORT if 1521 is taken)
+    environment:
+      ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'   # SYS / SYSTEM
+      APP_USER: 'CMP_USER'
+      APP_USER_PASSWORD: '${CMP_PASSWORD:-CmpUser2026}'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh']
+      interval: 10s
+      timeout: 10s
+      retries: 40
+      start_period: 90s
+    volumes:
+      - cmp-data:/opt/oracle/oradata
+
+volumes:
+  cmp-data:
