@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import request from 'supertest';
-import { testConfig, dropOwn } from './env.js';
+import { testConfig, dropOwn, skipUnlessOnlyOwn } from './env.js';
 import { bootstrap, createPools } from '../../src/db/oracle.js';
 import { MongoPool } from '../../src/db/mongo.js';
 import { Gate } from '../../src/gate.js';
@@ -122,4 +122,24 @@ describe('event mode', () => {
     expect((await admin.post('/api/admin/timeouts').send({ sqlMs: 5000, mongoMs: 5000 })).body).toEqual({ sqlMs: 5000, mongoMs: 5000 });
     expect((await admin.post('/api/admin/timeouts').send({ sqlMs: 5, mongoMs: 5000 })).status).toBe(400);
   });
+  it('resets every attendee in the background (202) and reports progress in status', async (ctx) => {
+    const a = await workspaces.findByEmail('a@example.com');
+    // Reset-all rebuilds EVERY workspace: only run when the only one is this test's own.
+    if (await skipUnlessOnlyOwn(ctx, workspaces, [a.schema])) return;
+    const admin = request.agent(app);
+    expect((await admin.post('/api/admin/login').send({ password: 'admin-test' })).status).toBe(200);
+    const r = await admin.post('/api/admin/reset-attendee').send({ schema: '*' });
+    expect(r.status).toBe(202);
+    expect(r.body).toEqual({ started: 1 });
+    let st;
+    const deadline = Date.now() + 240000;
+    do {
+      await new Promise((res) => { setTimeout(res, 500); });
+      st = (await admin.get('/api/admin/status')).body;
+    } while (st.resets.running && Date.now() < deadline);
+    expect(st.resets).toMatchObject({ running: false, total: 1, done: 1, failed: [] });
+    expect(st.pending).toBe(0);
+    expect(st.attendees.find((x) => x.schema === a.schema).built).toHaveLength(6);
+    expect((await admin.post('/api/admin/reset-attendee').send({ schema: a.schema })).body).toEqual({ ok: true, reset: 1 });
+  }, 300000);
 });

@@ -27,10 +27,24 @@ function login(msg = '') {
 
 async function render() {
   clearTimeout(timer);
-  const r = await getJSON('/api/admin/status');
+  let r;
+  try {
+    r = await getJSON('/api/admin/status');
+  } catch {
+    r = { status: 0, body: null };
+  }
   if (r.status === 401) return login();
   if (r.status === 404) { view.replaceChildren(h('p', 'problem', 'The admin page is only available in event mode (LAB_MODE=event).')); return; }
-  const { gate, cache, attendees } = r.body;
+  if (r.status !== 200 || !r.body?.gate) {
+    // One failed poll (a restart, a busy database) must not stop the page: say so, retry.
+    const note = h('p', 'flash', `Status unavailable (${r.status ? `HTTP ${r.status}` : 'no response'}) — retrying…`);
+    const old = view.querySelector('p.flash.stale');
+    if (old) old.replaceWith(note); else view.prepend(note);
+    note.classList.add('stale');
+    timer = setTimeout(render, 2000);
+    return;
+  }
+  const { gate, cache, attendees, resets, pending } = r.body;
   const top = h('div', 'card');
   top.append(h('h3', null, `Queue: ${gate.queued.length} waiting · ${gate.running.length} running · ${gate.paused ? 'PAUSED' : 'live'}`));
   gate.running.forEach((x) => {
@@ -66,6 +80,14 @@ async function render() {
     }),
   );
   top.append(controls);
+  if (resets && (resets.running || resets.total)) {
+    const line = resets.running
+      ? `Resetting every attendee: ${resets.done} of ${resets.total} done`
+      : `Last reset of every attendee: ${resets.done} of ${resets.total} done`;
+    top.append(h('p', 'rmeta', `${line} · ${resets.failed.length} failed`));
+    resets.failed.forEach((f) => top.append(h('p', 'problem', `${f.schema}: ${f.error}`)));
+  }
+  if (pending) top.append(h('p', 'rmeta', `${pending} ended workspace(s) still being dropped (locked; removed automatically)`));
   const t = h('table', 'grid');
   const head = h('tr'); ['Schema', 'Name', 'Email', 'Built patterns', ''].forEach((c) => head.append(h('th', null, c)));
   t.append(head);

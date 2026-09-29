@@ -25,13 +25,33 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
   r.use((req, res, next) => (verify(parseCookies(req.headers.cookie).lab_admin, sessionSecret) === 'admin'
     ? next() : res.status(401).json({ error: 'admin sign-in required' })));
 
+  // Rebuilds every pattern in one workspace. Its own gate userId, so it never collides with
+  // the attendee's own queued request (the gate allows one queued request per userId).
+  // Returns the failures, one line per pattern; [] when every build succeeded.
   const buildAll = async (w) => {
-    const user = { id: w.schema, workspace: w };
-    for (const p of patterns) await runner.reset({ user, patternId: p.id });
+    const user = { id: `admin-reset-${w.schema}`, workspace: w };
+    const failed = [];
+    for (const p of patterns) {
+      try {
+        const out = await runner.reset({ user, patternId: p.id });
+        if (!out.ok) failed.push(`${p.id}: ${out.errors[0]?.error ?? 'build failed'}`);
+      } catch (e) {
+        failed.push(`${p.id}: ${e.message}`);
+      }
+    }
+    return failed;
   };
 
+  // Progress of the last "reset every attendee" (runs in the background, like prewarm).
+  let resets = { running: false, total: 0, done: 0, failed: [] };
+
   r.get('/status', wrap(async (req, res) => res.json({
-    gate: gate.status(), cache: { size: cache.size, enabled: cache.enabled }, timeouts: runner.timeouts, attendees: await workspaces.list(),
+    gate: gate.status(),
+    cache: { size: cache.size, enabled: cache.enabled },
+    timeouts: runner.timeouts,
+    resets,
+    pending: await workspaces.pendingCount(),
+    attendees: await workspaces.list(),
   })));
 
   r.post('/timeouts', (req, res) => {
@@ -67,13 +87,28 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
   r.post('/reset-attendee', wrap(async (req, res) => {
     const schema = String(req.body?.schema ?? '');
     if (schema === '*') {
+      if (resets.running) return res.status(409).json({ error: 'a reset of every attendee is already running' });
       const all = await workspaces.list();
-      for (const a of all) await buildAll(await workspaces.findBySchema(a.schema));
-      return res.json({ ok: true, reset: all.length });
+      resets = { running: true, total: all.length, done: 0, failed: [] };
+      const state = resets;
+      (async () => {
+        for (const a of all) {
+          try {
+            const w = await workspaces.findBySchema(a.schema);
+            const failed = w ? await buildAll(w) : ['workspace no longer exists'];
+            if (failed.length) state.failed.push({ schema: a.schema, error: failed.join('; ') });
+          } catch (e) {
+            state.failed.push({ schema: a.schema, error: e.message });
+          }
+          state.done += 1;
+        }
+      })().catch((e) => console.error('[lab-ui] reset-all failed', e)).finally(() => { state.running = false; });
+      return res.status(202).json({ started: all.length });
     }
     const w = await workspaces.findBySchema(schema);
     if (!w) return res.status(404).json({ error: 'no such workspace' });
-    await buildAll(w);
+    const failed = await buildAll(w);
+    if (failed.length) return res.status(500).json({ ok: false, error: `reset failed: ${failed.join('; ')}`, errors: failed });
     return res.json({ ok: true, reset: 1 });
   }));
 
