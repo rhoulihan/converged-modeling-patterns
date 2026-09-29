@@ -1,9 +1,17 @@
 // app/src/services/workspaces.js
 import oracledb from 'oracledb';
 import crypto from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const OBJ = { outFormat: oracledb.OUT_FORMAT_OBJECT };
 const k = (schema, patternId) => `${schema}|${patternId}`;
+// ORDS keeps its own backend JDBC session per Mongo-API-used schema, which can outlive the
+// client disconnect that triggered dropAll() — verified still open 5+ minutes later, even
+// with jdbc.InactivityTimeout set to 60s in the lab's ORDS config (see task-11-report.md).
+// DROP USER ... CASCADE retries on ORA-01940 rather than failing outright; a workspace still
+// connected after the retry budget is left in lab_users for a later end-event to finish.
+const DROP_RETRY_BUDGET_MS = 180000;
+const DROP_RETRY_INTERVAL_MS = 5000;
 
 export class Workspaces {
   cfg;
@@ -160,16 +168,41 @@ export class Workspaces {
   async dropAll(mongoPool) {
     const users = await this.list();
     await Promise.all(users.map((u) => mongoPool?.drop(u.schema)));
+    const dropped = [];
     await this.withControl(async (c) => {
-      for (const u of users) {
-        await c.execute(`DROP USER ${u.schema} CASCADE`).catch((e) => { if (e.errorNum !== 1918) throw e; });
-        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s: u.schema });
-        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s: u.schema });
-        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s: u.schema });
+      const finish = async (schema) => {
+        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s: schema });
+        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s: schema });
+        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s: schema });
         await c.commit();
-        this.forgetInMemory(u.schema);
+        this.forgetInMemory(schema);
+        dropped.push(schema);
+      };
+      // ORA-01940 (still connected) is retried; the 180s budget is shared across every
+      // still-stuck workspace in this call, not applied per user.
+      const deadline = Date.now() + DROP_RETRY_BUDGET_MS;
+      let pending = users;
+      while (pending.length) {
+        const stillStuck = [];
+        for (const u of pending) {
+          try {
+            await c.execute(`DROP USER ${u.schema} CASCADE`);
+            await finish(u.schema);
+          } catch (e) {
+            if (e.errorNum === 1918) { await finish(u.schema); continue; } // already gone
+            if (e.errorNum !== 1940) throw e;
+            stillStuck.push(u);
+          }
+        }
+        pending = stillStuck;
+        if (!pending.length || Date.now() >= deadline) break;
+        await sleep(DROP_RETRY_INTERVAL_MS);
+      }
+      if (pending.length) {
+        console.warn(`[lab-ui] dropAll: still connected after ${DROP_RETRY_BUDGET_MS / 1000}s, ` +
+          `left in lab_users for a later end-event: ${pending.map((u) => u.schema).join(', ')}`);
       }
     });
-    return users.length;
+    return dropped.length;
   }
 }
