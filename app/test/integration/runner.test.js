@@ -80,10 +80,18 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
           }
         }
         // Single-row INSERTs flip by +76 redo / +1 block run to run (space management
-        // rolled back and redone), so stability is a tolerance, not exact equality.
-        const spread = (k) => Math.max(...runs.map((r) => pick(r)[k])) - Math.min(...runs.map((r) => pick(r)[k]));
-        expect(spread('redo'), `${m.tag} ${side} redo spread ${JSON.stringify(runs.map(pick))}`).toBeLessThanOrEqual(100);
-        expect(spread('blocks'), `${m.tag} ${side} blocks spread ${JSON.stringify(runs.map(pick))}`).toBeLessThanOrEqual(1);
+        // rolled back and redone), and a whole-document LOB rewrite occasionally steps
+        // up when the LOB segment grows (seen: 21568/29 vs 20196/15). So stability is
+        // modal agreement: at least 2 of the 3 runs agree within 100 redo and 1 block.
+        const agree = (a, b) => Math.abs(a.redo - b.redo) <= 100 && Math.abs(a.blocks - b.blocks) <= 1;
+        const picks = runs.map(pick);
+        const modal = picks.some((a, i) => picks.some((b, j) => i !== j && agree(a, b)));
+        expect(modal, `${m.tag} ${side}: no 2 of 3 runs agree ${JSON.stringify(picks)}`).toBe(true);
+      }
+      // The lecture's direction holds on every run, not just on average.
+      for (const r of runs) {
+        expect(r.document.stats['redo size'], `${m.tag} run redo`).toBeGreaterThan(r.converged.stats['redo size']);
+        expect(r.document.stats['db block changes'], `${m.tag} run blocks`).toBeGreaterThan(r.converged.stats['db block changes']);
       }
     }
   }, 180000);

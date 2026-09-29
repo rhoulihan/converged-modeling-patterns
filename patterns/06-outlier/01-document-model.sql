@@ -59,7 +59,9 @@ SET    data = JSON_TRANSFORM(data, APPEND '$.clients' = JSON_OBJECT('clientId' V
 WHERE  JSON_VALUE(data,'$._id') = 'A-900';
 COMMIT;
 
--- The book is near the ceiling: the tail spills into an overflow document.
+-- Once the book outgrows the document (the real whale's 100K clients cannot fit
+-- under 16 MB; this 800-client book stands in for it), the tail spills into an
+-- overflow document.
 -- @step Spill the next clients to an overflow document
 -- @note Spilling to overflow is itself cheap — the outlier pattern costs you the growth rewrite of the document before the spill, plus a branch in every reader.
 INSERT INTO ol_advisor_overflow VALUES (JSON('{"_id":"A-900#part-2","advisorId":"A-900",

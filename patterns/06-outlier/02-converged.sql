@@ -54,6 +54,14 @@ COMMIT;
 INSERT INTO ol_clients VALUES ('C-900801','A-900',1000000);
 COMMIT;
 
+-- Where the document model spills to overflow, the converged book just grows.
+-- @step Add the next two clients to the whale's book
+-- @note No spill — just two more rows.
+INSERT INTO ol_clients (client_id, advisor_id, aum)
+SELECT 'C-900802', 'A-900', 990000 FROM dual UNION ALL
+SELECT 'C-900803', 'A-900', 980000 FROM dual;
+COMMIT;
+
 -- The typical advisor as a document -- assembled by the duality view over the
 -- SAME rows. No special case, no flag. (For a bounded book this is the whole doc.)
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ol_advisor_dv AS

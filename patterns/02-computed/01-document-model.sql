@@ -44,12 +44,22 @@ FROM  (SELECT SUM(mb) AS total_mb, SUM(mins) AS total_min, SUM(cost) AS total_co
                      ROUND((1 + MOD(LEVEL * 13, 30)) * 0.03, 2) AS cost,
                      TIMESTAMP '2026-09-01 00:00:00' + NUMTODSINTERVAL(LEVEL * 40, 'MINUTE') AS ts
               FROM   dual CONNECT BY LEVEL <= 1000));
-INSERT INTO cp_subscriber_doc VALUES (JSON('{"_id":"S-002","msisdn":"+1-202-555-0122",
-  "plan":"METERED","cycleUsage":{"totalMB":50,"totalMin":5,"cost":0.15},
-  "usage":[{"cdrId":1,"ts":"2026-09-02T09:00:00","mb":50,"min":5,"cost":0.15}]}'));
-INSERT INTO cp_subscriber_doc VALUES (JSON('{"_id":"S-003","msisdn":"+1-202-555-0133",
-  "plan":"UNLIMITED","cycleUsage":{"totalMB":900,"totalMin":40,"cost":2.7},
-  "usage":[{"cdrId":1,"ts":"2026-09-03T14:00:00","mb":900,"min":40,"cost":2.7}]}'));
+-- S-002 and S-003: one CDR each. Built the same way as S-001, so usage[].ts is
+-- the same ISO-8601 string (no zone) in every document and in the appended CDR.
+INSERT INTO cp_subscriber_doc
+SELECT JSON_OBJECT('_id' VALUE 'S-002', 'msisdn' VALUE '+1-202-555-0122', 'plan' VALUE 'METERED',
+         'cycleUsage' VALUE JSON_OBJECT('totalMB' VALUE 50, 'totalMin' VALUE 5, 'cost' VALUE 0.15),
+         'usage' VALUE JSON_ARRAY(JSON_OBJECT('cdrId' VALUE 1, 'ts' VALUE TIMESTAMP '2026-09-02 09:00:00',
+                                              'mb' VALUE 50, 'min' VALUE 5, 'cost' VALUE 0.15) RETURNING JSON)
+         RETURNING JSON)
+FROM   dual;
+INSERT INTO cp_subscriber_doc
+SELECT JSON_OBJECT('_id' VALUE 'S-003', 'msisdn' VALUE '+1-202-555-0133', 'plan' VALUE 'UNLIMITED',
+         'cycleUsage' VALUE JSON_OBJECT('totalMB' VALUE 900, 'totalMin' VALUE 40, 'cost' VALUE 2.7),
+         'usage' VALUE JSON_ARRAY(JSON_OBJECT('cdrId' VALUE 1, 'ts' VALUE TIMESTAMP '2026-09-03 14:00:00',
+                                              'mb' VALUE 900, 'min' VALUE 40, 'cost' VALUE 2.7) RETURNING JSON)
+         RETURNING JSON)
+FROM   dual;
 COMMIT;
 
 -- One CDR arrives for S-001. In the baked-rollup model this is a read-modify-WRITE
