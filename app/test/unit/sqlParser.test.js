@@ -82,6 +82,18 @@ describe('splitConsoleSql', () => {
   it('keeps a PL/SQL block without a closing slash intact', () => {
     expect(splitConsoleSql('BEGIN NULL; END;')).toEqual(['BEGIN NULL; END;']);
   });
+  it('splits several statements on one line', () => {
+    expect(splitConsoleSql('SELECT 1 FROM dual; SELECT 2 FROM dual;')).toEqual(['SELECT 1 FROM dual', 'SELECT 2 FROM dual']);
+    expect(splitConsoleSql("SELECT ';' AS s FROM dual; SELECT 2 FROM dual -- two\n;")).toEqual(["SELECT ';' AS s FROM dual", 'SELECT 2 FROM dual -- two']);
+  });
+  it('keeps a trailing comment after the last semicolon out of the statements', () => {
+    expect(splitConsoleSql('SELECT 1 FROM dual; -- done')).toEqual(['SELECT 1 FROM dual']);
+  });
+  it('treats SET TRANSACTION and SET ROLE as SQL, not SQL*Plus', () => {
+    expect(splitConsoleSql('SET TRANSACTION READ ONLY;\nSELECT 1 FROM dual;')).toEqual(['SET TRANSACTION READ ONLY', 'SELECT 1 FROM dual']);
+    expect(splitConsoleSql('set role none;')).toEqual(['set role none']);
+    expect(splitConsoleSql('SET PAGESIZE 50\nSELECT 1 FROM dual;')).toEqual(['SELECT 1 FROM dual']);
+  });
   it('returns [] for blank input', () => {
     expect(splitConsoleSql('  \n -- only a comment\n')).toEqual([]);
   });

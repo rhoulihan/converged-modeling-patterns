@@ -1,7 +1,8 @@
 // Parses the validated pattern .sql files (and console input) into executable statements.
 // Limitation: q'[...]' literals and multi-line /* */ comments inside a statement are not
 // supported; the pattern files use neither.
-const SQLPLUS = /^(SET|PROMPT|COLUMN|COL|WHENEVER|EXIT|QUIT|SPOOL|DEFINE|UNDEFINE|SHOW|TTITLE|BTITLE|BREAK|CLEAR)\b|^@/i;
+// SET TRANSACTION / SET ROLE are SQL statements, not SQL*Plus settings.
+const SQLPLUS = /^(SET(?!\s+(TRANSACTION|ROLE)\b)|PROMPT|COLUMN|COL|WHENEVER|EXIT|QUIT|SPOOL|DEFINE|UNDEFINE|SHOW|TTITLE|BTITLE|BREAK|CLEAR)\b|^@/i;
 const PLSQL_START = /^(BEGIN|DECLARE)\b|^CREATE\s+(OR\s+REPLACE\s+)?((NON)?EDITIONABLE\s+)?(TRIGGER|PROCEDURE|FUNCTION|PACKAGE|TYPE)\b/i;
 const ANNOT = /^--\s*@(step|note|measure)\b\s*(.*)$/i;
 
@@ -48,7 +49,7 @@ export function parseSqlFile(text) {
     inString = false;
   };
 
-  lines.forEach((line, idx) => {
+  const handle = (line, idx) => {
     const t = line.trim();
     if (buf.length === 0) {
       if (!t || t === '/') return;
@@ -76,11 +77,15 @@ export function parseSqlFile(text) {
     if (r.end >= 0) {
       buf.push(line.slice(0, r.end));
       flush();
+      // Keep scanning after the ';': "SELECT 1 FROM dual; SELECT 2 FROM dual;" is two statements.
+      const rest = line.slice(r.end + 1);
+      if (rest.trim()) handle(rest, idx);
       return;
     }
     inString = r.inString;
     buf.push(line);
-  });
+  };
+  lines.forEach(handle);
   if (buf.length) flush();
   return out;
 }
