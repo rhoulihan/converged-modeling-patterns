@@ -183,7 +183,20 @@ export class Runner {
     const ws = user.workspace;
     return this.#gate.run({ userId: user.id, label: `${patternId} · measure ${tag}`, exclusive: true }, (ctx) =>
       this.#withConn(ws, ctx, async (conn, track) => {
+        // In-memory undo / private redo strands defer 'redo size' and 'db block changes'
+        // in V$MYSTAT until commit or rollback, so a read before the rollback sees 0 (or a
+        // stale value). Turning it off makes each side's deltas exact and repeatable.
+        // No reset needed: exec-pool connections are standalone and closed after this call.
+        try {
+          await conn.execute('ALTER SESSION SET "_in_memory_undo" = false');
+        } catch (e) {
+          const err = labErr('LAB-MEASURE', `could not prepare the measurement session: ${e.message}`);
+          return { tag, document: { sql: pair.document.sql, stats: {}, result: err }, converged: { sql: pair.converged.sql, stats: {}, result: err } };
+        }
         const side = async (stmt) => {
+          // Unmeasured warm-up pass: parse, cursor and first-touch effects stay out of the numbers.
+          track(await executeSql(conn, stmt.sql, this.#limits(false)));
+          await conn.rollback();
           const before = await readStats(conn);
           const result = track(await executeSql(conn, stmt.sql, this.#limits(false)));
           const after = await readStats(conn);
