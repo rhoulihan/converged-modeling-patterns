@@ -74,16 +74,6 @@ ords --config "$ORDS_CONFIG" config set mongo.enabled true
 ords --config "$ORDS_CONFIG" config set mongo.port 27017
 ords --config "$ORDS_CONFIG" config set mongo.tls false
 
-# Shorten the default JDBC pool idle timeout (default 1800s) for general hygiene in a
-# shared lab container. NOTE (verified 2026-09-29): this does NOT fix ORA-01940 on
-# DROP USER ... CASCADE after a workspace has used the Mongo API — that backend session
-# was observed still open 5+ minutes after the client disconnected, well past this
-# setting and past dropAll()'s 180s retry budget (see workspaces.js dropAll() and
-# task-11-report.md). Left in place as a harmless, real ORDS pool setting; the actual
-# Mongo-API session-teardown fix is still open.
-# Re-run every boot, same as the mongo.* settings above.
-ords --config "$ORDS_CONFIG" config set jdbc.InactivityTimeout 60
-
 echo "=== Starting ORDS ==="
 ords --config "$ORDS_CONFIG" serve --port 8181 > "$ORDS_LOG" 2>&1 &
 ORDS_PID=$!

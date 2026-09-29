@@ -1,17 +1,9 @@
 // app/src/services/workspaces.js
 import oracledb from 'oracledb';
 import crypto from 'node:crypto';
-import { setTimeout as sleep } from 'node:timers/promises';
 
 const OBJ = { outFormat: oracledb.OUT_FORMAT_OBJECT };
 const k = (schema, patternId) => `${schema}|${patternId}`;
-// ORDS keeps its own backend JDBC session per Mongo-API-used schema, which can outlive the
-// client disconnect that triggered dropAll() — verified still open 5+ minutes later, even
-// with jdbc.InactivityTimeout set to 60s in the lab's ORDS config (see task-11-report.md).
-// DROP USER ... CASCADE retries on ORA-01940 rather than failing outright; a workspace still
-// connected after the retry budget is left in lab_users for a later end-event to finish.
-const DROP_RETRY_BUDGET_MS = 180000;
-const DROP_RETRY_INTERVAL_MS = 5000;
 
 export class Workspaces {
   cfg;
@@ -165,44 +157,76 @@ export class Workspaces {
     })));
   }
 
+  // End event is synchronous only up to here: every workspace is cut off immediately
+  // (ACCOUNT LOCK — no new connections possible, whatever the DB session behind it is
+  // doing) and moved out of lab_users (so list()/findByEmail/findBySchema stop seeing it)
+  // into lab_pending_drop. The actual DROP USER happens in reapPending(), called once
+  // here and then on a timer (startReaper) — some Oracle API for MongoDB sessions stay
+  // open well past the client disconnecting (see task-11-report.md), so DROP USER ...
+  // CASCADE can't be relied on to succeed synchronously. Returns the counts from that
+  // one immediate reap pass; a still-connected workspace resolves later via the reaper.
   async dropAll(mongoPool) {
     const users = await this.list();
     await Promise.all(users.map((u) => mongoPool?.drop(u.schema)));
-    const dropped = [];
     await this.withControl(async (c) => {
-      const finish = async (schema) => {
-        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s: schema });
-        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s: schema });
-        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s: schema });
+      for (const u of users) {
+        await c.execute(`ALTER USER ${u.schema} ACCOUNT LOCK`).catch((e) => { if (e.errorNum !== 1918) throw e; });
+        await c.execute(
+          `MERGE INTO lab_pending_drop d USING (SELECT :s AS s FROM dual) x ON (d.schema_name = x.s)
+           WHEN NOT MATCHED THEN INSERT (schema_name) VALUES (x.s)`, { s: u.schema });
+        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s: u.schema });
+        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s: u.schema });
+        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s: u.schema });
         await c.commit();
-        this.forgetInMemory(schema);
-        dropped.push(schema);
-      };
-      // ORA-01940 (still connected) is retried; the 180s budget is shared across every
-      // still-stuck workspace in this call, not applied per user.
-      const deadline = Date.now() + DROP_RETRY_BUDGET_MS;
-      let pending = users;
-      while (pending.length) {
-        const stillStuck = [];
-        for (const u of pending) {
-          try {
-            await c.execute(`DROP USER ${u.schema} CASCADE`);
-            await finish(u.schema);
-          } catch (e) {
-            if (e.errorNum === 1918) { await finish(u.schema); continue; } // already gone
-            if (e.errorNum !== 1940) throw e;
-            stillStuck.push(u);
-          }
-        }
-        pending = stillStuck;
-        if (!pending.length || Date.now() >= deadline) break;
-        await sleep(DROP_RETRY_INTERVAL_MS);
-      }
-      if (pending.length) {
-        console.warn(`[lab-ui] dropAll: still connected after ${DROP_RETRY_BUDGET_MS / 1000}s, ` +
-          `left in lab_users for a later end-event: ${pending.map((u) => u.schema).join(', ')}`);
+        this.forgetInMemory(u.schema);
       }
     });
-    return dropped.length;
+    return this.reapPending();
+  }
+
+  // One pass over lab_pending_drop: DROP USER ... CASCADE each row. ORA-01918 (user
+  // already gone) counts as dropped. ORA-01940 (still connected) leaves the row in place
+  // with last_error recorded, for a later pass to retry. Idempotent — a row only leaves
+  // the table once its DROP actually succeeds (or the user already doesn't exist) — and
+  // safe to call repeatedly/concurrently: the control pool has a single connection, so
+  // calls serialize, and re-attempting a DROP that already succeeded just yields ORA-01918.
+  async reapPending() {
+    return this.withControl(async (c) => {
+      const rows = (await c.execute('SELECT schema_name FROM lab_pending_drop', [], OBJ)).rows;
+      let dropped = 0;
+      for (const r of rows) {
+        const schema = r.SCHEMA_NAME;
+        try {
+          await c.execute(`DROP USER ${schema} CASCADE`);
+        } catch (e) {
+          if (e.errorNum === 1940) {
+            await c.execute('UPDATE lab_pending_drop SET last_error = :m WHERE schema_name = :s',
+              { m: e.message.slice(0, 400), s: schema }, { autoCommit: true });
+            continue;
+          }
+          if (e.errorNum !== 1918) throw e; // anything but "already gone" is unexpected
+        }
+        await c.execute('DELETE FROM lab_pending_drop WHERE schema_name = :s', { s: schema }, { autoCommit: true });
+        dropped++;
+      }
+      return { dropped, pending: rows.length - dropped };
+    });
+  }
+
+  // Background sweep for whatever reapPending() couldn't finish synchronously. Unref'd so
+  // it never keeps the process alive on its own; never throws (a DB hiccup just gets
+  // logged and retried on the next tick). Logs one line per pass, and only when there was
+  // something to report, so a quiet lab doesn't spam the log every 30s.
+  startReaper(intervalMs = 30000) {
+    const timer = setInterval(async () => {
+      try {
+        const { dropped, pending } = await this.reapPending();
+        if (dropped || pending) console.log(`[lab-ui] reapPending: dropped ${dropped}, pending ${pending}`);
+      } catch (e) {
+        console.error(`[lab-ui] reapPending failed: ${e.message}`);
+      }
+    }, intervalMs);
+    timer.unref?.();
+    return () => clearInterval(timer);
   }
 }

@@ -30,5 +30,7 @@ BEGIN
   x('CREATE TABLE lab_admin.lab_built (schema_name VARCHAR2(30), pattern_id VARCHAR2(64), version VARCHAR2(16) NOT NULL, '
     || 'CONSTRAINT lab_built_pk PRIMARY KEY (schema_name, pattern_id))', -955);
   x('CREATE TABLE lab_admin.lab_settings (k VARCHAR2(64) PRIMARY KEY, v VARCHAR2(4000))', -955);
+  x('CREATE TABLE lab_admin.lab_pending_drop (schema_name VARCHAR2(30) PRIMARY KEY, '
+    || 'requested_at TIMESTAMP DEFAULT SYSTIMESTAMP, last_error VARCHAR2(400))', -955);
 END;
 /
