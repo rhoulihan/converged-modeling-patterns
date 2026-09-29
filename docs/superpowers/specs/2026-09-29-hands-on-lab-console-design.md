@@ -43,8 +43,8 @@ Two deliberate departures from that workshop:
  browser ──HTTP──▶  lab-ui container (Node 22 / Express)            cmp-oracle container
                     ├─ pattern pages (generated from repo files)    26ai Free + ORDS
                     ├─ POST /api/run      ─┐                        ├─ SQL        :1521
-                    ├─ POST /api/measure  ─┼─▶ GATE ─▶ oracledb pool (max 2) ──┤
-                    ├─ POST /api/reset    ─┘   FIFO     mongodb driver (max 2) ─▶├─ Mongo API :27017
+                    ├─ POST /api/measure  ─┼─▶ GATE ─▶ oracledb pool (DB_POOL_MAX=1) ──┤
+                    ├─ POST /api/reset    ─┘   FIFO     mongodb driver (MONGO_POOL_MAX=1) ▶├─ Mongo API :27017
                     └─ /admin (event mode)     1 permit                          └─ ORDS       :8181
 ```
 
@@ -78,8 +78,19 @@ workspace provisioning — passes through one in-process **FIFO weighted semapho
 Status is reported to the console: `queued · N ahead` (polled or via server-sent events), then
 `running`, then the result.
 
-Backstop: the oracledb pool and the Mongo driver pools are capped at 2 connections each, so even
-a gate defect cannot open more.
+Backstop — connection pools are configurable and default to **1**:
+
+| Setting | Default | Scope |
+|---|---|---|
+| `DB_POOL_MAX` | 1 | attendee execution pool (heterogeneous `oracledb` pool — `homogeneous: false` — so in event mode each attendee connects as their own schema user, while the cap applies across all attendees) |
+| `MONGO_POOL_MAX` | 1 | `maxPoolSize` of each per-attendee MongoDB client (clients are closed when idle) |
+| control pool | 1 (fixed) | app metadata only — sign-in lookups, session store, workspace registry; never runs attendee text |
+
+With the defaults the backstop matches the gate: even a gate defect cannot put more than one
+attendee statement into the database. The control pool exists so sign-in and session reads are not
+stuck behind a 10 s attendee query. Cancel uses `connection.break()` on the executing connection,
+so it needs no extra connection. Raising the pools above 1 only matters if the gate's permits are
+raised too (§4.1).
 
 Why an in-app gate (alternatives considered): a pool of size 1 cannot cover the separate Mongo
 driver pool or show queue position; `DBMS_LOCK` makes every waiter hold a live database session
