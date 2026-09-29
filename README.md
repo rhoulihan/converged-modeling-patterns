@@ -176,6 +176,8 @@ collides with another Oracle/ORDS/Mongo stack:
 | Oracle API for MongoDB | 27017 | **27018** | `CMP_MONGO_PORT` |
 | Hands-on console (`lab-ui`) | 3000 | **3100** | `CMP_UI_PORT` |
 
+All four bind to `127.0.0.1` on the host (`CMP_DB_BIND` / `CMP_UI_BIND` to change).
+
 Drive it yourself:
 
 ```bash
@@ -222,8 +224,16 @@ room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
 |---|---|---|
 | `LAB_MODE` | `solo` | `solo`: one user, no sign-in. `event`: sign-in, a private workspace per attendee, admin page |
 | `CMP_UI_PORT` | `3100` | host port for the console |
+| `CMP_UI_BIND` | `127.0.0.1` | interface the console binds to; `0.0.0.0` for an event so the room can reach it |
+| `CMP_DB_BIND` | `127.0.0.1` | interface for the database ports (1522/8182/27018); keep it on localhost, even for an event |
+| `LAB_ADMIN_PASSWORD` | `LabAdmin2026` | the console's provisioning account; event mode refuses to start on the default |
 | `DB_POOL_MAX` / `MONGO_POOL_MAX` | `1` / `1` | connection caps behind the queue |
 | `EVENT_CODE`, `ADMIN_PASSWORD` | — | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
+
+Every host port binds to `127.0.0.1` by default. For an event, publish only the console
+(`CMP_UI_BIND=0.0.0.0`): publishing the database ports would hand attendees LAB_ADMIN and
+SYS, whose credentials are in this repo. Don't run `./run.sh` during an event — its test
+stage shares the database.
 
 Solo mode (the default) needs no configuration. `./run.sh` folds the console's own unit
 and integration tests in as a last stage against the same database — **19 passed, 0
