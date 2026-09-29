@@ -90,9 +90,13 @@ export class Gate {
     }
   }
 
+  // Sets ctx.cancelled (statement loops check it before each statement) and calls the
+  // operation's cancel hook. Returns whether the operation had a hook to stop it.
   cancel(id) {
     const r = this.#running.get(id);
-    if (!r || typeof r.ctx.cancel !== 'function') return false;
+    if (!r) return false;
+    r.ctx.cancelled = true;
+    if (typeof r.ctx.cancel !== 'function') return false;
     r.ctx.cancel();
     return true;
   }

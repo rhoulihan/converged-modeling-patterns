@@ -109,4 +109,17 @@ describe('Gate', () => {
     await expect(p).rejects.toThrow('cancelled');
     expect(cancel).toHaveBeenCalledOnce();
   });
+
+  it('cancel sets ctx.cancelled for statement loops to check', async () => {
+    const g = new Gate({ permits: 1 });
+    const hold = deferred();
+    let seen;
+    const p = g.run({ userId: 'a', label: 'q' }, async (ctx) => { ctx.cancel = () => {}; await hold.p; seen = ctx.cancelled; });
+    await tick();
+    const [{ id }] = g.status().running;
+    expect(g.cancel(id)).toBe(true);
+    hold.resolve();
+    await p;
+    expect(seen).toBe(true);
+  });
 });

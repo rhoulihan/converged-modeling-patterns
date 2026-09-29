@@ -12,6 +12,8 @@ const isTimeout = (r) => r.kind === 'error' && /DPI-1067|NJS-123|call timeout|ti
 const IDLE_POLL_MS = 250;
 const IDLE_CEILING_MS = 60000;
 const labErr = (code, error) => ({ kind: 'error', code, error, elapsedMs: 0 });
+// Reset/build (system operations) get one 120 s budget for all their statements.
+const SYSTEM_BUDGET_MS = 120000;
 
 export class Runner {
   #cfg; #gate; #cache; #pools; #mongo; #ws; #patterns; #ids; #cards;
@@ -31,6 +33,31 @@ export class Runner {
       mongo: new Set(p.lanes.mongo.map((c) => c.command.trim())),
     }]));
     this.timeouts = { sqlMs: cfg.gate.sqlTimeoutMs, mongoMs: cfg.gate.mongoTimeoutMs };
+  }
+
+  // Runs `stmts` in order on one connection under ONE deadline of `budgetMs`: each
+  // statement's callTimeout is the time remaining. Before each statement, a cancelled run
+  // (ctx.cancelled, set by Gate.cancel) yields LAB-CANCELLED for it and every later one; an
+  // exhausted budget, or a statement stopped by its callTimeout, yields LAB-TIMEOUT likewise.
+  async #runStatements(conn, ctx, track, stmts, budgetMs) {
+    const deadline = performance.now() + budgetMs;
+    const secs = budgetMs / 1000;
+    const out = [];
+    let stop = null;
+    for (const sql of stmts) {
+      if (!stop && ctx.cancelled) stop = labErr('LAB-CANCELLED', 'Run was cancelled; this statement did not run');
+      const left = Math.floor(deadline - performance.now());
+      if (!stop && left <= 0) stop = labErr('LAB-TIMEOUT', `Run exceeded ${secs} s; this statement did not run`);
+      if (stop) { out.push(stop); continue; }
+      const r = track(await executeSql(conn, sql, { ...this.#limits(), timeoutMs: left }));
+      if (isTimeout(r)) {
+        out.push({ kind: 'error', code: 'LAB-TIMEOUT', error: `Run exceeded ${secs} s and was stopped`, elapsedMs: r.elapsedMs });
+        stop = labErr('LAB-TIMEOUT', `Run exceeded ${secs} s; this statement did not run`);
+        continue;
+      }
+      out.push(r);
+    }
+    return out;
   }
 
   #limits(autoCommit = true) {
@@ -77,12 +104,9 @@ export class Runner {
     const ws = user.workspace;
     const errors = await this.#gate.run({ userId: user.id, label: `${patternId} · reset`, exclusive: true }, (ctx) =>
       this.#withConn(ws, ctx, async (conn, track) => {
-        const errs = [];
-        for (const st of [...p.setup.document, ...p.setup.converged]) {
-          const r = track(await executeSql(conn, st.sql, this.#limits()));
-          if (r.kind === 'error') errs.push({ sql: st.sql, error: r.error, code: r.code });
-        }
-        return errs;
+        const stmts = [...p.setup.document, ...p.setup.converged].map((st) => st.sql);
+        const results = await this.#runStatements(conn, ctx, track, stmts, SYSTEM_BUDGET_MS);
+        return results.flatMap((r, i) => (r.kind === 'error' ? [{ sql: stmts[i], error: r.error, code: r.code }] : []));
       }));
     if (!errors.length) {
       await this.#ws.markBuilt(ws.schema, patternId, p.version);
@@ -110,11 +134,7 @@ export class Runner {
     if (hit) return { lane: 'sql', results: hit, cached: true };
 
     const results = await this.#gate.run({ userId: user.id, label: `${patternId ?? 'console'} · SQL` }, (ctx) =>
-      this.#withConn(ws, ctx, async (conn, track) => {
-        const out = [];
-        for (const s of stmts) out.push(track(await executeSql(conn, s, this.#limits())));
-        return out;
-      }));
+      this.#withConn(ws, ctx, (conn, track) => this.#runStatements(conn, ctx, track, stmts, this.timeouts.sqlMs)));
     if (!readOnly) await this.#ws.markDirty(ws.schema, patternsTouched(text, this.#ids));
     if (key && results.every((r) => r.kind !== 'error')) this.#cache.set(key, results);
     return { lane: 'sql', results, cached: false };

@@ -202,3 +202,40 @@ describe('mongo timeout (addendum A)', () => {
     expect(next.results[0].kind).toBe('rows');
   }, 120000);
 });
+
+describe('run budget and cancel (I3)', () => {
+  const SLEEP = 'BEGIN DBMS_SESSION.SLEEP(1); END;\n/';
+  const shortRunner = (env) => {
+    const c = testConfig(env);
+    const gate = new Gate(c.gate);
+    return { gate, r: new Runner({ cfg: c, gate, cache: new ResultCache(c.cache), pools, mongo, workspaces, patterns }) };
+  };
+
+  it('gives a multi-statement run one deadline and stops it with LAB-TIMEOUT', async () => {
+    const { r } = shortRunner({ SQL_TIMEOUT_MS: '1500' });
+    const started = Date.now();
+    const out = await r.runSql({ user, patternId: null, text: [SLEEP, SLEEP, SLEEP, 'SELECT 1 FROM dual;'].join('\n') });
+    const elapsed = Date.now() - started;
+    expect(out.results).toHaveLength(4);
+    expect(out.results[0].kind, JSON.stringify(out.results[0])).toBe('ok');
+    // The second sleep gets only the ~0.5 s left and is stopped; the rest never run.
+    expect(out.results.slice(1).map((x) => x.code), JSON.stringify(out.results)).toEqual(['LAB-TIMEOUT', 'LAB-TIMEOUT', 'LAB-TIMEOUT']);
+    expect(elapsed).toBeLessThan(3000);
+    const next = await r.runSql({ user, patternId: null, text: 'SELECT 1 FROM dual' });
+    expect(next.results[0].kind).toBe('rows');
+  }, 60000);
+
+  it('cancel mid-loop stops the remaining statements', async () => {
+    const { r, gate } = shortRunner({ SQL_TIMEOUT_MS: '20000' });
+    const started = Date.now();
+    const run = r.runSql({ user, patternId: null, text: [SLEEP, SLEEP, SLEEP, SLEEP].join('\n') });
+    await new Promise((res) => { setTimeout(res, 400); });
+    const [running] = gate.status().running;
+    expect(gate.cancel(running.id)).toBe(true);
+    const out = await run;
+    const elapsed = Date.now() - started;
+    expect(out.results).toHaveLength(4);
+    expect(out.results.slice(1).map((x) => x.code), JSON.stringify(out.results)).toEqual(['LAB-CANCELLED', 'LAB-CANCELLED', 'LAB-CANCELLED']);
+    expect(elapsed).toBeLessThan(2500);
+  }, 60000);
+});
