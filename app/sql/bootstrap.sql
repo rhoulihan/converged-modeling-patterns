@@ -20,6 +20,7 @@ BEGIN
   x('GRANT SELECT ON sys.v_$mystat TO lab_admin WITH GRANT OPTION');
   x('GRANT SELECT ON sys.v_$statname TO lab_admin WITH GRANT OPTION');
   x('GRANT SELECT ON sys.v_$session TO lab_admin');
+  x('GRANT ALTER SYSTEM TO lab_admin');  -- reaper: ALTER SYSTEM KILL SESSION on a parked workspace's stuck sessions
   x('GRANT SELECT ON sys.v_$mystat TO cmp_user');
   x('GRANT SELECT ON sys.v_$statname TO cmp_user');
   x('GRANT ORDS_ADMINISTRATOR_ROLE TO lab_admin', -1919);  -- role exists once ORDS is installed

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 
 const OBJ = { outFormat: oracledb.OUT_FORMAT_OBJECT };
 const k = (schema, patternId) => `${schema}|${patternId}`;
+const WS_NAME = /^WS_[0-9A-F]{6}$/; // provision()'s shape; checked before any dynamic DDL on a parked name
 
 export class Workspaces {
   cfg;
@@ -186,31 +187,63 @@ export class Workspaces {
 
   // One pass over lab_pending_drop: DROP USER ... CASCADE each row. ORA-01918 (user
   // already gone) counts as dropped. ORA-01940 (still connected) leaves the row in place
-  // with last_error recorded, for a later pass to retry. Idempotent — a row only leaves
-  // the table once its DROP actually succeeds (or the user already doesn't exist) — and
+  // with last_error recorded, for a later pass to retry — unless the row has been parked for
+  // KILL_AFTER_SEC or longer: then the schema's sessions are killed and the DROP is retried
+  // once (ORDS pools hold idle sessions indefinitely, so waiting alone can wait forever).
+  // Schema names are validated before any dynamic DDL; a row that isn't WS_-shaped, or any
+  // other per-row error, is recorded in last_error and the loop moves on. Idempotent and
   // safe to call repeatedly/concurrently: the control pool has a single connection, so
   // calls serialize, and re-attempting a DROP that already succeeded just yields ORA-01918.
+  static KILL_AFTER_SEC = 120;
+
   async reapPending() {
     return this.withControl(async (c) => {
-      const rows = (await c.execute('SELECT schema_name FROM lab_pending_drop', [], OBJ)).rows;
+      const rows = (await c.execute(
+        `SELECT schema_name, (CAST(SYSTIMESTAMP AS DATE) - CAST(requested_at AS DATE)) * 86400 AS parked_sec
+           FROM lab_pending_drop`, [], OBJ)).rows;
+      const note = (schema, m) => c.execute('UPDATE lab_pending_drop SET last_error = :m WHERE schema_name = :s',
+        { m: String(m).slice(0, 400), s: schema }, { autoCommit: true });
+      const drop = async (schema) => {
+        try { await c.execute(`DROP USER ${schema} CASCADE`); } catch (e) { if (e.errorNum !== 1918) throw e; }
+      };
       let dropped = 0;
       for (const r of rows) {
         const schema = r.SCHEMA_NAME;
         try {
-          await c.execute(`DROP USER ${schema} CASCADE`);
-        } catch (e) {
-          if (e.errorNum === 1940) {
-            await c.execute('UPDATE lab_pending_drop SET last_error = :m WHERE schema_name = :s',
-              { m: e.message.slice(0, 400), s: schema }, { autoCommit: true });
-            continue;
+          if (!WS_NAME.test(schema)) { await note(schema, 'skipped: not a WS_ workspace name'); continue; }
+          try {
+            await drop(schema);
+          } catch (e) {
+            if (e.errorNum !== 1940) throw e;
+            if (!(r.PARKED_SEC >= Workspaces.KILL_AFTER_SEC)) { await note(schema, e.message); continue; }
+            const killed = await this.#killSessions(c, schema);
+            console.log(`[lab-ui] reapPending: killed ${killed} session(s) holding ${schema} after ${Math.round(r.PARKED_SEC)} s parked`);
+            await note(schema, `killed ${killed} session(s) after ${Math.round(r.PARKED_SEC)} s parked; retrying drop`);
+            await drop(schema); // the one retry; a failure lands in last_error below
           }
-          if (e.errorNum !== 1918) throw e; // anything but "already gone" is unexpected
+          await c.execute('DELETE FROM lab_pending_drop WHERE schema_name = :s', { s: schema }, { autoCommit: true });
+          dropped++;
+        } catch (e) {
+          await note(schema, e.message).catch(() => {});
         }
-        await c.execute('DELETE FROM lab_pending_drop WHERE schema_name = :s', { s: schema }, { autoCommit: true });
-        dropped++;
       }
       return { dropped, pending: rows.length - dropped };
     });
+  }
+
+  // Kills every session of `schema` (already validated) and waits, bounded, for them to go.
+  async #killSessions(c, schema) {
+    const sessions = (await c.execute('SELECT sid, serial# AS serial FROM v$session WHERE username = :s', { s: schema }, OBJ)).rows;
+    for (const { SID, SERIAL } of sessions) {
+      await c.execute(`ALTER SYSTEM KILL SESSION '${Number(SID)},${Number(SERIAL)}' IMMEDIATE`)
+        .catch((e) => { if (e.errorNum !== 30) throw e; }); // ORA-00030: already gone
+    }
+    for (let i = 0; i < 20; i++) {
+      const n = (await c.execute('SELECT COUNT(*) AS n FROM v$session WHERE username = :s', { s: schema }, OBJ)).rows[0].N;
+      if (!n) break;
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    return sessions.length;
   }
 
   // Background sweep for whatever reapPending() couldn't finish synchronously. Unref'd so

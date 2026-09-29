@@ -33,6 +33,15 @@ async function countWhere(sql) {
   }
 }
 
+async function control(sql, binds = {}) {
+  const c = await pools.control.getConnection();
+  try {
+    return await c.execute(sql, binds, { autoCommit: true, outFormat: oracledb.OUT_FORMAT_OBJECT });
+  } finally {
+    await c.close();
+  }
+}
+
 beforeAll(async () => {
   await bootstrap(cfg);
   pools = await createPools(cfg);
@@ -152,4 +161,29 @@ describe('event workspaces', () => {
 
     expect(await countWhere(`SELECT COUNT(*) AS n FROM all_users WHERE username = '${held.schema}'`)).toBe(0);
   }, 30000);
+
+  it('reapPending kills the sessions of a workspace parked 2+ min, drops it, and skips a non-WS_ row without stopping', async () => {
+    const held = await ws.provision({ email: 'stuck@example.com', name: 'Stuck' });
+    const heldConn = await openAs(held); // stands in for an ORDS pool session that never lets go
+    await ws.dropAll(mongo); // parks `held`: parked < 2 min, so no kill yet
+    expect(await countWhere(`SELECT COUNT(*) AS n FROM lab_pending_drop WHERE schema_name = '${held.schema}'`)).toBe(1);
+
+    await control("MERGE INTO lab_pending_drop d USING (SELECT 'NOT_A_WS' AS s FROM dual) x ON (d.schema_name = x.s) "
+      + 'WHEN NOT MATCHED THEN INSERT (schema_name) VALUES (x.s)');
+    await control('UPDATE lab_pending_drop SET requested_at = SYSTIMESTAMP - INTERVAL \'3\' MINUTE');
+    try {
+      await ws.reapPending();
+
+      expect(await countWhere(`SELECT COUNT(*) AS n FROM all_users WHERE username = '${held.schema}'`)).toBe(0);
+      expect(await countWhere(`SELECT COUNT(*) AS n FROM lab_pending_drop WHERE schema_name = '${held.schema}'`)).toBe(0);
+      await expect(heldConn.execute('SELECT 1 FROM dual')).rejects.toThrow();
+
+      const bogus = (await control("SELECT last_error FROM lab_pending_drop WHERE schema_name = 'NOT_A_WS'")).rows;
+      expect(bogus).toHaveLength(1);
+      expect(bogus[0].LAST_ERROR).toMatch(/not a WS_ workspace name/);
+    } finally {
+      await heldConn.close().catch(() => {});
+      await control("DELETE FROM lab_pending_drop WHERE schema_name = 'NOT_A_WS'");
+    }
+  }, 60000);
 });
