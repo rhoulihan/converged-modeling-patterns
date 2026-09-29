@@ -33,11 +33,16 @@ export async function bootstrap(cfg) {
 // homogeneous pool. Instead `exec` is a minimal pool-shaped wrapper: it hands out standalone
 // Thin-mode connections under whatever credentials are supplied, bounded to `cfg.db.poolMax`
 // concurrent connections with the same queue-timeout behavior a real pool would apply.
-function createExecPool(cfg) {
+//
+// `connect` is injectable (defaults to a real oracledb connection) so the wrapper's own
+// acquire/release/close bookkeeping can be unit-tested with a stub, independent of the DB.
+export function createExecPool(cfg, { connect = (opts) => oracledb.getConnection({ ...opts, connectString: connectString(cfg) }) } = {}) {
   const max = cfg.db.poolMax;
   const queueTimeoutMs = cfg.gate.queueTimeoutMs;
   let open = 0;
+  let closed = false;
   const waiters = [];
+  const live = new Set();
 
   function release() {
     open--;
@@ -57,6 +62,7 @@ function createExecPool(cfg) {
     return new Promise((resolve, reject) => {
       const waiter = {
         resolve,
+        reject,
         timer: setTimeout(() => {
           const i = waiters.indexOf(waiter);
           if (i !== -1) waiters.splice(i, 1);
@@ -69,26 +75,42 @@ function createExecPool(cfg) {
 
   return {
     async getConnection(opts = {}) {
+      if (closed) throw new Error('exec pool is closed');
       await acquire();
       let conn;
       try {
-        conn = await oracledb.getConnection({ ...opts, connectString: connectString(cfg) });
+        conn = await connect(opts);
       } catch (err) {
         release();
         throw err;
       }
+      let released = false;
+      const releaseOnce = () => {
+        if (released) return;
+        released = true;
+        live.delete(conn);
+        release();
+      };
       const rawClose = conn.close.bind(conn);
       conn.close = async (...args) => {
         try {
           return await rawClose(...args);
         } finally {
-          release();
+          releaseOnce();
         }
       };
+      live.add(conn);
       return conn;
     },
     async close() {
-      for (const w of waiters.splice(0)) clearTimeout(w.timer);
+      closed = true;
+      for (const w of waiters.splice(0)) {
+        clearTimeout(w.timer);
+        w.reject(new Error('exec pool is closing'));
+      }
+      const toClose = [...live];
+      live.clear();
+      await Promise.all(toClose.map((c) => c.close({ drop: true }).catch(() => {})));
     },
   };
 }
