@@ -1,3 +1,5 @@
+import { sqlStageText } from './cache.js';
+
 // Defence in depth only: the isolation boundary is each attendee's schema privileges.
 const RULES = [
   [/\bALTER SYSTEM\b/, 'ALTER SYSTEM'],
@@ -33,7 +35,8 @@ function sqlStages(value, out = []) {
   if (Array.isArray(value)) value.forEach((v) => sqlStages(v, out));
   else if (value && typeof value === 'object' && !(value instanceof RegExp) && !(value instanceof Date)) {
     for (const [k, v] of Object.entries(value)) {
-      if (k === '$sql' && typeof v === 'string') out.push(v);
+      const sql = k === '$sql' ? sqlStageText(v) : null;
+      if (sql !== null) out.push(sql); // string form, or the object form's `statement`
       else sqlStages(v, out);
     }
   }

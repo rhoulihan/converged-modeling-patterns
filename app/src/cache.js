@@ -18,6 +18,14 @@ export function isReadOnlySql(statements) {
 
 const MONGO_READ_OPS = new Set(['find', 'findOne', 'countDocuments']);
 
+// The SQL text of a $sql stage: the string form, or the object form's `statement`.
+// null when the object form carries no string statement (the caller treats that as a write).
+export function sqlStageText(value) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && typeof value.statement === 'string') return value.statement;
+  return null;
+}
+
 export function isReadOnlyMongo(cmd) {
   if (cmd.kind === 'showCollections') return true;
   if (MONGO_READ_OPS.has(cmd.op)) return true;
@@ -25,8 +33,9 @@ export function isReadOnlyMongo(cmd) {
   const pipeline = cmd.args[0] ?? [];
   return pipeline.every((stage) => {
     if ('$out' in stage || '$merge' in stage) return false;
-    if (typeof stage.$sql === 'string') return isReadOnlySql([stage.$sql]);
-    return true;
+    if (!('$sql' in stage)) return true;
+    const sql = sqlStageText(stage.$sql);
+    return sql !== null && isReadOnlySql([sql]);
   });
 }
 
@@ -52,8 +61,10 @@ export class ResultCache {
     this.#max = maxEntries;
   }
 
+  // Only card text is ever cached (the runner checks), so the key is the raw text with
+  // leading/trailing whitespace trimmed — no comment or whitespace normalization inside.
   key(patternId, text, version) {
-    const h = crypto.createHash('sha256').update(normalizeSql(text)).digest('hex');
+    const h = crypto.createHash('sha256').update(String(text).trim()).digest('hex');
     return `${patternId}|${version}|${h}`;
   }
 

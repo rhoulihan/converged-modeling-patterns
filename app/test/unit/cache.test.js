@@ -25,6 +25,15 @@ describe('eligibility', () => {
     expect(isReadOnlyMongo({ kind: 'db', op: 'aggregate', args: [[{ $sql: 'select 1 from dual' }]], mods: {} })).toBe(true);
     expect(isReadOnlyMongo({ kind: 'db', op: 'aggregate', args: [[{ $sql: 'delete from t' }]], mods: {} })).toBe(false);
   });
+  it('classifies the object form of $sql by its statement; a missing statement is a write', () => {
+    const agg = (v) => isReadOnlyMongo({ kind: 'db', op: 'aggregate', args: [[{ $sql: v }]], mods: {} });
+    expect(agg({ statement: 'select 1 from dual' })).toBe(true);
+    expect(agg({ statement: 'delete from t' })).toBe(false);
+    expect(agg({ statement: 'select 1 from dual for update' })).toBe(false);
+    expect(agg({})).toBe(false);
+    expect(agg({ statement: 42 })).toBe(false);
+    expect(agg(null)).toBe(false);
+  });
   it('maps statements to the patterns whose objects they touch', () => {
     expect(patternsTouched('UPDATE xr_advisors SET office = 1', ALL)).toEqual(['01-extended-reference']);
     expect(patternsTouched('insert into bk_readings select * from sb_claim_events', ALL).sort()).toEqual(['03-bucket', '04-subset']);
@@ -33,9 +42,12 @@ describe('eligibility', () => {
 });
 
 describe('ResultCache', () => {
-  it('keys on pattern, normalized text and dataset version', () => {
+  it('keys on pattern, trimmed raw text and dataset version', () => {
     const c = new ResultCache();
-    expect(c.key('p', 'SELECT 1  FROM dual;', 'v1')).toBe(c.key('p', 'SELECT 1 FROM dual', 'v1'));
+    expect(c.key('p', '  SELECT 1 FROM dual \n', 'v1')).toBe(c.key('p', 'SELECT 1 FROM dual', 'v1'));
+    expect(c.key('p', 'SELECT 1  FROM dual', 'v1')).not.toBe(c.key('p', 'SELECT 1 FROM dual', 'v1'));
+    expect(c.key('p', 'SELECT 1 FROM dual;', 'v1')).not.toBe(c.key('p', 'SELECT 1 FROM dual', 'v1'));
+    expect(c.key('p', '--x', 'v1')).not.toBe(c.key('p', '--y', 'v1'));
     expect(c.key('p', 'SELECT 1 FROM dual', 'v1')).not.toBe(c.key('p', 'SELECT 1 FROM dual', 'v2'));
     expect(c.key('p', 'SELECT 1 FROM dual', 'v1')).not.toBe(c.key('q', 'SELECT 1 FROM dual', 'v1'));
   });

@@ -14,7 +14,7 @@ const IDLE_CEILING_MS = 60000;
 const labErr = (code, error) => ({ kind: 'error', code, error, elapsedMs: 0 });
 
 export class Runner {
-  #cfg; #gate; #cache; #pools; #mongo; #ws; #patterns; #ids;
+  #cfg; #gate; #cache; #pools; #mongo; #ws; #patterns; #ids; #cards;
 
   constructor({ cfg, gate, cache, pools, mongo, workspaces, patterns }) {
     this.#cfg = cfg;
@@ -25,12 +25,25 @@ export class Runner {
     this.#ws = workspaces;
     this.#patterns = new Map(patterns.map((p) => [p.id, p]));
     this.#ids = patterns.map((p) => p.id);
+    // Cache eligibility: only a pattern's own card text (trimmed) is ever cached.
+    this.#cards = new Map(patterns.map((p) => [p.id, {
+      sql: new Set([...p.lanes.document, ...p.lanes.converged].map((s) => s.sql.trim())),
+      mongo: new Set(p.lanes.mongo.map((c) => c.command.trim())),
+    }]));
     this.timeouts = { sqlMs: cfg.gate.sqlTimeoutMs, mongoMs: cfg.gate.mongoTimeoutMs };
   }
 
   #limits(autoCommit = true) {
     const { maxRows, maxBytes } = this.#cfg.limits;
     return { timeoutMs: this.timeouts.sqlMs, maxRows, maxBytes, autoCommit };
+  }
+
+  // A run is cacheable only when its text is exactly one of the pattern's cards (after
+  // trimming leading/trailing whitespace), it is read-only, and the workspace is pristine.
+  #cacheKey(p, lane, text, readOnly, ws) {
+    if (!p || !readOnly || !this.#cards.get(p.id)[lane].has(text.trim())) return null;
+    if (this.#ws.isDirty(ws.schema, p.id)) return null;
+    return this.#cache.key(p.id, text, p.version);
   }
 
   #pattern(patternId) {
@@ -92,8 +105,7 @@ export class Runner {
     if (p) await this.ensureBuilt(user, patternId);
     const ws = user.workspace;
     const readOnly = isReadOnlySql(stmts);
-    const cacheable = readOnly && p && !this.#ws.isDirty(ws.schema, patternId);
-    const key = cacheable ? this.#cache.key(patternId, stmts[0], p.version) : null;
+    const key = this.#cacheKey(p, 'sql', text, readOnly, ws);
     const hit = key ? this.#cache.get(key) : undefined;
     if (hit) return { lane: 'sql', results: hit, cached: true };
 
@@ -122,8 +134,7 @@ export class Runner {
     if (p) await this.ensureBuilt(user, patternId);
     const ws = user.workspace;
     const readOnly = isReadOnlyMongo(cmd);
-    const cacheable = readOnly && p && !this.#ws.isDirty(ws.schema, patternId);
-    const key = cacheable ? this.#cache.key(patternId, `mongo:${text}`, p.version) : null;
+    const key = this.#cacheKey(p, 'mongo', text, readOnly, ws);
     const hit = key ? this.#cache.get(key) : undefined;
     if (hit) return { lane: 'mongo', results: hit, cached: true };
 

@@ -52,6 +52,12 @@ describe('classifyMongo', () => {
     const r = classifyMongo({ kind: 'db', op: 'aggregate', args: [[{ $sql: "begin execute immediate 'grant dba to x'; end;" }]], mods: {} });
     expect(r.allowed).toBe(false);
   });
+  it('checks the object form of $sql by its statement string', () => {
+    const agg = (v) => classifyMongo({ kind: 'db', op: 'aggregate', args: [[{ $sql: v }]], mods: {} });
+    expect(agg({ statement: 'select 1 from dual' })).toEqual({ allowed: true });
+    expect(agg({ statement: 'GRANT DBA TO x' })).toEqual({ allowed: false, reason: 'Blocked in this lab: GRANT' });
+    expect(agg({ statement: 'alter system flush shared_pool', binds: [] }).allowed).toBe(false);
+  });
   it('allows ordinary collection commands', () => {
     expect(classifyMongo({ kind: 'collection', collection: 'c', op: 'find', args: [{}], mods: {} })).toEqual({ allowed: true });
   });
