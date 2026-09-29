@@ -15,11 +15,25 @@ function deepFreeze(o) {
   return Object.freeze(o);
 }
 
-export function loadConfig(env = process.env) {
+// The repo's published default for LAB_ADMIN (compose.yml). Fine for a one-person solo lab;
+// in event mode the room can reach the console, so it must be changed.
+const DEFAULT_LAB_ADMIN_PASSWORD = 'LabAdmin2026';
+
+// `allowDefaultSecrets` exists for the integration harness only: it exercises event-mode
+// code paths against the lab's own database, whose LAB_ADMIN password is the default.
+export function loadConfig(env = process.env, { allowDefaultSecrets = false } = {}) {
   const mode = env.LAB_MODE || 'solo';
   if (!['solo', 'event'].includes(mode)) throw new Error(`LAB_MODE must be "solo" or "event" (got "${mode}")`);
+  // Bootstrap DDL embeds LAB_ADMIN_PASSWORD in a quoted identifier; a " would break it.
+  for (const key of ['ORACLE_PASSWORD', 'CMP_PASSWORD', 'LAB_ADMIN_PASSWORD']) {
+    if (String(env[key] ?? '').includes('"')) throw new Error(`${key} must not contain " (double quote)`);
+  }
   const adminPassword = env.ADMIN_PASSWORD || null;
+  const labAdminPassword = env.LAB_ADMIN_PASSWORD || DEFAULT_LAB_ADMIN_PASSWORD;
   if (mode === 'event' && !adminPassword) throw new Error('ADMIN_PASSWORD is required when LAB_MODE=event');
+  if (mode === 'event' && !allowDefaultSecrets && labAdminPassword === DEFAULT_LAB_ADMIN_PASSWORD) {
+    throw new Error('LAB_ADMIN_PASSWORD is still the repo default (LabAdmin2026); set your own before starting LAB_MODE=event');
+  }
   return deepFreeze({
     mode,
     port: int(env, 'PORT', 3000),
@@ -31,7 +45,7 @@ export function loadConfig(env = process.env) {
       sysPassword: env.ORACLE_PASSWORD || 'Sandbox2026',
       cmpUser: 'CMP_USER',
       cmpPassword: env.CMP_PASSWORD || 'CmpUser2026',
-      labAdminPassword: env.LAB_ADMIN_PASSWORD || 'LabAdmin2026',
+      labAdminPassword,
       poolMax: int(env, 'DB_POOL_MAX', 1),
     },
     mongo: { host: env.MONGO_HOST || env.DB_HOST || 'oracle', port: int(env, 'MONGO_PORT', 27017), poolMax: int(env, 'MONGO_POOL_MAX', 1) },

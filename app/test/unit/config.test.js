@@ -28,9 +28,31 @@ describe('loadConfig', () => {
   });
 
   it('requires ADMIN_PASSWORD in event mode', () => {
-    expect(() => loadConfig({ LAB_MODE: 'event' })).toThrow(/ADMIN_PASSWORD/);
-    const c = loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', EVENT_CODE: 'NW26' });
+    expect(() => loadConfig({ LAB_MODE: 'event', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' })).toThrow(/ADMIN_PASSWORD/);
+    const c = loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', EVENT_CODE: 'NW26', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' });
     expect(c.event).toEqual({ code: 'NW26', adminPassword: 'pw' });
+  });
+
+  it('refuses to start event mode while LAB_ADMIN_PASSWORD is the repo default', () => {
+    expect(() => loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw' })).toThrow(/LAB_ADMIN_PASSWORD.*default/);
+    expect(() => loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', LAB_ADMIN_PASSWORD: 'LabAdmin2026' })).toThrow(/LAB_ADMIN_PASSWORD/);
+    expect(loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' }).db.labAdminPassword).toBe('Own-LabAdmin-1');
+  });
+
+  it('keeps solo mode default-friendly', () => {
+    expect(loadConfig({}).db.labAdminPassword).toBe('LabAdmin2026');
+    expect(loadConfig({ LAB_MODE: 'solo' }).mode).toBe('solo');
+  });
+
+  it('lets the integration harness opt out of the default-secret check', () => {
+    const c = loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw' }, { allowDefaultSecrets: true });
+    expect(c.db.labAdminPassword).toBe('LabAdmin2026');
+  });
+
+  it('rejects database passwords containing a double quote', () => {
+    expect(() => loadConfig({ LAB_ADMIN_PASSWORD: 'a"b' })).toThrow(/LAB_ADMIN_PASSWORD must not contain "/);
+    expect(() => loadConfig({ ORACLE_PASSWORD: 'a"b' })).toThrow(/ORACLE_PASSWORD/);
+    expect(() => loadConfig({ CMP_PASSWORD: 'a"b' })).toThrow(/CMP_PASSWORD/);
   });
 
   it('rejects non-positive pool sizes', () => {

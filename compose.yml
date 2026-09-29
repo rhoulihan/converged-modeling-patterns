@@ -6,6 +6,10 @@ name: converged-modeling-patterns
 # values so this never collides with another Oracle/ORDS/Mongo stack on the host;
 # run.sh drives everything in-container, so the host mapping is only for your own
 # clients. Override with CMP_PORT / CMP_ORDS_PORT / CMP_MONGO_PORT.
+#
+# Every host port binds to 127.0.0.1 by default. The database ports stay there even in
+# event mode: publishing them to the room would hand attendees LAB_ADMIN and SYS.
+# Only the console is opened up for an event (CMP_UI_BIND=0.0.0.0).
 services:
   oracle:
     build:
@@ -14,9 +18,9 @@ services:
     image: converged-modeling-patterns-oracle:latest
     container_name: cmp-oracle
     ports:
-      - '${CMP_PORT:-1522}:1521'          # SQL*Net
-      - '${CMP_ORDS_PORT:-8182}:8181'     # ORDS / Database Actions
-      - '${CMP_MONGO_PORT:-27018}:27017'  # Oracle API for MongoDB
+      - '${CMP_DB_BIND:-127.0.0.1}:${CMP_PORT:-1522}:1521'          # SQL*Net
+      - '${CMP_DB_BIND:-127.0.0.1}:${CMP_ORDS_PORT:-8182}:8181'     # ORDS / Database Actions
+      - '${CMP_DB_BIND:-127.0.0.1}:${CMP_MONGO_PORT:-27018}:27017'  # Oracle API for MongoDB
     environment:
       ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'   # SYS / SYSTEM
       APP_USER: 'CMP_USER'
@@ -42,7 +46,7 @@ services:
       oracle:
         condition: service_healthy
     ports:
-      - '${CMP_UI_PORT:-3100}:3000'          # hands-on console (non-default host port)
+      - '${CMP_UI_BIND:-127.0.0.1}:${CMP_UI_PORT:-3100}:3000'  # hands-on console; event mode: CMP_UI_BIND=0.0.0.0
     environment:
       LAB_MODE: '${LAB_MODE:-solo}'           # solo | event
       ADMIN_PASSWORD: '${ADMIN_PASSWORD:-}'   # required when LAB_MODE=event
@@ -69,6 +73,8 @@ services:
       MONGO_PORT: '27017'
       ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'
       CMP_PASSWORD: '${CMP_PASSWORD:-CmpUser2026}'
+      # Same value lab-ui uses: the tests' bootstrap re-sets LAB_ADMIN's password to this.
+      LAB_ADMIN_PASSWORD: '${LAB_ADMIN_PASSWORD:-LabAdmin2026}'
 
 volumes:
   cmp-data:
