@@ -170,7 +170,9 @@ describe('event workspaces', () => {
 
     await control("MERGE INTO lab_pending_drop d USING (SELECT 'NOT_A_WS' AS s FROM dual) x ON (d.schema_name = x.s) "
       + 'WHEN NOT MATCHED THEN INSERT (schema_name) VALUES (x.s)');
-    await control('UPDATE lab_pending_drop SET requested_at = SYSTIMESTAMP - INTERVAL \'3\' MINUTE');
+    // Backdate only the rows this test parked — never a real workspace on the shared DB.
+    await control("UPDATE lab_pending_drop SET requested_at = SYSTIMESTAMP - INTERVAL '3' MINUTE WHERE schema_name IN (:held, 'NOT_A_WS')",
+      { held: held.schema });
     try {
       await ws.reapPending();
 
