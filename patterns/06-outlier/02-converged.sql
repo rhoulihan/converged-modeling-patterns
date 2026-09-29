@@ -42,14 +42,16 @@ INSERT INTO ol_advisors VALUES ('A-900','Institutional Desk');
 INSERT INTO ol_clients VALUES ('C-001','A-001',250000);
 INSERT INTO ol_clients VALUES ('C-002','A-001',180000);
 INSERT INTO ol_clients VALUES ('C-003','A-001',420000);
--- The "whale" -- stands in for a 100K-client institutional book. Just more rows.
-INSERT INTO ol_clients VALUES ('C-900001','A-900',9000000);
-INSERT INTO ol_clients VALUES ('C-900002','A-900',8500000);
-INSERT INTO ol_clients VALUES ('C-900003','A-900',7800000);
+-- The "whale" -- stands in for a 100K-client institutional book: the same 800
+-- clients the document model embeds, generated, not pasted. Just more rows.
+INSERT INTO ol_clients (client_id, advisor_id, aum)
+SELECT 'C-' || TO_CHAR(900000 + LEVEL), 'A-900', 9000000 - (LEVEL - 1) * 10000
+FROM   dual CONNECT BY LEVEL <= 800;
+COMMIT;
 -- @step Add one more client to the whale's book
--- @note Just another row — no ceiling, no overflow shard, no reader branch.
+-- @note Just another row — no ceiling, no overflow shard, no reader branch, and the same cost at 800 clients as at 3.
 -- @measure add-client
-INSERT INTO ol_clients VALUES ('C-900004','A-900',7100000);
+INSERT INTO ol_clients VALUES ('C-900801','A-900',1000000);
 COMMIT;
 
 -- The typical advisor as a document -- assembled by the duality view over the

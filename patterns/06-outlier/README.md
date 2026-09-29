@@ -35,6 +35,12 @@ context builder, which now has to know about the special case too.
 The pattern does not solve the outlier. It **admits the model breaks** for the fat
 tail and pushes the special case up into every consumer.
 
+The writes pay too. Until it spills, the whale's book is one growing document: in the
+lab, advisor A-900 already embeds 800 clients, and adding one more is a
+read-modify-write of the whole book. Spilling to overflow is itself cheap — the
+outlier pattern costs you the growth rewrite of the document before the spill, plus
+a branch in every reader.
+
 ## The converged softening
 
 There is no special document shape. Clients are **rows in one table**, referenced by
@@ -54,8 +60,8 @@ document. The fat tail stops being an application special case.
 
 | File | What it shows |
 |---|---|
-| `01-document-model.sql` | Embedded book + `hasExtras` flag + overflow collection + reader branch |
-| `02-converged.sql` | One clients table; duality projects the typical book; the whale is paged rows |
+| `01-document-model.sql` | Embedded book (800-client whale) + growth append + `hasExtras` flag + overflow collection + reader branch |
+| `02-converged.sql` | One clients table (the same 800-client whale as rows); duality projects the typical book; the whale is paged rows |
 | `03-parity.js` | Reads `ol_advisor_dv` via the MongoDB API and asserts byte-equality with the SQL lane |
 | `_capture.sql` | Helper: emits the SQL-lane document for the parity check |
 

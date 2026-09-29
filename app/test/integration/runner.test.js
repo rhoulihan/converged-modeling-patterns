@@ -29,12 +29,6 @@ beforeAll(async () => {
 }, 300000);
 afterAll(async () => { await mongo?.closeAll(); await pools?.close(); });
 
-// Directional claim held pending author content decision (2026-09-29). Measured with
-// in-memory undo off (fix round 1), 5 runs each:
-//   02-computed record-cdr: document redo 1600 / 9 blocks vs converged 1592–1668 / 11–12
-//   06-outlier add-client:  document redo 1116 / 7 blocks vs converged 1024–1100 / 7–8
-const DIRECTION_HELD = new Set(['02-computed', '06-outlier']);
-
 describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
   it('resets cleanly and every step runs in order', async () => {
     const r = await runner.reset({ user, patternId: id });
@@ -57,7 +51,7 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
     }
   }, 120000);
 
-  it.skipIf(DIRECTION_HELD.has(id))(`measure-it: the document model writes more than the converged model${DIRECTION_HELD.has(id) ? ' (held pending author content decision)' : ''}`, async () => {
+  it('measure-it: the document model writes more than the converged model', async () => {
     await runner.reset({ user, patternId: id });
     for (const m of p.measures) {
       const r = await runner.measure({ user, patternId: id, tag: m.tag });
