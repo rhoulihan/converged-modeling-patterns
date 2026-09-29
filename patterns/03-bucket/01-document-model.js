@@ -1,8 +1,8 @@
 // ============================================================================
 // Pattern 03 · Bucket · THE DOCUMENT MODEL in the MongoDB lane (mongosh)
 // The $push bucket: each reading grows the bucket document and re-updates its
-// counters, so the storage engine re-serializes the WHOLE (growing) document on
-// every append — the canonical write-amplification. Runnable illustration.
+// counters — a read-modify-write of the WHOLE (growing) document on every
+// append, the canonical write-amplification. Runnable illustration.
 // Run via run.sh (Mongo lane) or:  mongosh "<uri>" --file 01-document-model.js
 // ============================================================================
 const C = db.bk_bucket_js;
@@ -28,7 +28,7 @@ for (const r of arrivals) {
 
 const b = C.findOne({ _id: "M-100|TEMP|2026-08-01T10" });
 print(`bucket after ${b.count} appends: sum=${b.sum} max=${b.max} ` +
-      `(each append re-serialized the whole document)`);
+      `(each append rewrote the whole document)`);
 
 // Sanity: the maintained counters reflect the three readings.
 const okCount = b.count === 3;

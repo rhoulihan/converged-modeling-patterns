@@ -92,7 +92,7 @@ Run any of these live: each `[PASS]` line is a slide's claim, executed.
 |---|---|---|---|---|
 | [01](patterns/01-extended-reference/) ⭐ | **Extended Reference** | Wealth mgmt | Advisor moves offices → fan-out update across 100Ks of embedded copies + update anomaly | **Project, don't copy** — advisor normalized once, duality projects it live |
 | [02](patterns/02-computed/) | **Computed** | Telecom | Every CDR re-aggregates + rewrites the whole subscriber doc → write storm | Append-only rows + trigger-maintained summary (staleness 0); **Top-N 60s → 500ms** |
-| [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading re-serializes the growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
+| [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading rewrites the whole, growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
 | [04](patterns/04-subset/) | **Subset** | Insurance | Push-and-trim on every claim to serve a full read that hardly happens | One table + composite index; **query the hot slice** with `FETCH FIRST` |
 | [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path; where-used a prefix can't express | Adjacency edges (reorg = one row) + `CONNECT BY` + `GRAPH_TABLE` |
 | [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc — "just more rows, the optimizer plans for it" |
