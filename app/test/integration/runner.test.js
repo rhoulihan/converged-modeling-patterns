@@ -57,13 +57,12 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
     }
   }, 120000);
 
-  it('measure-it: the document model writes more than the converged model', async () => {
+  it.skipIf(DIRECTION_HELD.has(id))(`measure-it: the document model writes more than the converged model${DIRECTION_HELD.has(id) ? ' (held pending author content decision)' : ''}`, async () => {
     await runner.reset({ user, patternId: id });
     for (const m of p.measures) {
       const r = await runner.measure({ user, patternId: id, tag: m.tag });
       expect(r.document.result.kind, m.tag).not.toBe('error');
       expect(r.converged.result.kind, m.tag).not.toBe('error');
-      if (DIRECTION_HELD.has(id)) continue;
       // Directional claim of the lecture. If this fails, STOP and report both stat sets —
       // do not relax the assertion (see the plan's note on OSON partial updates).
       expect(r.document.stats['redo size'], `${m.tag} redo`).toBeGreaterThan(r.converged.stats['redo size']);

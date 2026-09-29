@@ -5,6 +5,12 @@ const view = document.getElementById('view');
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
 const btn = (label, onClick, cls = 'btn') => { const b = h('button', cls, label); b.type = 'button'; b.addEventListener('click', onClick); return b; };
 let timer;
+// Alert the server's error on a non-200 response; returns true on success.
+const ok = (r) => {
+  if (r.status >= 200 && r.status < 300) return true;
+  alert(r.body?.error ?? `Request failed (${r.status})`);
+  return false;
+};
 
 function login(msg = '') {
   const f = h('form', 'signin');
@@ -36,21 +42,26 @@ async function render() {
   const n = h('input'); n.type = 'number'; n.min = 1; n.max = 200; n.value = 10; n.style.width = '70px';
   controls.append(
     btn(gate.paused ? 'Resume execution' : 'Pause execution', async () => { await postJSON('/api/admin/pause', { on: !gate.paused }); render(); }, 'btn primary'),
-    btn(`Cache: ${cache.enabled ? 'on' : 'off'} (${cache.size})`, async () => { await postJSON('/api/admin/cache', { enabled: !cache.enabled }); render(); }),
-    n, btn('Pre-warm workspaces', async () => { await postJSON('/api/admin/prewarm', { count: Number(n.value) }); render(); }),
+    btn(`Cache: ${cache.enabled ? 'on' : 'off'} (${cache.size})`, async () => { ok(await postJSON('/api/admin/cache', { enabled: !cache.enabled })); render(); }),
+    n, btn('Pre-warm workspaces', async () => { ok(await postJSON('/api/admin/prewarm', { count: Number(n.value) })); render(); }),
     btn(`Timeouts: ${r.body.timeouts.sqlMs / 1000}s`, async () => {
-      const v = Number(prompt('Statement timeout in seconds (1–60)', String(r.body.timeouts.sqlMs / 1000)));
-      if (Number.isFinite(v)) { await postJSON('/api/admin/timeouts', { sqlMs: Math.round(v * 1000), mongoMs: Math.round(v * 1000) }); render(); }
+      const raw = prompt('Statement timeout in seconds (1–60)', String(r.body.timeouts.sqlMs / 1000));
+      if (raw === null || !/^\s*\d+\s*$/.test(raw)) return;
+      const v = Number(raw);
+      if (v < 1 || v > 60) return;
+      ok(await postJSON('/api/admin/timeouts', { sqlMs: v * 1000, mongoMs: v * 1000 })); render();
     }),
     btn('Reset every attendee', async () => {
       if (!confirm('Rebuild every pattern in every workspace? This queues behind attendee work.')) return;
-      await postJSON('/api/admin/reset-attendee', { schema: '*' }); render();
+      ok(await postJSON('/api/admin/reset-attendee', { schema: '*' })); render();
     }),
     btn('End event (drop all workspaces)', async () => {
       if (prompt('Type END to drop every attendee workspace') !== 'END') return;
       const x = await postJSON('/api/admin/end-event', {});
-      const d = x.body?.dropped ?? 0, p = x.body?.pending ?? 0;
-      alert(p ? `Dropped ${d} workspaces; ${p} still connected (locked, removed automatically within a few minutes)` : `Dropped ${d} workspaces`);
+      if (ok(x)) {
+        const d = x.body?.dropped ?? 0, p = x.body?.pending ?? 0;
+        alert(p ? `Dropped ${d} workspaces; ${p} still connected (locked, removed automatically within a few minutes)` : `Dropped ${d} workspaces`);
+      }
       render();
     }),
   );
@@ -60,7 +71,7 @@ async function render() {
   t.append(head);
   attendees.forEach((a) => {
     const tr = h('tr');
-    const td = h('td'); td.append(btn('Reset all patterns', async () => { await postJSON('/api/admin/reset-attendee', { schema: a.schema }); render(); }));
+    const td = h('td'); td.append(btn('Reset all patterns', async () => { ok(await postJSON('/api/admin/reset-attendee', { schema: a.schema })); render(); }));
     tr.append(h('td', null, a.schema), h('td', null, a.name ?? '(prewarmed)'), h('td', null, a.email ?? ''), h('td', null, a.built.length), td);
     t.append(tr);
   });

@@ -21,4 +21,20 @@ describe('renderMeasure', () => {
     const el = renderMeasure({ tag: 't', document: { sql: 'x', stats: {}, result: { kind: 'error', code: 'ORA-00942', error: 'nope', elapsedMs: 0 } }, converged: side(1, 1, 1) });
     expect(el.textContent).toContain('ORA-00942');
   });
+  const row = (el, name) => [...el.querySelectorAll('table tr')].find((tr) => tr.cells[0].textContent === name);
+  const cells = (tr) => [...tr.cells].slice(1).map((td) => td.textContent);
+  it('shows — for rows affected on a PL/SQL (kind ok) side, never NaN', () => {
+    const ok = { ...side(4752, 21, 0), result: { kind: 'ok', elapsedMs: 5 } };
+    const el = renderMeasure({ tag: 't', document: ok, converged: side(864, 6, 1) });
+    expect(el.textContent).not.toContain('NaN');
+    expect(cells(row(el, 'rows affected'))).toEqual(['—', '1', '—']);
+    expect(cells(row(el, 'redo size'))).toEqual(['4,752', '864', '5.5×']);
+  });
+  it('shows — for every stat on an error side, never NaN or a false 0', () => {
+    const err = { sql: 'x', stats: {}, result: { kind: 'error', code: 'LAB-MEASURE', error: 'nope', elapsedMs: 0 } };
+    const el = renderMeasure({ tag: 't', document: err, converged: err });
+    expect(el.textContent).not.toContain('NaN');
+    expect(cells(row(el, 'redo size'))).toEqual(['—', '—', '—']);
+    expect(cells(row(el, 'rows affected'))).toEqual(['—', '—', '—']);
+  });
 });

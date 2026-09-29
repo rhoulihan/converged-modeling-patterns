@@ -17,7 +17,7 @@ export async function exec({ lane, text, patternId }, onStatus) {
     await sleep(400);
     while (!done) {
       const q = await getJSON('/api/queue').catch(() => null);
-      if (!done && q?.body) onStatus(q.body.paused ? 'paused by instructor' : q.body.position === null ? 'running…' : `queued · ${q.body.position} ahead`);
+      if (!done && q?.status === 200 && q.body) onStatus(q.body.paused ? 'paused by instructor' : q.body.position === null ? 'running…' : `queued · ${q.body.position} ahead`);
       await sleep(750);
     }
   })();
