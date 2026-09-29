@@ -31,6 +31,23 @@ describe('renderResult', () => {
     expect(renderResult({ kind: 'rows', columns: ['N'], rows: [{ N: 1 }], rowCount: 1, truncated: true, elapsedMs: 1 }).textContent)
       .toMatch(/truncated/i);
   });
+  it('formats an ISO timestamp cell as YYYY-MM-DD HH:MM:SS', () => {
+    const el = renderResult({ kind: 'rows', columns: ['HOUR_START'], rows: [{ HOUR_START: '2026-01-10T09:00:00.000Z' }], rowCount: 1, truncated: false, elapsedMs: 1 });
+    expect(el.querySelector('td').textContent).toBe('2026-01-10 09:00:00');
+  });
+  it('keeps a non-zero fraction on a formatted timestamp cell', () => {
+    const el = renderResult({ kind: 'rows', columns: ['CLAIM_TS'], rows: [{ CLAIM_TS: '2026-01-10T09:00:00.123Z' }], rowCount: 1, truncated: false, elapsedMs: 1 });
+    expect(el.querySelector('td').textContent).toBe('2026-01-10 09:00:00.123');
+  });
+  it('leaves a non-timestamp string untouched', () => {
+    const el = renderResult({ kind: 'rows', columns: ['NOTE'], rows: [{ NOTE: '2026-01-10 note' }], rowCount: 1, truncated: false, elapsedMs: 1 });
+    expect(el.querySelector('td').textContent).toBe('2026-01-10 note');
+  });
+  it('formats a timestamp inside a docs tree the same way', () => {
+    const el = renderResult({ kind: 'docs', docs: [{ _id: 'C-001', claim_ts: '2026-01-10T09:00:00.000Z' }], count: 1, truncated: false, elapsedMs: 1 });
+    expect(el.textContent).toContain('2026-01-10 09:00:00');
+    expect(el.textContent).not.toContain('2026-01-10T09:00:00.000Z');
+  });
 });
 
 describe('renderRun', () => {

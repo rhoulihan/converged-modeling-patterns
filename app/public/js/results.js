@@ -6,11 +6,24 @@ const h = (tag, cls, text) => {
   return el;
 };
 
+// node-oracledb DATE/TIMESTAMP values come back through res.json() as ISO-8601
+// strings (e.g. "2026-01-10T09:00:00.000Z"), not Date objects. Reformat those
+// for readability; anything that isn't a full ISO timestamp is left untouched.
+const ISO_TS = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.(\d+))?Z$/;
+function formatTimestamp(s) {
+  const m = ISO_TS.exec(s);
+  if (!m) return null;
+  const [, date, time, , frac] = m;
+  const keepFrac = frac && /[1-9]/.test(frac) ? `.${frac}` : '';
+  return `${date} ${time}${keepFrac}`;
+}
+
 function tree(value, key) {
   if (value === null || typeof value !== 'object') {
     const row = h('div', 'jv');
     if (key !== undefined) row.append(h('span', 'jk', `${key}: `));
-    row.append(h('span', `jval ${value === null ? 'jnull' : typeof value}`, JSON.stringify(value)));
+    const text = typeof value === 'string' ? (formatTimestamp(value) ?? JSON.stringify(value)) : JSON.stringify(value);
+    row.append(h('span', `jval ${value === null ? 'jnull' : typeof value}`, text));
     return row;
   }
   const d = h('details', 'jt');
@@ -41,7 +54,8 @@ export function renderResult(r) {
           const v = row[c];
           const td = h('td');
           if (v !== null && typeof v === 'object') td.append(tree(v));
-          else td.textContent = v === null ? 'NULL' : String(v);
+          else if (v === null) td.textContent = 'NULL';
+          else td.textContent = typeof v === 'string' ? (formatTimestamp(v) ?? v) : String(v);
           x.append(td);
         }
         tb.append(x);
