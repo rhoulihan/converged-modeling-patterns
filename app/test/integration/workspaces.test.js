@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import oracledb from 'oracledb';
-import { testConfig } from './env.js';
+import { testConfig, dropOwn, skipUnlessOnlyOwn } from './env.js';
 import { bootstrap, createPools, executeSql } from '../../src/db/oracle.js';
 import { MongoPool } from '../../src/db/mongo.js';
 import { Gate } from '../../src/gate.js';
@@ -15,6 +15,21 @@ const cfg = testConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'admin-test' });
 const connectString = `${cfg.db.host}:${cfg.db.port}/${cfg.db.service}`;
 const patterns = loadPatterns(path.resolve(import.meta.dirname, '../../../patterns'));
 let pools; let mongo; let ws; let runner;
+// Every workspace this file creates. Cleanup touches these and nothing else.
+const own = new Set();
+const mine = (w) => { own.add(w.schema); return w; };
+const EMAILS = ['a', 'b', 'c', 'held', 'fresh', 'reaper', 'stuck'].map((x) => `${x}@example.com`);
+
+// Park + reap our own workspaces. One still held by an ORDS session gets the reaper's kill
+// path at once (its parked time is backdated — only for our own rows) instead of in 2 min.
+async function cleanupOwn(schemas) {
+  const r = await dropOwn(ws, mongo, schemas);
+  if (!r.pending) return r;
+  await control("UPDATE lab_pending_drop SET requested_at = SYSTIMESTAMP - INTERVAL '3' MINUTE "
+    + `WHERE schema_name IN (${schemas.map((_, i) => `:s${i}`).join(', ')})`,
+  Object.fromEntries(schemas.map((x, i) => [`s${i}`, x])));
+  return ws.reapPending(schemas);
+}
 
 // A held connection is a deterministic stand-in for an ORDS-side session that outlives its
 // client (see task-11-report.md): opening one directly against a workspace guarantees
@@ -48,13 +63,16 @@ beforeAll(async () => {
   mongo = new MongoPool(cfg);
   ws = new Workspaces({ cfg, pools });
   await ws.load();
-  // Clean slate. dropAll() locks + parks every workspace and does one reap pass; it never
-  // blocks on an ORDS-held session, so leftovers from an earlier run (locked, already out
-  // of lab_users) are simply re-attempted here and re-parked if still not drainable.
-  await ws.dropAll(mongo);
+  // Clean slate for this file only: workspaces an earlier, interrupted run left behind under
+  // this file's own test emails. Nobody else's workspace is touched.
+  const leftovers = (await Promise.all(EMAILS.map((e) => ws.findByEmail(e)))).filter(Boolean).map((w) => w.schema);
+  if (leftovers.length) await cleanupOwn(leftovers);
   runner = new Runner({ cfg, gate: new Gate(cfg.gate), cache: new ResultCache(cfg.cache), pools, mongo, workspaces: ws, patterns });
 }, 300000);
-afterAll(async () => { await ws?.dropAll(mongo); await mongo?.closeAll(); await pools?.close(); }, 300000);
+afterAll(async () => {
+  if (ws) await cleanupOwn([...own]);
+  await mongo?.closeAll(); await pools?.close();
+}, 300000);
 
 describe('event workspaces', () => {
   it('keeps a stable session secret', async () => {
@@ -64,8 +82,8 @@ describe('event workspaces', () => {
   });
 
   it('assigns one workspace per email and returns it again for the same email', async () => {
-    const a = await ws.assign({ email: 'a@example.com', name: 'A' });
-    const b = await ws.assign({ email: 'b@example.com', name: 'B' });
+    const a = mine(await ws.assign({ email: 'a@example.com', name: 'A' }));
+    const b = mine(await ws.assign({ email: 'b@example.com', name: 'B' }));
     expect(a.schema).toMatch(/^WS_[0-9A-F]{6}$/);
     expect(b.schema).not.toBe(a.schema);
     expect((await ws.assign({ email: 'a@example.com', name: 'A again' })).schema).toBe(a.schema);
@@ -92,27 +110,35 @@ describe('event workspaces', () => {
     expect(out.results[0].docs.length).toBeGreaterThan(0);
   }, 180000);
 
-  it('claims a prewarmed workspace before creating a new one', async () => {
-    const pre = await ws.provision();
+  it('claims a prewarmed workspace before creating a new one', async (ctx) => {
+    // Another prewarmed workspace could be claimed instead of ours: only run on a clean DB.
+    if (await skipUnlessOnlyOwn(ctx, ws, own)) return;
+    const pre = mine(await ws.provision());
     const before = (await ws.list()).length;
-    const c = await ws.assign({ email: 'c@example.com', name: 'C' });
+    const c = mine(await ws.assign({ email: 'c@example.com', name: 'C' }));
     expect(c.schema).toBe(pre.schema);
     expect((await ws.list()).length).toBe(before);
   }, 120000);
 
-  it('end event locks a still-connected workspace and parks it, drops one with no open session in the same call, and reapPending finishes it once the connection closes', async () => {
+  it('end event locks and parks every workspace and returns; reapPending drops the free one and finishes the held one once its connection closes', async (ctx) => {
+    // dropAll() drops EVERY workspace: only run when all of them are this file's own.
+    if (await skipUnlessOnlyOwn(ctx, ws, own)) return;
     // Deterministic stand-in for an ORDS-held session: this connection guarantees `held`
     // hits ORA-01940 on DROP USER for as long as it stays open — no dependence on ORDS
     // session-release timing (see task-11-report.md's evidence that timing is unpredictable
     // enough to make the previous version of this test flaky).
-    const held = await ws.provision({ email: 'held@example.com', name: 'Held' });
+    const held = mine(await ws.provision({ email: 'held@example.com', name: 'Held' }));
     const heldConn = await openAs(held);
 
-    // No connection ever opened against this one, so it must drop synchronously.
-    const fresh = await ws.provision({ email: 'fresh@example.com', name: 'Fresh' });
+    // No connection ever opened against this one, so the first reap pass must drop it.
+    const fresh = mine(await ws.provision({ email: 'fresh@example.com', name: 'Fresh' }));
 
-    const { dropped, pending } = await ws.dropAll(mongo);
+    const parked = await ws.dropAll(mongo);
+    expect(parked.dropped).toBe(0); // dropAll only locks + parks; the reaper drops
+    expect(parked.pending).toBeGreaterThanOrEqual(2);
     expect(await ws.list()).toEqual([]); // pending workspaces are invisible to list()
+
+    const { dropped, pending } = await ws.reapPending([...own]);
     expect(dropped).toBeGreaterThanOrEqual(1); // at least `fresh`
     expect(pending).toBeGreaterThanOrEqual(1); // at least `held`
 
@@ -124,13 +150,15 @@ describe('event workspaces', () => {
 
     // Once the connection that was blocking it closes, reapPending() finishes the job.
     await heldConn.close();
-    await ws.reapPending();
+    await ws.reapPending([held.schema]);
     expect(await countWhere(`SELECT COUNT(*) AS n FROM lab_pending_drop WHERE schema_name = '${held.schema}'`)).toBe(0);
     expect(await countWhere(`SELECT COUNT(*) AS n FROM all_users WHERE username = '${held.schema}'`)).toBe(0);
   }, 60000);
 
-  it('startReaper drops a parked workspace on its own once unblocked, and stops cleanly', async () => {
-    const held = await ws.provision({ email: 'reaper@example.com', name: 'Reaper' });
+  it('startReaper drops a parked workspace on its own once unblocked, and stops cleanly', async (ctx) => {
+    // dropAll() and the unfiltered reaper touch every workspace: only run on our own rows.
+    if (await skipUnlessOnlyOwn(ctx, ws, own)) return;
+    const held = mine(await ws.provision({ email: 'reaper@example.com', name: 'Reaper' }));
     const heldConn = await openAs(held);
     await ws.dropAll(mongo); // locks + parks `held`; the open connection guarantees ORA-01940
 
@@ -162,8 +190,9 @@ describe('event workspaces', () => {
     expect(await countWhere(`SELECT COUNT(*) AS n FROM all_users WHERE username = '${held.schema}'`)).toBe(0);
   }, 30000);
 
-  it('reapPending kills the sessions of a workspace parked 2+ min, drops it, and skips a non-WS_ row without stopping', async () => {
-    const held = await ws.provision({ email: 'stuck@example.com', name: 'Stuck' });
+  it('reapPending kills the sessions of a workspace parked 2+ min, drops it, and skips a non-WS_ row without stopping', async (ctx) => {
+    if (await skipUnlessOnlyOwn(ctx, ws, own)) return;
+    const held = mine(await ws.provision({ email: 'stuck@example.com', name: 'Stuck' }));
     const heldConn = await openAs(held); // stands in for an ORDS pool session that never lets go
     await ws.dropAll(mongo); // parks `held`: parked < 2 min, so no kill yet
     expect(await countWhere(`SELECT COUNT(*) AS n FROM lab_pending_drop WHERE schema_name = '${held.schema}'`)).toBe(1);
@@ -174,7 +203,7 @@ describe('event workspaces', () => {
     await control("UPDATE lab_pending_drop SET requested_at = SYSTIMESTAMP - INTERVAL '3' MINUTE WHERE schema_name IN (:held, 'NOT_A_WS')",
       { held: held.schema });
     try {
-      await ws.reapPending();
+      await ws.reapPending([held.schema, 'NOT_A_WS']);
 
       expect(await countWhere(`SELECT COUNT(*) AS n FROM all_users WHERE username = '${held.schema}'`)).toBe(0);
       expect(await countWhere(`SELECT COUNT(*) AS n FROM lab_pending_drop WHERE schema_name = '${held.schema}'`)).toBe(0);

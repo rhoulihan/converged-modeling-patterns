@@ -158,31 +158,45 @@ export class Workspaces {
     })));
   }
 
-  // End event is synchronous only up to here: every workspace is cut off immediately
-  // (ACCOUNT LOCK — no new connections possible, whatever the DB session behind it is
-  // doing) and moved out of lab_users (so list()/findByEmail/findBySchema stop seeing it)
-  // into lab_pending_drop. The actual DROP USER happens in reapPending(), called once
-  // here and then on a timer (startReaper) — some Oracle API for MongoDB sessions stay
-  // open well past the client disconnecting (see task-11-report.md), so DROP USER ...
-  // CASCADE can't be relied on to succeed synchronously. Returns the counts from that
-  // one immediate reap pass; a still-connected workspace resolves later via the reaper.
+  // End event: every workspace is cut off immediately (ACCOUNT LOCK — no new connections
+  // possible, whatever the DB session behind it is doing) and moved out of lab_users (so
+  // list()/findByEmail/findBySchema stop seeing it) into lab_pending_drop, then this returns.
+  // The actual DROP USER happens in reapPending(), run by the background reaper
+  // (startReaper, first pass within its 30 s interval) — some Oracle API for MongoDB
+  // sessions stay open well past the client disconnecting (see task-11-report.md), so
+  // DROP USER ... CASCADE can't be relied on to succeed while the gate is held.
   async dropAll(mongoPool) {
-    const users = await this.list();
-    await Promise.all(users.map((u) => mongoPool?.drop(u.schema)));
+    return this.park((await this.list()).map((u) => u.schema), mongoPool);
+  }
+
+  // Lock + park the named workspaces (dropAll's body; the integration tests use it to clean
+  // up only the workspaces they created). A name that isn't WS_-shaped is skipped and logged
+  // before any dynamic DDL. Returns { dropped: 0, pending: <parked now> }.
+  async park(schemas, mongoPool) {
+    const ok = schemas.filter((s) => {
+      if (WS_NAME.test(s)) return true;
+      console.warn(`[lab-ui] dropAll: skipped "${s}": not a WS_ workspace name`);
+      return false;
+    });
+    await Promise.all(ok.map((s) => mongoPool?.drop(s)));
     await this.withControl(async (c) => {
-      for (const u of users) {
-        await c.execute(`ALTER USER ${u.schema} ACCOUNT LOCK`).catch((e) => { if (e.errorNum !== 1918) throw e; });
+      for (const s of ok) {
+        await c.execute(`ALTER USER ${s} ACCOUNT LOCK`).catch((e) => { if (e.errorNum !== 1918) throw e; });
         await c.execute(
           `MERGE INTO lab_pending_drop d USING (SELECT :s AS s FROM dual) x ON (d.schema_name = x.s)
-           WHEN NOT MATCHED THEN INSERT (schema_name) VALUES (x.s)`, { s: u.schema });
-        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s: u.schema });
-        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s: u.schema });
-        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s: u.schema });
+           WHEN NOT MATCHED THEN INSERT (schema_name) VALUES (x.s)`, { s });
+        await c.execute('DELETE FROM lab_dirty WHERE schema_name = :s', { s });
+        await c.execute('DELETE FROM lab_built WHERE schema_name = :s', { s });
+        await c.execute('DELETE FROM lab_users WHERE schema_name = :s', { s });
         await c.commit();
-        this.forgetInMemory(u.schema);
+        this.forgetInMemory(s);
       }
     });
-    return this.reapPending();
+    return { dropped: 0, pending: ok.length };
+  }
+
+  async pendingCount() {
+    return this.withControl(async (c) => Number((await c.execute('SELECT COUNT(*) AS n FROM lab_pending_drop', [], OBJ)).rows[0].N));
   }
 
   // One pass over lab_pending_drop: DROP USER ... CASCADE each row. ORA-01918 (user
@@ -196,11 +210,15 @@ export class Workspaces {
   // calls serialize, and re-attempting a DROP that already succeeded just yields ORA-01918.
   static KILL_AFTER_SEC = 120;
 
-  async reapPending() {
+  // `only` (optional) restricts the pass to those schema names — the integration tests
+  // reap just the workspaces they parked, never a live event's.
+  async reapPending(only = null) {
     return this.withControl(async (c) => {
+      const filter = only ? ` WHERE schema_name IN (${only.map((_, i) => `:s${i}`).join(', ') || 'NULL'})` : '';
+      const binds = only ? Object.fromEntries(only.map((s, i) => [`s${i}`, s])) : [];
       const rows = (await c.execute(
         `SELECT schema_name, (CAST(SYSTIMESTAMP AS DATE) - CAST(requested_at AS DATE)) * 86400 AS parked_sec
-           FROM lab_pending_drop`, [], OBJ)).rows;
+           FROM lab_pending_drop${filter}`, binds, OBJ)).rows;
       const note = (schema, m) => c.execute('UPDATE lab_pending_drop SET last_error = :m WHERE schema_name = :s',
         { m: String(m).slice(0, 400), s: schema }, { autoCommit: true });
       const drop = async (schema) => {
@@ -233,10 +251,12 @@ export class Workspaces {
 
   // Kills every session of `schema` (already validated) and waits, bounded, for them to go.
   async #killSessions(c, schema) {
-    const sessions = (await c.execute('SELECT sid, serial# AS serial FROM v$session WHERE username = :s', { s: schema }, OBJ)).rows;
+    const sessions = (await c.execute(
+      "SELECT sid, serial# AS serial FROM v$session WHERE username = :s AND status <> 'KILLED'", { s: schema }, OBJ)).rows;
     for (const { SID, SERIAL } of sessions) {
       await c.execute(`ALTER SYSTEM KILL SESSION '${Number(SID)},${Number(SERIAL)}' IMMEDIATE`)
-        .catch((e) => { if (e.errorNum !== 30) throw e; }); // ORA-00030: already gone
+        // ORA-00030: already gone; ORA-00031: already marked for kill
+        .catch((e) => { if (e.errorNum !== 30 && e.errorNum !== 31) throw e; });
     }
     for (let i = 0; i < 20; i++) {
       const n = (await c.execute('SELECT COUNT(*) AS n FROM v$session WHERE username = :s', { s: schema }, OBJ)).rows[0].N;
@@ -246,18 +266,21 @@ export class Workspaces {
     return sessions.length;
   }
 
-  // Background sweep for whatever reapPending() couldn't finish synchronously. Unref'd so
+  // Background sweep that drops what dropAll() parked. Unref'd so
   // it never keeps the process alive on its own; never throws (a DB hiccup just gets
   // logged and retried on the next tick). Logs one line per pass, and only when there was
   // something to report, so a quiet lab doesn't spam the log every 30s. `runPass` wraps each
-  // pass (the server routes it through the gate exclusively); a tick is skipped while the
-  // previous pass is still in flight, and a gate refusal (busy/paused) is just retried next tick.
+  // pass (the server routes it through the gate exclusively); a tick first counts
+  // lab_pending_drop on the control pool and takes the gate only when there is something to
+  // reap. A tick is skipped while the previous pass is still in flight, and a gate refusal
+  // (busy/paused) is just retried next tick.
   startReaper(intervalMs = 30000, runPass = (fn) => fn()) {
     let inFlight = false;
     const timer = setInterval(async () => {
       if (inFlight) return;
       inFlight = true;
       try {
+        if (!(await this.pendingCount())) return;
         const { dropped, pending } = await runPass(() => this.reapPending());
         if (dropped || pending) console.log(`[lab-ui] reapPending: dropped ${dropped}, pending ${pending}`);
       } catch (e) {

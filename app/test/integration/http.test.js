@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import request from 'supertest';
-import { testConfig } from './env.js';
+import { testConfig, dropOwn } from './env.js';
 import { bootstrap, createPools } from '../../src/db/oracle.js';
 import { MongoPool } from '../../src/db/mongo.js';
 import { Gate } from '../../src/gate.js';
@@ -84,7 +84,11 @@ describe('solo mode', () => {
 describe('event mode', () => {
   let app; let workspaces;
   beforeAll(async () => { ({ app, workspaces } = await build({ LAB_MODE: 'event', ADMIN_PASSWORD: 'admin-test', EVENT_CODE: 'LAB26' })); });
-  afterAll(async () => { await workspaces.dropAll(mongo); }, 300000);
+  // Only the workspace(s) this block signed in: never another run's or a live event's.
+  afterAll(async () => {
+    const mine = (await Promise.all(['a@example.com'].map((e) => workspaces.findByEmail(e)))).filter(Boolean);
+    await dropOwn(workspaces, mongo, mine.map((w) => w.schema));
+  }, 300000);
 
   it('requires sign-in', async () => {
     expect((await request(app).get('/api/me')).status).toBe(401);
