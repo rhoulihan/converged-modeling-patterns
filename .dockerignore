@@ -1,6 +1,7 @@
 # .dockerignore (repo root)
 .git
 .superpowers/
+.env
 app/node_modules
 app/public/vendor
 app/test/artifacts

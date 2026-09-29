@@ -104,7 +104,7 @@ done
 # Skipped when a single pattern is requested.
 if [ -z "$FILTER" ]; then
   echo ""; echo "################  lab console (app/)  ################"
-  if docker compose --profile test run --rm lab-ui-test; then
+  if docker compose --profile test build lab-ui-test && docker compose --profile test run --rm lab-ui-test; then
     echo "     [PASS] lab-ui tests"; pass=$((pass+1))
   else
     echo "     [FAIL] lab-ui tests"; fail=$((fail+1)); failed="$failed lab-ui-tests"
