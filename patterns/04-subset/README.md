@@ -1,3 +1,15 @@
+---
+title: Subset
+industry: Insurance
+deck: "26–29"
+problem: >-
+  The policy document keeps the ten most recent claim events inline. Every event becomes a
+  push-sort-trim rewrite of the policy to maintain a list a query could simply read.
+knobs:
+  - { name: Diversity, setting: "High — 4 consumers" }
+  - { name: Read / write, setting: "Read-heavy, ~67 : 1" }
+  - { name: Update locality, setting: "Every event hits the parent", hot: true }
+---
 # Pattern 04 — Subset (hot inline / vertical partition)
 
 **Insurance.** The policy page shows the 3 most recent claims instantly; the full

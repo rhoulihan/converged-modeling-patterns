@@ -1,3 +1,15 @@
+---
+title: Outlier
+industry: Financial services (brokerage)
+deck: "34–37"
+problem: >-
+  Advisor documents embed their client book. Institutional books break the 16 MB cap, so
+  the Outlier pattern adds overflow documents and a second code path in the application.
+knobs:
+  - { name: Diversity, setting: "Low — one book screen" }
+  - { name: Read / write, setting: "Read-heavy by day" }
+  - { name: Update locality, setting: "Skew ×800, p50 → max", hot: true }
+---
 # Pattern 06 — Outlier (whale documents)
 
 **Financial / wealth management.** Open an advisor and read their book of clients as

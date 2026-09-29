@@ -40,12 +40,17 @@ INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-001","name":"Grace Advisor","
 INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-900","name":"Institutional Desk","hasExtras":true,
   "clients":[{"clientId":"C-900001","aum":9000000},
              {"clientId":"C-900002","aum":8500000}]}'));
+-- @step Add clients that no longer fit the primary document
+-- @note Once a book outgrows the embed, "adding a client" is not a simple append anymore — it costs a whole new overflow document.
+-- @measure add-client
 INSERT INTO ol_advisor_overflow VALUES (JSON('{"_id":"A-900#part-2","advisorId":"A-900",
   "clients":[{"clientId":"C-900003","aum":7800000},
              {"clientId":"C-900004","aum":7100000}]}'));
 COMMIT;
 
 -- The read for a TYPICAL advisor: one document, done.
+-- @step Read a typical advisor (one document)
+-- @note The ordinary case: one document, done — no branch needed.
 SELECT JSON_VALUE(data,'$._id') AS advisor,
        JSON_VALUE(data,'$.hasExtras') AS has_extras,
        JSON_QUERY(data,'$.clients') AS clients_inline
@@ -54,6 +59,8 @@ FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- The read for the WHALE: the application must notice hasExtras and go stitch the
 -- overflow back in. The 16 MB limit is now branching logic in every consumer
 -- (including the LLM's context builder).
+-- @step Read the whale advisor (branch on hasExtras)
+-- @note Every reader must notice hasExtras and go stitch the overflow back in — the 16 MB limit is now application logic.
 SELECT JSON_VALUE(d.data,'$._id')  AS advisor,
        JSON_VALUE(d.data,'$.hasExtras') AS has_extras,
        JSON_QUERY(d.data,'$.clients') AS clients_page1,

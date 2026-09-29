@@ -1,3 +1,15 @@
+---
+title: Bucket
+industry: Manufacturing / IoT
+deck: "22–25"
+problem: >-
+  Sensor readings are bucketed per machine per hour. Every reading re-serializes the
+  growing bucket, and hot sensors march it toward the 16 MB document cap.
+knobs:
+  - { name: Diversity, setting: "Medium — 4 read shapes" }
+  - { name: Read / write, setting: "Write-heavy" }
+  - { name: Update locality, setting: "Every write, same document", hot: true }
+---
 # Pattern 03 — Bucket (time-series)
 
 **Manufacturing / IoT.** Ingest millions of tiny sensor readings; read them back as

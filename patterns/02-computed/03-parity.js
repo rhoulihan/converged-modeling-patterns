@@ -23,6 +23,8 @@ const eq = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const viaSql = JSON.parse(process.env.SQL_RESULT || "null");
 if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
+// @step Read the projected document over the MongoDB API
+// @note Same subscriber document the SQL lane read — cycleUsage is the live rollup, whichever wire protocol you read it over.
 const viaMongo = db.cp_subscriber_dv.findOne({ _id: "S-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for S-001"); quit(1); }
 

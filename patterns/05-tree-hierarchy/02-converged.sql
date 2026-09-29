@@ -68,6 +68,8 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
      LABEL contains PROPERTIES (qty) );
 
 -- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY, one pass.
+-- @step Explode the bicycle with CONNECT BY
+-- @note Native recursion streams the whole frontier in one pass — no recursive CTE damming each level into an intermediate relation.
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'
@@ -76,6 +78,8 @@ ORDER SIBLINGS BY child_id;
 
 -- READ 2 -- where-used: which assemblies contain the wheel? The multi-parent,
 -- N-hop question the materialized path could not express. SQL/PGQ, same rows.
+-- @step Ask a graph question: where is the wheel used?
+-- @note Multi-parent, N-hop, upward traversal — a downward prefix string simply cannot express this.
 SELECT assembly
 FROM   GRAPH_TABLE (tr_bom_graph
          MATCH (a IS part)-[IS contains]->{1,4}(p IS part)
@@ -85,12 +89,17 @@ FROM   GRAPH_TABLE (tr_bom_graph
 
 -- THE NEEDLE-FLIP, RESOLVED -- re-parent the wheelset under the frame: ONE row.
 -- The entire subtree moves with it; no descendant paths to rewrite.
+-- @step Re-parent the wheelset under the frame
+-- @note One edge update — the entire subtree moves with it, no descendant paths to rewrite.
+-- @measure reparent
 UPDATE tr_bom_edges SET parent_id = 'P-1200'
 WHERE  parent_id = 'P-1000' AND child_id = 'P-1100';
 COMMIT;
 
 -- Re-explode: the wheelset (and everything under it) now hangs off the frame,
 -- from that single edge change.
+-- @step Re-explode: confirm the subtree moved with the edge
+-- @note The wheelset (and everything under it) now hangs off the frame, from that single edge change.
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'

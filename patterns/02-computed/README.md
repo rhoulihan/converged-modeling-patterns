@@ -1,3 +1,15 @@
+---
+title: Computed
+industry: Telecom
+deck: "18–21"
+problem: >-
+  Each subscriber document carries a running cycle-usage rollup so the app and real-time
+  charging read one document — but every call record now rewrites that hot document.
+knobs:
+  - { name: Diversity, setting: "Medium-high — 4 consumers" }
+  - { name: Read / write, setting: "Write-heavy on the rollup" }
+  - { name: Update locality, setting: "Every write, one parent", hot: true }
+---
 # Pattern 02 — Computed
 
 **Telecom.** Show a subscriber's current-cycle usage instantly on the account page,

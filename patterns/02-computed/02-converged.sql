@@ -76,6 +76,9 @@ INSERT INTO cp_subscribers VALUES ('S-002','+1-202-555-0122','METERED');
 INSERT INTO cp_subscribers VALUES ('S-003','+1-202-555-0133','UNLIMITED');
 
 -- CDRs stream in as tiny appends; the summary tracks them in the same commit.
+-- @step Post one Call Detail Record for S-001
+-- @note One small row — the trigger maintains the summary in the same transaction, no parent document to rewrite.
+-- @measure record-cdr
 INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',120,12,0.36);
 INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',300,20,0.90);
 INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-002', 50, 5,0.15);
@@ -83,10 +86,14 @@ INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-003',900,40,2.7
 COMMIT;
 
 -- Account page read: the rollup is already there (staleness = 0), one PK lookup.
+-- @step Read the account page (rollup already there)
+-- @note Staleness = 0 — the trigger kept this current in the same transaction as the CDR insert.
 SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_id = 'S-001';
 
 -- Hot Top-N: an index range scan on cp_ix_usage_topn + FETCH FIRST N.
 -- (EXPLAIN PLAN FOR this SELECT shows INDEX RANGE SCAN, not SORT ORDER BY.)
+-- @step Rank the top talkers (index range scan)
+-- @note No SUM, no SORT — the descending index turns Top-N into a range scan that stops after N rows.
 SELECT subscriber_id, total_mb, cost
 FROM   cp_subscriber_usage
 ORDER  BY total_mb DESC
@@ -105,5 +112,7 @@ SELECT JSON {
                    WHERE u.subscriber_id = s.subscriber_id )
 } FROM cp_subscribers s WITH INSERT UPDATE DELETE;
 
+-- @step Read the projected subscriber document
+-- @note The duality view includes the live rollup — no separate document to maintain for the API shape.
 SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document
 FROM   cp_subscriber_dv WHERE JSON_VALUE(data,'$._id') = 'S-001';

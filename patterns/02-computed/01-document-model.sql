@@ -37,6 +37,9 @@ COMMIT;
 -- One CDR arrives for S-001. In the baked-rollup model this is NOT an append —
 -- it is a read-modify-WRITE of the entire subscriber document. Do this per CDR,
 -- thousands of times a cycle, on your busiest subscribers.
+-- @step Post one Call Detail Record for S-001
+-- @note Not an append — a read-modify-write of the WHOLE subscriber document, once per CDR.
+-- @measure record-cdr
 UPDATE cp_subscriber_doc
 SET data = JSON_TRANSFORM(data,
              SET '$.cycleUsage.totalMB'  = JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) + 120,
@@ -47,12 +50,16 @@ COMMIT;
 -- ^ every CDR => a full-document rewrite of S-001. That is the write amplification.
 
 -- The account page read the pattern optimizes for (cheap):
+-- @step Read the account page (rollup already there)
+-- @note One document, one lookup — the CDR's cost already landed on the write.
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle
 FROM   cp_subscriber_doc
 WHERE  JSON_VALUE(data,'$._id') = 'S-001';
 
 -- The Top-N dashboard read the pattern does NOT help (full scan + sort every load):
+-- @step Rank the top talkers (full scan + sort)
+-- @note No rollup to lean on across subscribers — SUM/SORT/LIMIT the whole collection, every load.
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle
 FROM   cp_subscriber_doc

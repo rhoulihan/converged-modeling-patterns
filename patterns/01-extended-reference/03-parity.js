@@ -24,6 +24,8 @@ const eq = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const viaSql = JSON.parse(process.env.SQL_RESULT || "null");
 if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
+// @step Read the projected document over the MongoDB API
+// @note Same client document the SQL lane read — the advisor block projects live through the duality view, whichever wire protocol you read it over.
 const viaMongo = db.xr_client_dv.findOne({ _id: "C-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for C-001 (is xr_client_dv exposed?)"); quit(1); }
 

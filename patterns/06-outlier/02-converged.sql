@@ -46,6 +46,9 @@ INSERT INTO ol_clients VALUES ('C-003','A-001',420000);
 INSERT INTO ol_clients VALUES ('C-900001','A-900',9000000);
 INSERT INTO ol_clients VALUES ('C-900002','A-900',8500000);
 INSERT INTO ol_clients VALUES ('C-900003','A-900',7800000);
+-- @step Add one more client to the whale's book
+-- @note Just another row — no ceiling, no overflow shard, no reader branch.
+-- @measure add-client
 INSERT INTO ol_clients VALUES ('C-900004','A-900',7100000);
 COMMIT;
 
@@ -61,11 +64,15 @@ SELECT JSON {
                 WHERE c.advisor_id = a.advisor_id ]
 } FROM ol_advisors a WITH INSERT UPDATE DELETE;
 
+-- @step Read the typical advisor as a projected document
+-- @note Same shape the document model served — no flag, no branch.
 SELECT JSON_SERIALIZE(data PRETTY) AS typical_advisor_document
 FROM   ol_advisor_dv WHERE JSON_VALUE(data,'$._id') = 'A-001';
 
 -- The WHALE -- exact same table, exact same optimizer. You do not stitch an
 -- overflow collection; you page ordinary rows. Top 3 holdings for the desk:
+-- @step Read the whale's top 3 holdings
+-- @note Exact same table, exact same optimizer — no overflow collection to stitch back in.
 SELECT client_id, aum
 FROM   ol_clients
 WHERE  advisor_id = 'A-900'
@@ -74,6 +81,8 @@ FETCH  FIRST 3 ROWS ONLY;
 
 -- The next page -- OFFSET, same index range scan. This is the whole "outlier"
 -- story on a converged engine: pagination, not a special document shape.
+-- @step Page to the next 3 holdings
+-- @note OFFSET, same index range scan — ordinary pagination, not a special document shape.
 SELECT client_id, aum
 FROM   ol_clients
 WHERE  advisor_id = 'A-900'

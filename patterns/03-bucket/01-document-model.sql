@@ -33,6 +33,9 @@ COMMIT;
 
 -- Three readings arrive. Each one PUSHES to the array AND re-updates the
 -- counters -- and each re-serializes the whole (growing) bucket document.
+-- @step Ingest three readings into the bucket
+-- @note Each reading is an array APPEND plus a counter update — the storage engine re-serializes the WHOLE (growing) bucket on every append.
+-- @measure ingest-reading
 BEGIN
   FOR v IN (SELECT * FROM (
               SELECT 88.4 val, '2026-08-01T10:00:05Z' ts FROM dual UNION ALL
@@ -53,6 +56,8 @@ COMMIT;
 --   re-serialized on every tick and only gets more expensive as it fills.
 
 -- The read the pattern optimizes for: one bucket, counters already there.
+-- @step Read the bucket (counters already there)
+-- @note One document, running counters already maintained — cheap, until the bucket has to grow again.
 SELECT JSON_VALUE(data,'$.machineId') AS machine,
        JSON_VALUE(data,'$.count' RETURNING NUMBER) AS n,
        ROUND(JSON_VALUE(data,'$.sum' RETURNING NUMBER)
