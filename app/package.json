@@ -31,6 +31,7 @@
     "@fontsource/public-sans": "^5.3.0",
     "codemirror": "^6.0.2",
     "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
     "puppeteer-core": "^25.12.0",
     "supertest": "^7.3.0",
     "vitest": "^5.0.2"

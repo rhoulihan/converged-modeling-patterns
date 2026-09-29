@@ -1,0 +1,73 @@
+// app/public/js/results.js
+const h = (tag, cls, text) => {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined) el.textContent = String(text);
+  return el;
+};
+
+function tree(value, key) {
+  if (value === null || typeof value !== 'object') {
+    const row = h('div', 'jv');
+    if (key !== undefined) row.append(h('span', 'jk', `${key}: `));
+    row.append(h('span', `jval ${value === null ? 'jnull' : typeof value}`, JSON.stringify(value)));
+    return row;
+  }
+  const d = h('details', 'jt');
+  d.open = true;
+  const isArr = Array.isArray(value);
+  const n = isArr ? value.length : Object.keys(value).length;
+  d.append(h('summary', null, `${key !== undefined ? `${key}: ` : ''}${isArr ? `[ ${n} ]` : `{ ${n} }`}`));
+  for (const [k, v] of Object.entries(value)) d.append(tree(v, isArr ? Number(k) : k));
+  return d;
+}
+
+const meta = (r, extra = '') => h('div', 'rmeta', `${extra}${extra ? ' · ' : ''}${r.elapsedMs ?? 0} ms${r.truncated ? ' · truncated (500 rows / 1 MB limit)' : ''}`);
+
+export function renderResult(r) {
+  const box = h('div', `result ${r.kind}`);
+  switch (r.kind) {
+    case 'rows': {
+      const t = h('table', 'grid');
+      const tr = h('tr');
+      r.columns.forEach((c) => tr.append(h('th', null, c)));
+      const thead = h('thead');
+      thead.append(tr);
+      t.append(thead);
+      const tb = h('tbody');
+      for (const row of r.rows) {
+        const x = h('tr');
+        for (const c of r.columns) {
+          const v = row[c];
+          const td = h('td');
+          if (v !== null && typeof v === 'object') td.append(tree(v));
+          else td.textContent = v === null ? 'NULL' : String(v);
+          x.append(td);
+        }
+        tb.append(x);
+      }
+      t.append(tb);
+      box.append(t, meta(r, `${r.rowCount} row${r.rowCount === 1 ? '' : 's'}`));
+      break;
+    }
+    case 'docs':
+      r.docs.forEach((d) => box.append(tree(d)));
+      box.append(meta(r, `${r.count} document${r.count === 1 ? '' : 's'}`));
+      break;
+    case 'dml': box.append(h('div', 'msg', `${r.rowsAffected} rows affected`), meta(r)); break;
+    case 'ok': box.append(h('div', 'msg', 'Statement executed'), meta(r)); break;
+    case 'count': box.append(h('div', 'msg', `count: ${r.count}`), meta(r)); break;
+    case 'collections': box.append(h('div', 'msg', r.names.join('  ·  ') || '(no collections)'), meta(r)); break;
+    case 'write': box.append(tree(r.result), meta(r)); break;
+    case 'error': box.append(h('div', 'msg', r.error), meta(r, r.code ?? 'error')); box.classList.add('error'); break;
+    default: box.append(h('div', 'msg', JSON.stringify(r)));
+  }
+  return box;
+}
+
+export function renderRun(run) {
+  const wrap = h('div', 'run');
+  if (run.cached) wrap.append(h('span', 'badge cool', 'served from cache'));
+  run.results.forEach((r) => wrap.append(renderResult(r)));
+  return wrap;
+}
