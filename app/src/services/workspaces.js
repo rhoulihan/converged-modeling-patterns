@@ -216,14 +216,21 @@ export class Workspaces {
   // Background sweep for whatever reapPending() couldn't finish synchronously. Unref'd so
   // it never keeps the process alive on its own; never throws (a DB hiccup just gets
   // logged and retried on the next tick). Logs one line per pass, and only when there was
-  // something to report, so a quiet lab doesn't spam the log every 30s.
-  startReaper(intervalMs = 30000) {
+  // something to report, so a quiet lab doesn't spam the log every 30s. `runPass` wraps each
+  // pass (the server routes it through the gate exclusively); a tick is skipped while the
+  // previous pass is still in flight, and a gate refusal (busy/paused) is just retried next tick.
+  startReaper(intervalMs = 30000, runPass = (fn) => fn()) {
+    let inFlight = false;
     const timer = setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
-        const { dropped, pending } = await this.reapPending();
+        const { dropped, pending } = await runPass(() => this.reapPending());
         if (dropped || pending) console.log(`[lab-ui] reapPending: dropped ${dropped}, pending ${pending}`);
       } catch (e) {
         console.error(`[lab-ui] reapPending failed: ${e.message}`);
+      } finally {
+        inFlight = false;
       }
     }, intervalMs);
     timer.unref?.();
