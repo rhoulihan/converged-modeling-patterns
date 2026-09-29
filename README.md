@@ -205,8 +205,10 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
 - **Copy**, **Load into console**, **Run** on every card, plus a console pane with its
   own **SQL** and **MongoDB** tabs for ad hoc statements;
 - **Measure it** runs the document-model write and its converged counterpart back to
-  back in one exclusive slot, reads the engine's own statistics (redo size, block
-  changes, logical reads) before and after each, then rolls both back. Numbers are a
+  back in one exclusive slot. Each side runs once unmeasured as a warm-up (parse and
+  first-touch effects stay out of the numbers), then once measured: it reads the
+  engine's own statistics (redo size, block changes, logical reads) before and after,
+  with in-memory undo switched off so the counters are current, and rolls back. Numbers are a
   single-session, 26ai Free measurement — expect small run-to-run variance, not a fixed
   constant;
 - **Reset this pattern** rebuilds its tables to the starting state.

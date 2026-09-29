@@ -58,7 +58,7 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
   idle sessions open past client disconnect) and drops it on the retry. Check
   `http://<your-host>:3100/admin.html` or `GET /api/admin/status` a few minutes after
   ending — `pending` should read `0`.
-- Then `docker compose down` (add `-v` to also discard the database volume).
+- Then `docker compose down`. Adding `-v` **deletes the database volume** (all lab data) — only do that when you mean to start from scratch.
 
 ## Limits to know
 
@@ -69,7 +69,9 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
 - Oracle AI Database 26ai Free: 2 CPU threads, 2 GB RAM, 12 GB of user data. Each
   attendee schema is capped at a 50 MB quota — ample for the patterns' scaled-down
   data; ~150 of them fit comfortably.
-- **Measure it** is a single-session measurement on 26ai Free, not a fixed constant —
+- **Measure it** runs each side twice, both rolled back: one unmeasured warm-up, then the
+  measured pass (V$MYSTAT deltas, in-memory undo off for that session). It is a
+  single-session measurement on 26ai Free, not a fixed constant —
   an `INSERT` can vary by roughly ±76 redo bytes / ±1 block run to run, and a large JSON
   append can step by a whole LOB chunk. Say "same order of magnitude," not exact bytes,
   when presenting it live. If the card shows a `LAB-MEASURE` error instead of numbers,
