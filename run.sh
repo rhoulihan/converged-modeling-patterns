@@ -15,6 +15,8 @@
 #
 # Idempotent: rerun as often as you like. SQL-only patterns (no *.js) simply skip
 # the Mongo lane.
+#
+# Stage 3:   the lab console's vitest suites (app/), in a throwaway container.
 # ============================================================================
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -97,6 +99,17 @@ for d in patterns/*/; do
     [ -f "$js" ] && run_js "$js" "${d%/}"
   done
 done
+
+# Stage 3: the hands-on console's own tests (unit + integration) against this database.
+# Skipped when a single pattern is requested.
+if [ -z "$FILTER" ]; then
+  echo ""; echo "################  lab console (app/)  ################"
+  if docker compose --profile test run --rm lab-ui-test; then
+    echo "     [PASS] lab-ui tests"; pass=$((pass+1))
+  else
+    echo "     [FAIL] lab-ui tests"; fail=$((fail+1)); failed="$failed lab-ui-tests"
+  fi
+fi
 
 echo ""; echo "==================================================================="
 echo "  RESULT: $pass passed, $fail failed  (SQL + MongoDB lanes)"

@@ -1,0 +1,8 @@
+# .dockerignore (repo root)
+.git
+.superpowers/
+app/node_modules
+app/public/vendor
+app/test/artifacts
+docs
+node_modules

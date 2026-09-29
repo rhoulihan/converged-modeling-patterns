@@ -31,5 +31,44 @@ services:
     volumes:
       - cmp-data:/opt/oracle/oradata
 
+  lab-ui:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      target: runtime
+    image: converged-modeling-patterns-lab-ui:latest
+    container_name: cmp-lab-ui
+    depends_on:
+      oracle:
+        condition: service_healthy
+    ports:
+      - '${CMP_UI_PORT:-3100}:3000'          # hands-on console (non-default host port)
+    environment:
+      LAB_MODE: '${LAB_MODE:-solo}'           # solo | event
+      ADMIN_PASSWORD: '${ADMIN_PASSWORD:-}'   # required when LAB_MODE=event
+      EVENT_CODE: '${EVENT_CODE:-}'
+      ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'
+      CMP_PASSWORD: '${CMP_PASSWORD:-CmpUser2026}'
+      LAB_ADMIN_PASSWORD: '${LAB_ADMIN_PASSWORD:-LabAdmin2026}'
+      DB_POOL_MAX: '${DB_POOL_MAX:-1}'
+      MONGO_POOL_MAX: '${MONGO_POOL_MAX:-1}'
+
+  lab-ui-test:
+    profiles: ['test']
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      target: test
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      DB_HOST: oracle
+      DB_PORT: '1521'
+      MONGO_HOST: oracle
+      MONGO_PORT: '27017'
+      ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'
+      CMP_PASSWORD: '${CMP_PASSWORD:-CmpUser2026}'
+
 volumes:
   cmp-data:
