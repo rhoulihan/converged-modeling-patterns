@@ -19,9 +19,10 @@
   --flow: #60A5FA; --flow-soft: rgba(96,165,250,.16); --chip: #222D39;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; } /* #console sets display: grid, which would otherwise beat the hidden attribute */
 html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); }
 header.top { display: flex; align-items: center; gap: 16px; padding: 10px 24px; border-bottom: 1px solid var(--hairline); background: var(--panel); }
-header.top .brand { font: 700 15px var(--head); }
+header.top .brand { font: 700 15px var(--head); color: var(--ink); text-decoration: none; }
 header.top .who { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
 main#view { padding: 20px 24px calc(var(--dock) + 24px); max-width: 1180px; margin: 0 auto; }
 h1, h2, h3 { font-family: var(--head); margin: 0 0 8px; }
@@ -63,11 +64,13 @@ details.jt { font: 12.5px var(--mono); margin-left: 12px; } details.jt > summary
 #console .editor { border-right: 1px solid var(--hairline); overflow: auto; min-height: 0; }
 #console .out { overflow: auto; padding: 8px 14px; min-height: 0; }
 .cm-editor { height: 100%; font-size: 13px; } .cm-editor .cm-content { font-family: var(--mono); }
+.measure-out svg { display: block; width: 100%; max-width: 720px; }
 .measure-table { width: 100%; border-collapse: collapse; font: 13px var(--mono); margin-bottom: 10px; }
 .measure-table td, .measure-table th { padding: 4px 8px; border-bottom: 1px solid var(--hairline); text-align: right; }
 .measure-table th:first-child, .measure-table td:first-child { text-align: left; }
 .signin { max-width: 420px; margin: 60px auto; background: var(--panel); border: 1px solid var(--hairline); border-radius: 12px; padding: 22px; }
 .signin label { display: block; font-size: 13px; color: var(--muted); margin-top: 10px; }
 .signin input { width: 100%; font: 15px var(--sans); padding: 7px 10px; border: 1px solid var(--hairline); border-radius: 7px; background: var(--paper); color: var(--ink); }
+.signin .btn { margin-top: 16px; }
 .flash { color: var(--hot); font-size: 13px; margin-top: 8px; }
 @media (max-width: 800px) { #console .panes { grid-template-columns: 1fr; } :root { --dock: 55vh; } }
