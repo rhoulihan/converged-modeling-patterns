@@ -74,7 +74,7 @@ async function render() {
       const x = await postJSON('/api/admin/end-event', {});
       if (ok(x)) {
         const d = x.body?.dropped ?? 0, p = x.body?.pending ?? 0;
-        alert(p ? `Dropped ${d} workspaces; ${p} still connected (locked, removed automatically within a few minutes)` : `Dropped ${d} workspaces`);
+        alert(p ? `Event ended: ${p} workspaces locked and queued for removal (pending falls to 0 within a few minutes)` : `Event ended: no workspaces to remove`);
       }
       render();
     }),
