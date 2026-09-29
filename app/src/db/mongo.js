@@ -50,6 +50,11 @@ export class MongoPool {
 
 const toJson = (doc) => BSON.EJSON.serialize(doc, { relaxed: true });
 
+// The system timeout always wins: user-supplied options are spread first, then
+// maxTimeMS is forced to timeoutMs last, so a caller can never raise the cap
+// (e.g. `{ maxTimeMS: 600000 }` in a user aggregate/update options literal).
+const withCap = (userOpts, timeoutMs) => ({ ...(userOpts ?? {}), maxTimeMS: timeoutMs });
+
 async function take(cursor, maxRows, maxBytes) {
   const docs = [];
   let truncated = false;
@@ -72,11 +77,11 @@ export async function runMongo(client, dbName, cmd, { timeoutMs, maxRows, maxByt
   const o = { maxTimeMS: timeoutMs };
   try {
     if (cmd.kind === 'showCollections') {
-      const names = (await db.listCollections({}, { nameOnly: true }).toArray()).map((c) => c.name).sort();
+      const names = (await db.listCollections({}, { nameOnly: true, maxTimeMS: timeoutMs }).toArray()).map((c) => c.name).sort();
       return { kind: 'collections', names, elapsedMs: elapsedMs() };
     }
     if (cmd.kind === 'db') {
-      const { docs, truncated } = await take(db.aggregate(cmd.args[0] ?? [], { ...o, ...(cmd.args[1] ?? {}) }), maxRows, maxBytes);
+      const { docs, truncated } = await take(db.aggregate(cmd.args[0] ?? [], withCap(cmd.args[1], timeoutMs)), maxRows, maxBytes);
       return { kind: 'docs', docs, count: docs.length, truncated, elapsedMs: elapsedMs() };
     }
     const coll = db.collection(cmd.collection);
@@ -95,15 +100,15 @@ export async function runMongo(client, dbName, cmd, { timeoutMs, maxRows, maxByt
         return { kind: 'docs', docs: d ? [toJson(d)] : [], count: d ? 1 : 0, truncated: false, elapsedMs: elapsedMs() };
       }
       case 'aggregate': {
-        const { docs, truncated } = await take(coll.aggregate(a0, { ...o, ...(a1 ?? {}) }), maxRows, maxBytes);
+        const { docs, truncated } = await take(coll.aggregate(a0, withCap(a1, timeoutMs)), maxRows, maxBytes);
         return { kind: 'docs', docs, count: docs.length, truncated, elapsedMs: elapsedMs() };
       }
       case 'countDocuments':
         return { kind: 'count', count: await coll.countDocuments(a0, o), elapsedMs: elapsedMs() };
       case 'insertOne': return { kind: 'write', result: toJson(await coll.insertOne(a0, o)), elapsedMs: elapsedMs() };
       case 'insertMany': return { kind: 'write', result: toJson(await coll.insertMany(a0, o)), elapsedMs: elapsedMs() };
-      case 'updateOne': return { kind: 'write', result: toJson(await coll.updateOne(a0, a1, { ...o, ...(a2 ?? {}) })), elapsedMs: elapsedMs() };
-      case 'updateMany': return { kind: 'write', result: toJson(await coll.updateMany(a0, a1, { ...o, ...(a2 ?? {}) })), elapsedMs: elapsedMs() };
+      case 'updateOne': return { kind: 'write', result: toJson(await coll.updateOne(a0, a1, withCap(a2, timeoutMs))), elapsedMs: elapsedMs() };
+      case 'updateMany': return { kind: 'write', result: toJson(await coll.updateMany(a0, a1, withCap(a2, timeoutMs))), elapsedMs: elapsedMs() };
       case 'deleteOne': return { kind: 'write', result: toJson(await coll.deleteOne(a0, o)), elapsedMs: elapsedMs() };
       case 'deleteMany': return { kind: 'write', result: toJson(await coll.deleteMany(a0, o)), elapsedMs: elapsedMs() };
       default: return { kind: 'error', error: `unsupported operation ${cmd.op}`, code: null, elapsedMs: elapsedMs() };
