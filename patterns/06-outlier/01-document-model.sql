@@ -52,7 +52,7 @@ FROM  (SELECT JSON_ARRAYAGG(JSON_OBJECT('clientId' VALUE 'C-' || TO_CHAR(900000 
 COMMIT;
 
 -- @step Add one client to the whale's embedded book
--- @note Appending one client is a read-modify-write of the whole 800-client book — the growth rewrite you pay on every add until the document spills.
+-- @note Appending one client is a read-modify-write of the whole 800-client book: the growth rewrite you pay on every add until the document spills.
 -- @why Update locality is the hot knob: writes land in the biggest documents on the platform, and appending one client is a read-modify-write of the whole 800-client book.
 -- @look Rows affected is 1; Measure it shows the redo of rewriting the whole book next to one client row.
 -- @figure doc-shape.svg The advisor document as built: the client book embedded as an array, with a hasExtras flag for books that overflow
@@ -66,7 +66,7 @@ COMMIT;
 -- under 16 MB; this 800-client book stands in for it), the tail spills into an
 -- overflow document.
 -- @step Spill the next clients to an overflow document
--- @note Spilling to overflow is itself cheap — the outlier pattern costs you the growth rewrite of the document before the spill, plus a branch in every reader.
+-- @note Spilling to overflow is itself cheap: the outlier pattern costs you the growth rewrite of the document before the spill, plus a branch in every reader.
 -- @why Update locality: the spill write itself is small. What the pattern costs is the growth rewrite before it and the branch every reader gains after it.
 -- @look Rows affected is 1, a new overflow document holding 2 clients.
 INSERT INTO ol_advisor_overflow VALUES (JSON('{"_id":"A-900#part-2","advisorId":"A-900",
@@ -85,7 +85,7 @@ COMMIT;
 
 -- The read for a TYPICAL advisor: one document, done.
 -- @step Read a typical advisor (one document)
--- @note The ordinary case: one document, done — no branch needed.
+-- @note The ordinary case: one document, done. No branch needed.
 -- @why Read/write is the pattern's case: for the 180-client median, one document read is about 3× cheaper than a query in the deck's model.
 -- @look has_extras is false and clients_inline holds A-001's whole book.
 SELECT JSON_VALUE(data,'$._id') AS advisor,
@@ -97,7 +97,7 @@ FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- overflow back in. The 16 MB limit is now branching logic in every consumer
 -- (including the LLM's context builder).
 -- @step Read the whale advisor (branch on hasExtras)
--- @note Every reader must notice hasExtras and go stitch the overflow back in — the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
+-- @note Every reader must notice hasExtras and go stitch the overflow back in: the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
 -- @why Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
 -- @look clients_embedded is 801 and clients_in_overflow is 2 if you ran the two cards above (800 and 0 on fresh data): one advisor, read from two collections and stitched together.
 SELECT JSON_VALUE(d.data,'$._id')  AS advisor,

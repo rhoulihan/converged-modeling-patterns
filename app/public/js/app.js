@@ -12,7 +12,7 @@ let config; let patterns = []; let cons; let common = {};
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
 const btn = (label, onClick, cls = 'btn') => { const b = h('button', cls, label); b.type = 'button'; b.addEventListener('click', onClick); return b; };
-const MSG = { 409: 'you already have a request queued', 423: 'paused by instructor', 429: 'busy — try again' };
+const MSG = { 409: 'you already have a request queued', 423: 'paused by instructor', 429: 'busy, try again' };
 
 async function copy(text, b) {
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; } catch { b.textContent = 'Select & copy'; }
@@ -84,7 +84,7 @@ function home() {
     grid.append(a);
   });
   view.replaceChildren(h('h1', null, 'Model the domain, not the engine'),
-    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below — SQL or the MongoDB API, same data.'), grid);
+    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below: SQL or the MongoDB API, same data.'), grid);
 }
 
 function patternPage(id) {

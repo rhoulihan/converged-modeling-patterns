@@ -6,7 +6,7 @@ problem: >-
   Sensor readings are bucketed per machine per hour. Every reading rewrites the
   growing bucket, and hot sensors march it toward the 16 MB document cap.
 knobs:
-  - { name: Diversity, setting: "Medium — 4 read shapes", help: "The live dashboard, the 8-hour shift rollup, the 7-day anomaly scan and ML feature pulls all read the same readings, each in a different shape." }
+  - { name: Diversity, setting: "Medium: 4 read shapes", help: "The live dashboard, the 8-hour shift rollup, the 7-day anomaly scan and ML feature pulls all read the same readings, each in a different shape." }
   - { name: Read / write, setting: "Write-heavy", help: "About 34,000 readings a second, three billion a day, against a dashboard that re-reads each sensor-hour about 360 times." }
   - { name: Update locality, setting: "Every write, same document", hot: true, help: "Every reading lands on the same growing bucket: break-even is about 900 readings a bucket, a one-a-second sensor already costs about 2.7× the rows, and a ten-a-second spindle about 22×." }
 help:
@@ -33,7 +33,7 @@ measure:
     - { x: 1000, ratio: 109.18 }   # doc 109616 B, conv 1004 B
     - { x: 3600, ratio: 469.84 }   # doc 471716 B, conv 1004 B
 ---
-# Pattern 03 — Bucket (time-series)
+# Pattern 03: Bucket (time-series)
 
 **Manufacturing / IoT.** Ingest millions of tiny sensor readings; read them back as
 per-machine, per-hour summaries.
@@ -49,9 +49,9 @@ running counters kept on the bucket. Fewer, fatter documents; cheap windowed rea
 ## Where the needle flips
 
 This is *the* write-amplification pattern. Each reading is an array `$push` **plus**
-a counter update — a read-modify-write that **rewrites the entire growing bucket
+a counter update, a read-modify-write that **rewrites the entire growing bucket
 document on every single append.** The bucket only grows, so the redo each append
-costs climbs all cycle — and a hot sensor
+costs climbs all cycle, and a hot sensor
 marches its bucket straight at the **16 MB document ceiling**, where writes simply
 start to fail. You built a structure whose write cost increases the more you use it.
 
@@ -60,13 +60,13 @@ start to fail. You built a structure whose write cost increases the more you use
 Stop hand-rolling buckets. Let **range partitioning** do the amortization the bucket
 was faking, and let `GROUP BY` do the rollup:
 
-- Readings are tiny, append-only rows in an **INTERVAL-partitioned** table — Oracle
+- Readings are tiny, append-only rows in an **INTERVAL-partitioned** table: Oracle
   opens a new hourly partition on its own as time advances. Each reading is one small
   row: no array to grow, no document to rewrite, no 16 MB ceiling.
 - The per-hour summary is a `GROUP BY` over a partition range; asking for one hour
   **prunes** to one partition. Reads dwarf writes? A materialized view precomputes it.
 - Prefer the Mongo lane? **`$sql`-in-pipeline** runs the same `GROUP BY` with
-  parallel execution and **no 100 MB stage / 16 MB output caps** — full SQL over the
+  parallel execution and **no 100 MB stage / 16 MB output caps**, full SQL over the
   wire protocol (see the root README).
 
 Field result for exactly this reshape: a 29-second bucket rollup fell to **sub-400
@@ -78,7 +78,7 @@ milliseconds**, and the read win was kept without maintaining a single bucket.
 |---|---|
 | `01-document-model.sql` | Per-hour bucket doc; each reading `$push` + counter rewrites the growing bucket |
 | `02-converged.sql` | INTERVAL-partitioned readings (constant-cost inserts) + `GROUP BY` rollup + summary MV |
-| `01-document-model.js` | The MongoDB-lane `$push` bucket — the same write-amp, runnable in `mongosh` |
+| `01-document-model.js` | The MongoDB-lane `$push` bucket: the same write-amp, runnable in `mongosh` |
 | `02-sql-in-pipeline.js` | The hourly rollup as **full SQL over the Mongo wire** via a `$sql`-in-pipeline stage |
 | `03-parity.js` | Asserts the Mongo `$sql` rollup == the SQL `GROUP BY` == the maintained bucket counters |
 | `_capture.sql` | Helper: emits the SQL-lane rollup for the parity check |

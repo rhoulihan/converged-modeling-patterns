@@ -37,7 +37,7 @@ COMMIT;
 -- The read the pattern optimizes for: everything under the wheelset = one prefix
 -- scan. This is the genuine strength of the materialized path.
 -- @step Read a subtree with a prefix scan
--- @note Everything under the wheelset in one index range scan — the genuine strength of the materialized path.
+-- @note Everything under the wheelset in one index range scan: the genuine strength of the materialized path.
 -- @why Read/write is the path's case: two million explosions a day each become one left-anchored prefix scan, the cheapest hierarchy read there is.
 -- @look Wheelset, wheel and spoke come back in path order from one LIKE prefix predicate.
 -- @figure doc-shape.svg One part document as built: a materialized path encodes its position
@@ -52,7 +52,7 @@ ORDER  BY JSON_VALUE(data,'$.path');
 -- rewrite per node in the subtree.
 -- ---------------------------------------------------------------------------
 -- @step Re-parent the wheelset under the frame
--- @note One logical move, but every descendant's path must be rewritten — a whole-document rewrite per node in the subtree.
+-- @note One logical move, but every descendant's path must be rewritten: a whole-document rewrite per node in the subtree.
 -- @why Update locality is the hot knob: the path stores position, so one move is a read-modify-write of every part document beneath the moved node. A 40,000-part module move is 40,000 rewrites.
 -- @look Rows affected is 3, one per part in the wheelset's subtree; Measure it shows the redo those rewrites cost.
 -- @measure reparent
@@ -64,7 +64,7 @@ WHERE JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1100%';
 COMMIT;
 
 -- @step Confirm every descendant moved
--- @note Count of docs now carrying the new path prefix — one logical move, one rewrite per descendant.
+-- @note Count of docs now carrying the new path prefix: one logical move, one rewrite per descendant.
 -- @why Update locality again: the count is how many documents one engineering change touched. At production scale those rewrites run as a batch, not one atomic change.
 -- @look The write_amplification line reports 3 descendant docs rewritten.
 SELECT 'reparent rewrote ' || COUNT(*) || ' descendant docs' AS write_amplification

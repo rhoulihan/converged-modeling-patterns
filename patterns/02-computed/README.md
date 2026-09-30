@@ -4,9 +4,9 @@ industry: Telecom
 deck: "18–21"
 problem: >-
   Each subscriber document carries a running cycle-usage rollup so the app and real-time
-  charging read one document — but every call record now rewrites that hot document.
+  charging read one document, but every call record now rewrites that hot document.
 knobs:
-  - { name: Diversity, setting: "Medium-high — 4 consumers", help: "The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape." }
+  - { name: Diversity, setting: "Medium-high: 4 consumers", help: "The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape." }
   - { name: Read / write, setting: "Write-heavy on the rollup", help: "About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so on average the rollup is written once for every three reads, and for heavy users it is written more often than it is read." }
   - { name: Update locality, setting: "Every write, one parent", hot: true, help: "Every CDR lands on the same subscriber document: break-even is about 4.4 CDRs a subscriber a day, and a 400-a-day heavy user costs about 2.5× the work embedded." }
 help:
@@ -33,7 +33,7 @@ measure:
     - { x: 1000, ratio: 32.53 }   # doc 51792 B, conv 1592 B
     - { x: 5000, ratio: 203.24 }   # doc 323560 B, conv 1592 B
 ---
-# Pattern 02 — Computed
+# Pattern 02: Computed
 
 **Telecom.** Show a subscriber's current-cycle usage instantly on the account page,
 and rank the top talkers for the ops dashboard.
@@ -43,7 +43,7 @@ and rank the top talkers for the ops dashboard.
 ## The document bet
 
 The Computed pattern bakes a rollup onto the document: compute once on write, read
-it a thousand times for free. The math is real — a million reads an hour against a
+it a thousand times for free. The math is real: a million reads an hour against a
 thousand writes an hour means precomputing "divides the work by a thousand." Store
 `cycleUsage` on the subscriber and the account page is a single lookup.
 
@@ -54,8 +54,8 @@ re-ticks the rollup, and each one is a read-modify-write that **rewrites the who
 subscriber document**. The document grows with every call, so the redo each CDR
 costs grows with it: in the lab, subscriber S-001 already carries 1,000 CDR line
 items this cycle, and posting one more rewrites all of them. On a hot subscriber
-that is a write storm on one document. The pattern's own escape hatch —
-counter-sharding into N documents and fanning the read back in — leaves the write
+that is a write storm on one document. The pattern's own escape hatch
+(counter-sharding into N documents and fanning the read back in) leaves the write
 amplification exactly where it was.
 
 And the Top-N dashboard gets no help at all: with the rollup buried inside each
@@ -66,14 +66,14 @@ collection on every load.** At book scale that is the query that melts down.
 
 Two moves, both keeping the read cheap:
 
-1. **CDRs are append-only rows.** One small insert per event — no parent document to
+1. **CDRs are append-only rows.** One small insert per event, no parent document to
    rewrite. Both serialize per subscriber; the converged write is ~1.5 KB instead of
    the whole document. A maintained summary carries the rollup and is kept current
    **in the same transaction** by a row trigger: *Computed, with a staleness
    window of zero.* (Declarative equivalent: a materialized view `REFRESH FAST ON
    COMMIT` over a CDR mview log.)
 2. **Hot Top-N becomes an index range scan.** A descending index on the summary's
-   usage column turns "top talkers" into an O(log n) seek plus `FETCH FIRST N` — no
+   usage column turns "top talkers" into an O(log n) seek plus `FETCH FIRST N`, no
    SUM, no SORT, no full-collection scan.
 
 This is the shape behind the field result on exactly this workload: a landing-page

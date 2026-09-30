@@ -48,7 +48,7 @@ INSERT INTO sb_claims VALUES ('CL-1002','P-001',1500, TIMESTAMP '2026-03-22 09:0
 INSERT INTO sb_claims VALUES ('CL-1003','P-001',2300, TIMESTAMP '2026-05-30 09:00:00');
 -- CL-1004 is just one plain insert -- no trim, no overflow write, no doc rewrite.
 -- @step Insert claim CL-1004
--- @note One plain insert — no trim, no overflow write, no policy document to rewrite.
+-- @note One plain insert: no trim, no overflow write, no policy document to rewrite.
 -- @why Update locality stops concentrating: the claim is one row and one index entry, with no policy document to rewrite and no history to keep in step. On a CAT day that is 300,000 inserts, not 300,000 policy rewrites.
 -- @look Rows affected is 1; Measure it shows redo near 1 KB whatever the size of the inline list.
 -- @figure erd.svg Policy, claim and claim event in canonical form, beside how one claim event lands in the subset model
@@ -60,7 +60,7 @@ COMMIT;
 -- FIRST. Nothing was maintained to make this fast. (EXPLAIN PLAN shows the range
 -- scan stops after 3 rows -- no sort of the full history.)
 -- @step Read the recent 3 claims (index range scan)
--- @note CL-1004 is already the top row — nothing was maintained to make this fast, the index just stops after 3.
+-- @note CL-1004 is already the top row: nothing was maintained to make this fast, the index just stops after 3.
 -- @why Read/write, priced honestly: the recent list is an index range scan that stops after 3 rows, more work than one document fetch, about 25% more per summary read in the deck's model.
 -- @look The 3 newest claims in claim_ts order, with nothing stored to keep them current.
 SELECT claim_id, amount, claim_ts
@@ -72,7 +72,7 @@ FETCH  FIRST 3 ROWS ONLY;
 -- The full policy document -- hot + cold reunited AT READ TIME by SQL/JSON. No
 -- inline subset stored, no overflow collection to keep in step.
 -- @step Assemble the full policy document at read time
--- @note Header plus recent claims, reunited by the query — no inline subset stored, no overflow collection to keep in step.
+-- @note Header plus recent claims, reunited by the query: no inline subset stored, no overflow collection to keep in step.
 -- @why Diversity: agents get the policy document they had, assembled by SQL/JSON, and adjusters get the full history from the same rows by dropping FETCH FIRST.
 -- @look policy_document shows the header with recentClaims newest first, built by the query rather than stored.
 SELECT JSON_OBJECT(

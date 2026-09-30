@@ -1,8 +1,8 @@
 // ============================================================================
-// Pattern 01 · Extended Reference · CROSS-API PARITY (mongosh) — the flagship proof
+// Pattern 01 · Extended Reference · CROSS-API PARITY (mongosh): the flagship proof
 // "One truth, many shapes." The SAME projected client document, read TWO ways:
-//   * SQL lane   — SELECT ... FROM xr_client_dv (injected as $SQL_RESULT by run.sh)
-//   * Mongo lane — db.xr_client_dv.findOne({_id:"C-001"}) over the Mongo wire
+//   * SQL lane: SELECT ... FROM xr_client_dv (injected as $SQL_RESULT by run.sh)
+//   * Mongo lane: db.xr_client_dv.findOne({_id:"C-001"}) over the Mongo wire
 // Asserts the documents are byte-equal after canonicalizing JSON and ignoring the
 // duality _metadata (etag/asof). Exits non-zero on mismatch.
 // ============================================================================
@@ -25,7 +25,7 @@ const viaSql = JSON.parse(process.env.SQL_RESULT || "null");
 if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
 // @step Read the projected document over the MongoDB API
-// @note Same client document the SQL lane read — the advisor block projects live through the duality view, whichever wire protocol you read it over.
+// @note Same client document the SQL lane read: the advisor block projects live through the duality view, whichever wire protocol you read it over.
 // @why Diversity without copies: the portal keeps its driver and find(), the copilot reads SQL/JSON, and both read the same advisor row through one duality view.
 // @look The returned document's advisor.office matches the SQL read, with a _metadata etag the duality view adds.
 // @figure flow.svg One duality view serves the portal over the MongoDB API, the copilot over SQL/JSON and statements over SQL

@@ -4,11 +4,11 @@
 // Oracle's own $sql aggregation stage: parallel execution, cost-based optimization,
 // and NO 100 MB stage / 16 MB output caps. It reads the converged, INTERVAL-
 // partitioned bk_sensor_readings table (created by the SQL lane's 02-converged.sql).
-// This is the Mongo-lane developer's on-ramp to the converged rollup — no leaving
+// This is the Mongo-lane developer's on-ramp to the converged rollup: no leaving
 // the pipeline, no maintaining a bucket.
 // ============================================================================
 // @step Hourly rollup with $sql in the pipeline
-// @note Full SQL over the Mongo wire protocol — parallel execution, cost-based optimization, no 100 MB stage / 16 MB output caps.
+// @note Full SQL over the Mongo wire protocol: parallel execution, cost-based optimization, no 100 MB stage / 16 MB output caps.
 // @why Diversity: the anomaly scan keeps its pipeline over the MongoDB API, and the $sql stage hands the rollup to the optimizer with parallel execution and none of the pipeline's stage memory or output caps.
 // @look One document per machine and hour with n, avg and max, the same values the SQL GROUP BY returns.
 // @figure flow.svg Partitioned readings feed a pruned GROUP BY and a summary view, serving dashboards over SQL and the anomaly job through a $sql stage

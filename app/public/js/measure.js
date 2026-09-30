@@ -5,10 +5,10 @@ import { curveChart } from './chart.js';
 import { helpTrigger, openHelp } from './help.js';
 
 const STATS = [
-  ['redo size', 'Bytes the database must write to its log to make the change durable — the most direct measure of how much the write physically changed.'],
+  ['redo size', 'Bytes the database must write to its log to make the change durable: the most direct measure of how much the write physically changed.'],
   ['db block changes', 'How many data blocks the write touched.'],
   ['session logical reads', 'Blocks read (from cache) to find and change the data.'],
-  ['CPU used by this session', 'CPU time in centiseconds. At this data size it is usually 0 on both sides — shown, not hidden.'],
+  ['CPU used by this session', 'CPU time in centiseconds. At this data size it is usually 0 on both sides. Shown, not hidden.'],
 ];
 const num = (n) => (typeof n === 'number' && Number.isFinite(n) ? n : null);
 const fmt = (n) => (num(n) === null ? '—' : n.toLocaleString('en-US'));
@@ -52,7 +52,7 @@ function whatHappened() {
   box.append(h('h4', null, 'What just happened'));
   for (const t of [
     'Both writes ran back to back in one exclusive slot, so nobody else\'s work is in these numbers.',
-    'Each side ran once unmeasured as a warm-up, then once measured, then rolled back — your lab data is unchanged.',
+    'Each side ran once unmeasured as a warm-up, then once measured, then rolled back. Your lab data is unchanged.',
     'Read the ratio, not the bytes: the bytes depend on this small lab dataset; the curve shows how the gap scales with the size on the x-axis; your point shows where this lab sits on it.',
     'One session on Oracle AI Database 26ai Free: expect small run-to-run variance (a block, or a LOB chunk). Say "same order of magnitude", not exact bytes.',
   ]) box.append(h('p', null, t));
@@ -76,7 +76,7 @@ export function renderMeasure(m, { pattern } = {}) {
     left.append(h('p', 'rmeta', 'Solid dot: your redo ratio · ring: your block-change ratio · line: reference measurements on 26ai Free at other sizes, same protocol.'));
     const thumb = h('button', 'deck-thumb'); thumb.type = 'button';
     const img = h('img'); img.src = `/figures/${pattern.id}/model-curve.svg`; img.alt = 'The deck\'s workload model for this pattern';
-    thumb.append(img, h('span', null, `The full workload picture — illustrative model from the deck (slides ${meas.deckSlides})`));
+    thumb.append(img, h('span', null, `The full workload picture: illustrative model from the deck (slides ${meas.deckSlides})`));
     thumb.addEventListener('click', () => openHelp(thumb, { title: 'Workload model (deck)', what: 'The deck\'s daily cost model: reads plus writes, in illustrative units, across the pattern\'s knob. The live chart is the part Measure it can prove: one write, measured as the ratio of redo between the two models.', figure: { file: 'model-curve.svg', caption: `Deck slides ${meas.deckSlides}` } }, { label: 'workload model', patternId: pattern.id }));
     left.append(thumb);
     grid.append(left);
