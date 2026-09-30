@@ -43,7 +43,12 @@ export function curveChart({ calibration, labX, xLabel, live }) {
   svg.append(s('text', { x: x(xs[xs.length - 1]) - 6, y: y(ys[ys.length - 1]) - 10, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--hot)' }, 'measured on 26ai Free (reference run)'));
 
   svg.append(s('line', { x1: x(labX), y1: T, x2: x(labX), y2: H - B, stroke: 'var(--flow)', 'stroke-dasharray': '3 3' }));
-  svg.append(s('text', { x: x(labX) + 4, y: T + 10, 'font-size': 11, fill: 'var(--flow)' }, `lab data · ${fmtN(labX)}`));
+  // Anchored near the axis, not the top: the "reference run" label above always sits near the
+  // highest calibration point (top of the chart), and on several patterns the lab's own x sits
+  // close enough to that point in log-space to collide with it up there. The strip just above the
+  // axis and below the break-even line is otherwise empty on every pattern (all calibration
+  // ratios are > 1), so it is always clear.
+  svg.append(s('text', { x: x(labX) + 4, y: H - B - 6, 'font-size': 11, fill: 'var(--flow)' }, `lab data · ${fmtN(labX)}`));
   if (finite(live?.blocks)) svg.append(s('circle', { class: 'live-blocks', cx: x(labX), cy: y(live.blocks), r: 6, fill: 'none', stroke: 'var(--flow)', 'stroke-width': 2 }));
   if (finite(live?.redo)) {
     svg.append(s('circle', { class: 'live-redo', cx: x(labX), cy: y(live.redo), r: 7, fill: 'var(--flow)' }));
