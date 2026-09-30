@@ -34,8 +34,9 @@ export async function exec({ lane, text, patternId }, onStatus) {
 }
 
 export class Console {
-  constructor(root) {
+  constructor(root, dock = null) {
     this.root = root;
+    this.dock = dock;
     this.lane = 'sql';
     this.patternId = null;
     this.statusEl = root.querySelector('#status');
@@ -58,6 +59,7 @@ export class Console {
   }
 
   load(lane, text) {
+    this.dock?.open('load');
     this.show(lane);
     this.editors[lane].set(text);
     this.editors[lane].focus();
@@ -76,7 +78,9 @@ export class Console {
     store.set(`lab.hist.${lane}`, [text, ...hist].slice(0, 20));
     const btn = this.root.querySelector('#run');
     btn.disabled = true;
+    this.dock?.setBusy(true);
     const r = await exec({ lane, text, patternId: this.patternId }, (s) => { this.statusEl.textContent = s; });
+    this.dock?.setBusy(false);
     btn.disabled = false;
     this.statusEl.textContent = r.ok ? 'ready' : r.message;
     this.out.replaceChildren(r.ok ? renderRun(r.run) : Object.assign(document.createElement('div'), { className: 'result error', textContent: r.message }));

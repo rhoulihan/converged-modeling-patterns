@@ -1,0 +1,6 @@
+{
+  "copy": { "what": "Copies the statement to your clipboard.", "why": "Paste it into your own tools or the console below and change it — the lab data is yours to modify." },
+  "load": { "what": "Opens the statement in the console at the bottom of the page.", "why": "Edit it before running: change a value, add a predicate, compare plans.", "look": "The console slides up; Ctrl/⌘+Enter runs it." },
+  "run": { "what": "Runs the statement in your workspace and shows the result under the card.", "why": "Every run goes through a shared queue so one attendee cannot starve the others; a run has a 10 s budget by default.", "look": "Elapsed time and rows under the result; 'served from cache' means this exact card already ran (by you or a classmate)." },
+  "reset": { "what": "Rebuilds this pattern's tables in your workspace to the starting data.", "why": "Use it after you've changed data and want the card results — and Measure it — to match the lab again." }
+}

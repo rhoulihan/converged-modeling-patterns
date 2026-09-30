@@ -1,12 +1,14 @@
 // app/public/js/app.js
 import { getJSON, postJSON } from './api.js';
 import { Console, exec } from './console.js';
+import { Dock } from './dock.js';
 import { renderRun } from './results.js';
 import { renderMeasure } from './measure.js';
+import { helpTrigger } from './help.js';
 
 const view = document.getElementById('view');
 const who = document.getElementById('who');
-let config; let patterns = []; let cons;
+let config; let patterns = []; let cons; let common = {};
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
 const btn = (label, onClick, cls = 'btn') => { const b = h('button', cls, label); b.type = 'button'; b.addEventListener('click', onClick); return b; };
@@ -17,10 +19,25 @@ async function copy(text, b) {
   setTimeout(() => { b.textContent = 'Copy'; }, 1200);
 }
 
-function card(title, notes, code, lane, patternId, measureTag) {
+// One combined ⓘ for the Copy/Load/Run row: each entry is what+why on one line, Run also keeps
+// its "look" line (what to check after running).
+function cardButtonsHelp() {
+  const line = (key) => { const c = common[key]; return c ? [c.what, c.why].filter(Boolean).join(' ') : ''; };
+  const items = [
+    { label: 'Copy', text: line('copy') },
+    { label: 'Load into console', text: line('load') },
+    { label: 'Run', text: [line('run'), common.run?.look].filter(Boolean).join(' ') },
+  ].filter((it) => it.text);
+  return items.length ? { title: 'The card buttons', items } : null;
+}
+
+function card(title, notes, code, lane, patternId, measureTag, help) {
   const c = h('div', 'card');
   if (measureTag) c.append(h('span', 'badge hot', `measured: ${measureTag}`));
-  c.append(h('h3', null, title));
+  const t = h('h3', null, title);
+  const hi = helpTrigger(help, { label: title, patternId });
+  if (hi) t.append(hi);
+  c.append(t);
   notes.forEach((n) => c.append(h('p', 'note', n)));
   c.append(h('pre', 'code', code));
   const out = h('div', 'card-out');
@@ -33,22 +50,25 @@ function card(title, notes, code, lane, patternId, measureTag) {
   });
   const actions = h('div', 'actions');
   actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code)), runBtn);
+  const actionsHelp = helpTrigger(cardButtonsHelp(), { label: 'card buttons' });
+  if (actionsHelp) actions.append(actionsHelp);
   c.append(actions, out);
   return c;
 }
 
 function measureCard(p, m) {
   const c = h('div', 'card measure');
-  c.append(h('h3', null, `Measure it · ${m.tag}`),
-    h('p', 'note', 'Runs both writes back to back in one exclusive slot, reads the engine statistics before and after each, then rolls both back.'),
-    h('div', 'kicker', 'Document model'), h('pre', 'code', m.documentSql),
-    h('div', 'kicker', 'Converged'), h('pre', 'code', m.convergedSql));
+  const title = h('h3', null, `Measure it · ${m.tag}`);
+  const th = helpTrigger(p.meta.help.tabs.measure, { label: 'Measure it', patternId: p.id }); if (th) title.append(th);
+  const kd = h('div', 'kicker', 'Document model'); const kdh = helpTrigger(m.help?.document, { label: 'document write', patternId: p.id }); if (kdh) kd.append(kdh);
+  const kc = h('div', 'kicker', 'Converged'); const kch = helpTrigger(m.help?.converged, { label: 'converged write', patternId: p.id }); if (kch) kc.append(kch);
+  c.append(title, kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
   const out = h('div', 'card-out');
   const b = btn('Measure it', async () => {
     b.disabled = true; out.textContent = 'measuring… (waits for an exclusive slot)';
     const r = await postJSON('/api/measure', { patternId: p.id, tag: m.tag });
     b.disabled = false;
-    out.replaceChildren(r.status === 200 ? renderMeasure(r.body) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
+    out.replaceChildren(r.status === 200 ? renderMeasure(r.body, { pattern: p }) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
   }, 'btn primary');
   c.append(b, out);
   return c;
@@ -74,7 +94,7 @@ function patternPage(id) {
   const n = patterns.indexOf(p) + 1;
   const head = h('div');
   const knobs = h('div', 'knobs');
-  p.meta.knobs.forEach((k) => { const s = h('span', `knob${k.hot ? ' hot' : ''}`); s.append(h('b', null, `${k.name}: `), document.createTextNode(k.setting)); knobs.append(s); });
+  p.meta.knobs.forEach((k) => { const s = h('span', `knob${k.hot ? ' hot' : ''}`); s.append(h('b', null, `${k.name}: `), document.createTextNode(k.setting)); const hi = helpTrigger(k.help ? { why: k.help, figure: { file: 'model-curve.svg', caption: 'The three knobs and where they flip this pattern (deck)' } } : null, { label: k.name, patternId: id }); if (hi) s.append(hi); knobs.append(s); });
   const status = h('span', 'rmeta');
   const reset = btn('Reset this pattern', async () => {
     reset.disabled = true; status.textContent = 'resetting…';
@@ -82,21 +102,29 @@ function patternPage(id) {
     reset.disabled = false;
     status.textContent = r.status === 200 ? (r.body.ok ? 'reset done' : `reset failed: ${r.body.errors[0]?.error}`) : (MSG[r.status] ?? `error ${r.status}`);
   });
-  head.append(h('div', 'kicker', `Pattern ${n} · ${p.meta.industry} · deck slides ${p.meta.deck}`), h('h1', null, p.meta.title), h('p', 'problem', p.meta.problem), knobs, reset, status);
+  const resetHelp = helpTrigger(common.reset, { label: 'Reset' });
+  head.append(h('div', 'kicker', `Pattern ${n} · ${p.meta.industry} · deck slides ${p.meta.deck}`), h('h1', null, p.meta.title), h('p', 'problem', p.meta.problem), knobs, reset);
+  if (resetHelp) head.append(resetHelp);
+  head.append(status);
 
   const tabs = [
-    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure))],
-    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure))],
-    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null))]] : []),
+    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
+    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
+    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help))]] : []),
     ['Measure it', () => p.measures.map((m) => measureCard(p, m))],
   ];
+  const TABKEY = { 'Document model': 'document', 'Converged': 'converged', 'MongoDB API': 'mongo', 'Measure it': 'measure' };
   const bar = h('div', 'tabs');
   const body = h('div');
   const select = (i) => {
-    [...bar.children].forEach((b, j) => b.classList.toggle('on', i === j));
+    [...bar.querySelectorAll('.tab')].forEach((b, j) => b.classList.toggle('on', i === j));
     body.replaceChildren(...tabs[i][1]());
   };
-  tabs.forEach(([label], i) => bar.append(btn(label, () => select(i), '')));
+  tabs.forEach(([label], i) => {
+    bar.append(btn(label, () => select(i), 'tab'));
+    const hi = helpTrigger(p.meta.help.tabs[TABKEY[label]], { label, patternId: id });
+    if (hi) bar.append(hi);
+  });
   view.replaceChildren(head, bar, body);
   select(0);
 }
@@ -135,7 +163,9 @@ async function boot() {
   document.getElementById('console').hidden = false;
   who.textContent = config.mode === 'solo' ? 'solo · CMP_USER' : `${me.body.user.name} · ${me.body.user.schema}`;
   patterns = (await getJSON('/api/patterns')).body;
-  cons ??= new Console(document.getElementById('console'));
+  common = (await getJSON('/help/common.json')).body ?? {};
+  const consoleEl = document.getElementById('console');
+  cons ??= new Console(consoleEl, new Dock(consoleEl));
   window.onhashchange = route;
   route();
 }

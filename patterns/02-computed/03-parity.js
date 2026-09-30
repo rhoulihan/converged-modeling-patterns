@@ -25,6 +25,9 @@ if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
 // @step Read the projected document over the MongoDB API
 // @note Same subscriber document the SQL lane read — cycleUsage is the live rollup, whichever wire protocol you read it over.
+// @why Diversity without copies: the self-care app keeps find() over the MongoDB API while charging reads the same rows as SQL/JSON, so there is one rollup and no document to keep in step.
+// @look cycleUsage.totalMB in the returned document matches the SQL projection.
+// @figure flow.svg Append-only CDRs maintain a usage row by trigger; one duality view serves the app over the MongoDB API and charging over SQL/JSON
 const viaMongo = db.cp_subscriber_dv.findOne({ _id: "S-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for S-001"); quit(1); }
 

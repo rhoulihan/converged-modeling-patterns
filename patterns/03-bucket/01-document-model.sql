@@ -34,6 +34,9 @@ COMMIT;
 -- counters -- each one a read-modify-write of the whole (growing) bucket document.
 -- @step Ingest three readings into the bucket
 -- @note Each reading is an array APPEND plus a counter update — a read-modify-write of the WHOLE (growing) bucket, once per reading.
+-- @why Update locality is the hot knob: every reading lands on the same bucket, so each append is a read-modify-write of every reading already in it. Bytes moved per hour grow with the square of the readings.
+-- @look The PL/SQL block completes with no row count; Measure it shows what its 3 whole-bucket rewrites cost next to 3 row inserts.
+-- @figure doc-shape.svg The sensor-hour bucket as built: counters and an array that every reading rewrites
 -- @measure ingest-reading
 BEGIN
   FOR v IN (SELECT * FROM (
@@ -57,6 +60,8 @@ COMMIT;
 -- The read the pattern optimizes for: one bucket, counters already there.
 -- @step Read the bucket (counters already there)
 -- @note One document, running counters already maintained — cheap, until the bucket has to grow again.
+-- @why Read/write is the bucket's case: a dashboard that reads the hour 360 times gets one contiguous document with the counters already computed. Below about 900 readings a bucket, that read win beats the rewrites.
+-- @look n, avg_temp and max_temp come straight off the counters, with no pass over the readings array.
 SELECT JSON_VALUE(data,'$.machineId') AS machine,
        JSON_VALUE(data,'$.count' RETURNING NUMBER) AS n,
        ROUND(JSON_VALUE(data,'$.sum' RETURNING NUMBER)

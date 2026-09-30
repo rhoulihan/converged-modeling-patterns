@@ -98,3 +98,24 @@ describe('splitConsoleSql', () => {
     expect(splitConsoleSql('  \n -- only a comment\n')).toEqual([]);
   });
 });
+
+describe('help annotations', () => {
+  it('attaches @why, @look and @figure to the next statement', () => {
+    const [s] = parseSqlFile([
+      '-- @step Read it',
+      '-- @why Because the read is one document.',
+      '-- @look The row count stays at 1.',
+      '-- @figure doc-shape.svg The document as built',
+      'SELECT 1 FROM dual;',
+    ].join('\n'));
+    expect(s.help).toEqual({ why: 'Because the read is one document.', look: 'The row count stays at 1.', figure: { file: 'doc-shape.svg', caption: 'The document as built' } });
+  });
+  it('defaults help to nulls and joins repeated @why lines', () => {
+    const [a, b] = parseSqlFile('-- @step A\nSELECT 1 FROM dual;\n-- @step B\n-- @why one\n-- @why two\nSELECT 2 FROM dual;');
+    expect(a.help).toEqual({ why: null, look: null, figure: null });
+    expect(b.help.why).toBe('one two');
+  });
+  it('rejects a @figure file name that is not a plain .svg', () => {
+    expect(() => parseSqlFile('-- @step A\n-- @figure ../x.svg c\nSELECT 1 FROM dual;')).toThrow(/@figure/);
+  });
+});

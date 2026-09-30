@@ -14,12 +14,36 @@ function frontMatter(file) {
     if (!fm?.[k]) throw new Error(`${file}: front matter needs "${k}"`);
   }
   if (!Array.isArray(fm.knobs) || fm.knobs.length !== 3) throw new Error(`${file}: front matter needs exactly 3 knobs`);
+  const FIG = /^[a-z0-9-]+\.svg$/;
+  const tabHelp = (t, k) => {
+    if (t == null) return undefined;
+    if (t.figure != null && !FIG.test(String(t.figure))) throw new Error(`${file}: help.tabs.${k}.figure must be a plain .svg name`);
+    return { why: t.why ? String(t.why) : null, look: t.look ? String(t.look) : null,
+      figure: t.figure ? { file: String(t.figure), caption: t.caption ? String(t.caption) : null } : null };
+  };
+  const tabs = {};
+  for (const k of ['document', 'converged', 'mongo', 'measure']) {
+    const v = tabHelp(fm.help?.tabs?.[k], k);
+    if (v) tabs[k] = v;
+  }
+  let measure = null;
+  if (fm.measure) {
+    const cal = (fm.measure.calibration ?? []).map((c) => ({ x: Number(c.x), ratio: Number(c.ratio) }));
+    if (cal.length < 4 || cal.some((c) => !(c.x > 0) || !(c.ratio > 0))) throw new Error(`${file}: measure.calibration needs ≥ 4 points with x > 0 and ratio > 0`);
+    cal.sort((a, b) => a.x - b.x);
+    if (typeof fm.measure.x_label !== 'string' || !fm.measure.x_label.trim()) throw new Error(`${file}: measure.x_label must be a non-empty string`);
+    const labX = Number(fm.measure.lab_x);
+    if (!(labX >= cal[0].x && labX <= cal[cal.length - 1].x)) throw new Error(`${file}: measure.lab_x must lie inside the calibrated x range`);
+    measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal };
+  }
   return {
     title: String(fm.title),
     industry: String(fm.industry),
     deck: String(fm.deck),
     problem: String(fm.problem).trim(),
-    knobs: fm.knobs.map((k) => ({ name: String(k.name), setting: String(k.setting), hot: k.hot === true })),
+    knobs: fm.knobs.map((k) => ({ name: String(k.name), setting: String(k.setting), hot: k.hot === true, help: k.help ? String(k.help) : null })),
+    help: { tabs },
+    measure,
   };
 }
 

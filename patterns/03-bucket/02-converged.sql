@@ -4,7 +4,7 @@
 -- bucket was faking, and let GROUP BY do the rollup.
 --
 -- Readings are tiny, append-only rows in an INTERVAL-partitioned table -- Oracle
--- opens a new hourly partition automatically as time advances. Each insert is a
+-- opens a new hourly partition automatically as time advances. Each reading is a
 -- single small row: no array to grow, no bucket document to rewrite, no 16 MB
 -- ceiling. The per-hour summary is a GROUP BY over a partition range (the
 -- optimizer prunes to just the hours asked for). Want it precomputed? A
@@ -13,7 +13,7 @@
 -- output caps (see README). Field result for exactly this reshape: a 29s bucket
 -- rollup fell to sub-400ms, and the read win was kept without maintaining a bucket.
 --
--- The needle-flip, resolved: the write is a constant-cost single-row insert
+-- The needle-flip, resolved: each reading is a constant-cost single-row insert
 -- instead of an ever-growing document rewrite, and there is no document ceiling
 -- to march toward.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
@@ -42,13 +42,18 @@ INTERVAL (INTERVAL '1' HOUR)
 
 CREATE INDEX bk_ix_readings ON bk_sensor_readings (machine_id, metric, reading_ts);
 
--- Every reading is one small insert. No parent to rewrite; constant cost.
--- @step Insert one reading
--- @note A single small row — no bucket to grow, no parent document to rewrite.
+-- Every reading is one small row. No parent to rewrite; constant cost per reading.
+-- The same three readings the document model appends to its bucket, as three rows.
+-- @step Insert the three readings
+-- @note Three small rows — no bucket to grow, no parent document to rewrite.
+-- @why Update locality stops compounding: each reading is its own small row in the hour's partition, so an insert costs the same at reading 3 or reading 36,000. There is no document to grow and no 16 MB cap to reach.
+-- @look Rows affected is 3; Measure it shows redo that stays near 1 KB at any bucket size.
+-- @figure erd.svg Plant, machine and append-only readings with a derived hourly rollup, beside one hot sensor-hour packed into a single bucket
 -- @measure ingest-reading
-INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',88.4, TIMESTAMP '2026-08-01 10:00:05');
-INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',89.1, TIMESTAMP '2026-08-01 10:00:10');
-INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',91.7, TIMESTAMP '2026-08-01 10:00:15');
+INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts)
+SELECT 'M-100', 'TEMP', 88.4, TIMESTAMP '2026-08-01 10:00:05' FROM dual UNION ALL
+SELECT 'M-100', 'TEMP', 89.1, TIMESTAMP '2026-08-01 10:00:10' FROM dual UNION ALL
+SELECT 'M-100', 'TEMP', 91.7, TIMESTAMP '2026-08-01 10:00:15' FROM dual;
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',80.2, TIMESTAMP '2026-08-01 11:03:00');
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-200','TEMP',60.0, TIMESTAMP '2026-08-01 10:30:00');
 COMMIT;
@@ -58,6 +63,8 @@ COMMIT;
 -- single hour prunes to a single partition.
 -- @step Roll up the hour with GROUP BY
 -- @note Same answer the bucket counters gave, computed on read instead of maintained on every write.
+-- @why Read/write, priced honestly: the rollup is computed on read and pruned to the partitions asked for, but a range scan pays per row where the bucket was one fetch. Where reads repeat, the materialized view precomputes it.
+-- @look One row per machine and hour with n, avg_val and max_val, computed from the rows rather than maintained on every write.
 SELECT machine_id, metric, TRUNC(reading_ts, 'HH24') AS hour_start,
        COUNT(*)                   AS n,
        ROUND(AVG(reading_val), 3) AS avg_val,
