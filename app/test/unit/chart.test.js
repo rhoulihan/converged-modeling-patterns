@@ -30,4 +30,17 @@ describe('curveChart', () => {
     expect(svg.querySelector('circle.live-blocks')).toBeNull();
     expect(svg.textContent).not.toMatch(/NaN|Infinity/);
   });
+  it('offsets the live markers apart when they would otherwise coincide with a calibration point', () => {
+    // labX is the first calibration x, and both live ratios equal that point's reference ratio —
+    // both the "near-equal to each other" and "on top of a calibration point" triggers fire.
+    const svg = curveChart({ calibration: CAL, labX: 10, xLabel: 'x', live: { redo: 1.2, blocks: 1.2 } });
+    const dot = svg.querySelector('circle.live-redo');
+    const ring = svg.querySelector('circle.live-blocks');
+    expect(dot.getAttribute('cx')).not.toBe(ring.getAttribute('cx'));
+  });
+  it('anchors the live label at the end when labX sits at the maximum calibration x', () => {
+    const svg = curveChart({ calibration: CAL, labX: 5000, xLabel: 'x', live: { redo: 260, blocks: null } });
+    const label = [...svg.querySelectorAll('text')].find((el) => el.textContent.startsWith('you'));
+    expect(label.getAttribute('text-anchor')).toBe('end');
+  });
 });
