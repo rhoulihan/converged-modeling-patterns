@@ -39,8 +39,30 @@ describe('curveChart', () => {
     expect(dot.getAttribute('cx')).not.toBe(ring.getAttribute('cx'));
   });
   it('anchors the live label at the end when labX sits at the maximum calibration x', () => {
-    const svg = curveChart({ calibration: CAL, labX: 5000, xLabel: 'x', live: { redo: 260, blocks: null } });
+    // Live ratio kept off the 5000 calibration point: that point is now a label obstacle, and a
+    // label sitting on it would (correctly) move above instead of anchoring at the end.
+    const svg = curveChart({ calibration: CAL, labX: 5000, xLabel: 'x', live: { redo: 120, blocks: null } });
     const label = [...svg.querySelectorAll('text')].find((el) => el.textContent.startsWith('you'));
     expect(label.getAttribute('text-anchor')).toBe('end');
+    expect(Number(label.getAttribute('x'))).toBeLessThanOrEqual(540);
+  });
+
+  it('moves the break-even label off a calibration point that sits under its default position', () => {
+    // 02-computed's real calibration: the x=10 point (1.73x) sits just above the break-even line,
+    // right where the left-anchored label used to go. Box estimate matches chart.js (0.6 em/char).
+    const cal = [{ x: 10, ratio: 1.73 }, { x: 100, ratio: 7.16 }, { x: 1000, ratio: 32.53 }, { x: 5000, ratio: 203.24 }];
+    const svg = curveChart({ calibration: cal, labX: 1000, xLabel: 'x', live: { redo: 32.8, blocks: 2 } });
+    const be = [...svg.querySelectorAll('text')].find((el) => el.textContent.startsWith('break-even'));
+    const fs = Number(be.getAttribute('font-size')); const w = 0.6 * fs * be.textContent.length;
+    const bx = Number(be.getAttribute('x')); const by = Number(be.getAttribute('y'));
+    const anchor = be.getAttribute('text-anchor');
+    const x0 = anchor === 'end' ? bx - w : anchor === 'middle' ? bx - w / 2 : bx;
+    const box = { x0, x1: x0 + w, y0: by - fs, y1: by + fs * 0.3 };
+    const pt = svg.querySelector('circle.calpt'); // first = x=10
+    const cx = Number(pt.getAttribute('cx')); const cy = Number(pt.getAttribute('cy')); const r = Number(pt.getAttribute('r'));
+    // Distance from the point's edge to the label box.
+    const dx = Math.max(box.x0 - cx, 0, cx - box.x1); const dy = Math.max(box.y0 - cy, 0, cy - box.y1);
+    expect(Math.hypot(dx, dy) - r).toBeGreaterThanOrEqual(8);
   });
 });
+

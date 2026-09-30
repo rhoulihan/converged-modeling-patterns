@@ -50,6 +50,10 @@ export function curveChart({ calibration, labX, xLabel, live }) {
   svg.append(t({ x: (L + W - R) / 2, y: H - 10, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink)' }, `${xLabel} (log)`));
   svg.append(t({ x: 14, y: (T + H - B) / 2, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink)', transform: `rotate(-90 14 ${(T + H - B) / 2})` }, 'document ÷ converged (log)'));
 
+  // Calibration points (r 3.5) padded by 4px: every label placed below treats them as obstacles.
+  const CAL_R = 3.5;
+  const calObstacles = calibration.map((c) => ({ x0: x(c.x) - CAL_R - 4, x1: x(c.x) + CAL_R + 4, y0: y(c.ratio) - CAL_R - 4, y1: y(c.ratio) + CAL_R + 4 }));
+
   // Boxes already committed to the plot — break-even, lab-data, then the live labels as each is
   // placed — so later placements know what to avoid.
   const placed = [];
@@ -57,19 +61,22 @@ export function curveChart({ calibration, labX, xLabel, live }) {
   if (yMin < 1 && yMax > 1) {
     svg.append(s('line', { class: 'breakeven', x1: L, y1: y(1), x2: W - R, y2: y(1), stroke: 'var(--muted)', 'stroke-dasharray': '6 4' }));
     const beText = 'break-even · above = document writes more'; const beFs = 11;
-    const leftX = L + 4; const span = charW(beFs, beText);
-    // Default to the left; if that span would land within 10px of the lab-data guide, anchor from
-    // the right instead so the two never share the same neighbourhood.
-    const nearLab = x(labX) >= leftX - 10 && x(labX) <= leftX + span + 10;
-    const anchor = nearLab ? 'end' : 'start';
-    const tx = nearLab ? W - R - 4 : leftX;
-    svg.append(t({ x: tx, y: y(1) - 6, 'text-anchor': anchor, 'font-size': beFs, fill: 'var(--muted)' }, beText));
-    placed.push(boxFor(tx, y(1) - 6, anchor, beText, beFs));
+    // Try left-above, right-above, left-below, right-below the line; take the first that stays
+    // 10px clear of the lab-data guide and clear of every calibration point. A point at small x
+    // with a ratio just above 1 (02-computed's x=10) sits exactly where left-above would go.
+    const labStrip = { x0: x(labX) - 10, x1: x(labX) + 10, y0: T, y1: H - B };
+    const cands = [];
+    for (const ty of [y(1) - 6, y(1) + beFs + 4]) {
+      for (const [tx, anchor] of [[L + 4, 'start'], [W - R - 4, 'end']]) cands.push({ tx, ty, anchor, box: boxFor(tx, ty, anchor, beText, beFs) });
+    }
+    const be = cands.find((c) => ![labStrip, ...calObstacles].some((o) => overlaps(c.box, o))) ?? cands[0];
+    svg.append(t({ x: be.tx, y: be.ty, 'text-anchor': be.anchor, 'font-size': beFs, fill: 'var(--muted)' }, beText));
+    placed.push(be.box);
   }
 
   const pts = calibration.map((c) => `${x(c.x).toFixed(1)},${y(c.ratio).toFixed(1)}`);
   svg.append(s('path', { class: 'cal', d: `M${pts.join(' L')}`, fill: 'none', stroke: 'var(--hot)', 'stroke-width': 2.2 }));
-  for (const c of calibration) svg.append(s('circle', { class: 'calpt', cx: x(c.x), cy: y(c.ratio), r: 3.5, fill: 'var(--panel)', stroke: 'var(--hot)', 'stroke-width': 1.6 }));
+  for (const c of calibration) svg.append(s('circle', { class: 'calpt', cx: x(c.x), cy: y(c.ratio), r: CAL_R, fill: 'var(--panel)', stroke: 'var(--hot)', 'stroke-width': 1.6 }));
   // The "measured on 26ai Free (reference run)" annotation used to live here, pinned beside the
   // highest calibration point — which is also always near the top of the chart, since every
   // pattern's ratio increases with size. That collided with the lab-data label whenever the lab's
@@ -102,7 +109,7 @@ export function curveChart({ calibration, labX, xLabel, live }) {
   placed.push(boxFor(x(labX) + 4, H - B - 6, 'start', labText, labFs));
 
   // Greedy label placement: try right of the marker, then left, then above, then below; take the
-  // first whose estimated box clears every marker and every label already placed. Clamped inside
+  // first whose estimated box clears every marker, calibration point and label already placed. Clamped inside
   // [L, W-R]; a "right" try that would overflow past the edge instead anchors from the marker.
   function placeLabel(mx, my, r, str, fs, obstacles) {
     const gap = 6;
@@ -128,14 +135,14 @@ export function curveChart({ calibration, labX, xLabel, live }) {
   if (redoY != null) {
     const markerObstacles = blocksY != null ? [{ x0: blocksCx - R_BLOCKS, x1: blocksCx + R_BLOCKS, y0: blocksY - R_BLOCKS, y1: blocksY + R_BLOCKS }] : [];
     const text = `you · ${live.redo.toFixed(1)}× redo`;
-    const label = placeLabel(redoCx, redoY, R_REDO, text, 12, [...placed, ...markerObstacles]);
+    const label = placeLabel(redoCx, redoY, R_REDO, text, 12, [...placed, ...calObstacles, ...markerObstacles]);
     svg.append(t({ x: label.x, y: label.y, 'text-anchor': label.anchor, 'font-size': 12, 'font-weight': 700, fill: 'var(--flow)' }, text));
     placed.push(label.box);
   }
   if (blocksY != null) {
     const markerObstacles = redoY != null ? [{ x0: redoCx - R_REDO, x1: redoCx + R_REDO, y0: redoY - R_REDO, y1: redoY + R_REDO }] : [];
     const text = `blocks ${live.blocks.toFixed(1)}×`;
-    const label = placeLabel(blocksCx, blocksY, R_BLOCKS, text, 11, [...placed, ...markerObstacles]);
+    const label = placeLabel(blocksCx, blocksY, R_BLOCKS, text, 11, [...placed, ...calObstacles, ...markerObstacles]);
     svg.append(t({ x: label.x, y: label.y, 'text-anchor': label.anchor, 'font-size': 11, fill: 'var(--flow)' }, text));
     placed.push(label.box);
   }

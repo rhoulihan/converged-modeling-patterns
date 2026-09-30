@@ -11,7 +11,7 @@ const side = (redo, blocks, kind = 'dml') => ({ sql: 'x', stats: { 'redo size': 
 const statRow = (el, name) => [...el.querySelectorAll('.stat')].find((r) => r.querySelector('.stat-name').textContent.startsWith(name));
 
 describe('renderMeasure', () => {
-  it('renders the curve with a live marker, log bars with ratios, and explainers', () => {
+  it('renders the curve with a live marker, per-row scaled bars with ratios, and explainers', () => {
     const el = renderMeasure({ tag: 't', document: side(52160, 21), converged: side(1592, 11) }, { pattern: P });
     expect(el.querySelector('svg.curve circle.live-redo')).not.toBeNull();
     expect(el.querySelector('.stat-bars')).not.toBeNull();
@@ -29,11 +29,16 @@ describe('renderMeasure', () => {
     expect(parseFloat(coolBar.style.width)).toBeLessThan(5);
   });
 
-  it('an error side shows the error and no live marker', () => {
-    const err = { sql: 'x', stats: {}, result: { kind: 'error', code: 'LAB-MEASURE', error: 'nope', elapsedMs: 0 } };
+  it('an error side shows the error, no live marker and — for every ratio, even with stats on the error side', () => {
+    // The error side still carries stats (the failed statement did some work before it failed),
+    // so a ratio could be computed — it must not be: it would compare a partial write to a full one.
+    const err = { ...side(52160, 21), result: { kind: 'error', code: 'LAB-MEASURE', error: 'nope', elapsedMs: 0 } };
     const el = renderMeasure({ tag: 't', document: err, converged: side(1592, 11) }, { pattern: P });
     expect(el.querySelector('.result.error').textContent).toContain('LAB-MEASURE');
+    expect(el.querySelector('svg.curve')).not.toBeNull();
     expect(el.querySelector('circle.live-redo')).toBeNull();
+    const ratios = [...el.querySelectorAll('.stat-ratio')].map((r) => r.textContent);
+    expect(ratios).toEqual(['—', '—', '—', '—']);
     expect(el.textContent).not.toMatch(/NaN|Infinity/);
   });
 
