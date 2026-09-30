@@ -58,16 +58,17 @@ function card(title, notes, code, lane, patternId, measureTag, help) {
 
 function measureCard(p, m) {
   const c = h('div', 'card measure');
-  c.append(h('h3', null, `Measure it · ${m.tag}`),
-    h('p', 'note', 'Runs both writes back to back in one exclusive slot, reads the engine statistics before and after each, then rolls both back.'),
-    h('div', 'kicker', 'Document model'), h('pre', 'code', m.documentSql),
-    h('div', 'kicker', 'Converged'), h('pre', 'code', m.convergedSql));
+  const title = h('h3', null, `Measure it · ${m.tag}`);
+  const th = helpTrigger(p.meta.help.tabs.measure, { label: 'Measure it', patternId: p.id }); if (th) title.append(th);
+  const kd = h('div', 'kicker', 'Document model'); const kdh = helpTrigger(m.help?.document, { label: 'document write', patternId: p.id }); if (kdh) kd.append(kdh);
+  const kc = h('div', 'kicker', 'Converged'); const kch = helpTrigger(m.help?.converged, { label: 'converged write', patternId: p.id }); if (kch) kc.append(kch);
+  c.append(title, kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
   const out = h('div', 'card-out');
   const b = btn('Measure it', async () => {
     b.disabled = true; out.textContent = 'measuring… (waits for an exclusive slot)';
     const r = await postJSON('/api/measure', { patternId: p.id, tag: m.tag });
     b.disabled = false;
-    out.replaceChildren(r.status === 200 ? renderMeasure(r.body) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
+    out.replaceChildren(r.status === 200 ? renderMeasure(r.body, { pattern: p }) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
   }, 'btn primary');
   c.append(b, out);
   return c;
