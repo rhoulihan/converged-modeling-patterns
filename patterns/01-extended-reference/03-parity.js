@@ -26,6 +26,9 @@ if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
 // @step Read the projected document over the MongoDB API
 // @note Same client document the SQL lane read — the advisor block projects live through the duality view, whichever wire protocol you read it over.
+// @why Diversity without copies: the portal keeps its driver and find(), the copilot reads SQL/JSON, and both read the same advisor row through one duality view.
+// @look The returned document's advisor.office matches the SQL read, with a _metadata etag the duality view adds.
+// @figure flow.svg One duality view serves the portal over the MongoDB API, the copilot over SQL/JSON and statements over SQL
 const viaMongo = db.xr_client_dv.findOne({ _id: "C-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for C-001 (is xr_client_dv exposed?)"); quit(1); }
 

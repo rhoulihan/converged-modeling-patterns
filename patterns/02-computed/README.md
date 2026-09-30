@@ -6,9 +6,23 @@ problem: >-
   Each subscriber document carries a running cycle-usage rollup so the app and real-time
   charging read one document — but every call record now rewrites that hot document.
 knobs:
-  - { name: Diversity, setting: "Medium-high — 4 consumers" }
-  - { name: Read / write, setting: "Write-heavy on the rollup" }
-  - { name: Update locality, setting: "Every write, one parent", hot: true }
+  - { name: Diversity, setting: "Medium-high — 4 consumers", help: "The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape." }
+  - { name: Read / write, setting: "Write-heavy on the rollup", help: "About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so the rollup is written nearly as often as it is read." }
+  - { name: Update locality, setting: "Every write, one parent", hot: true, help: "Every CDR lands on the same subscriber document: break-even is about 4.4 CDRs a subscriber a day, and a 400-a-day heavy user costs about 2.5× the work embedded." }
+help:
+  tabs:
+    document:
+      why: "The starting point: keep a running cycleUsage rollup on the subscriber document so the balance check reads one document. The read is right; the cost is that every CDR rewrites the whole, growing document."
+      look: "cdrs_in_document on the account page: the line items that every new CDR has to rewrite."
+    converged:
+      why: "CDRs become append-only rows and a trigger keeps a narrow usage row current in the same transaction. The balance read joins that row by primary key (about 30% more read work in the deck's model); each CDR is a small insert plus a one-row counter bump."
+      look: "The CDR insert reports 1 row affected, and the account page reads total_mb from one summary row."
+    mongo:
+      why: "The subscriber document the app wanted, projected over the MongoDB API with the live rollup inline and read-only."
+      look: "cycleUsage.totalMB in the returned document matches total_mb from the SQL reads."
+    measure:
+      why: "The ratio is the document model's redo for one CDR divided by the converged model's. The document side rewrites every line item already in the subscriber document, so the ratio climbs as the cycle fills; the converged insert stays near 1.6 KB."
+      look: "Your dot at 1,000 line items, near the 33× reference point (about 52 KB of redo against 1.6 KB)."
 measure:
   x_label: "CDR line items in the subscriber document"
   lab_x: 1000

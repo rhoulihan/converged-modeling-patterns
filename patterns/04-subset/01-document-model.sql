@@ -44,6 +44,9 @@ COMMIT;
 -- (a) append newest + (b) trim oldest: rewrites the whole policy document.
 -- @step Push CL-1004 in, trim the oldest claim
 -- @note Append plus trim rewrites the WHOLE policy document — one of three writes for a single new claim.
+-- @why Update locality is the hot knob: every claim event lands on the parent policy, and keeping the list recent is a read-modify-write of the whole policy document (append, trim, rewrite) on every event.
+-- @look Rows affected is 1; Measure it shows the redo of rewriting the policy next to one claim insert.
+-- @figure doc-shape.svg The policy document as built: recent claim events inline, every event also written to a history collection
 -- @measure claim-event
 UPDATE sb_policy_doc
 SET data = JSON_TRANSFORM(data,
@@ -53,12 +56,16 @@ WHERE JSON_VALUE(data,'$._id') = 'P-001';
 -- (c) the full claim also goes to the overflow collection: the second write.
 -- @step Write the full claim to the overflow collection
 -- @note The second write for the same claim — the history collection must be kept in step with the inline subset by hand.
+-- @why Update locality again: the same fact lands in a second place, and if this write fails after the first, the summary and the history disagree.
+-- @look Rows affected is 1, the second write for a single claim.
 INSERT INTO sb_claim_history VALUES (JSON('{"_id":"CL-1004","policyId":"P-001","amount":4200}'));
 COMMIT;
 
 -- The common read the pattern optimizes for: recent claims, one document.
 -- @step Read the recent claims (one document)
 -- @note recentClaims now shows CL-1004 in, CL-1001 trimmed out — three writes paid to keep this one read cheap.
+-- @why Read/write is the subset's case: at about 67 summary reads per claim event, the policy page reads one document with the list already built.
+-- @look recent_claims_inline holds 3 claims, the list every event paid to keep sorted and trimmed.
 SELECT JSON_VALUE(data,'$._id') AS policy,
        JSON_QUERY(data,'$.recentClaims') AS recent_claims_inline
 FROM   sb_policy_doc WHERE JSON_VALUE(data,'$._id') = 'P-001';

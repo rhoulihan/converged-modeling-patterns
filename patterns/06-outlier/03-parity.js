@@ -25,6 +25,9 @@ if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
 // @step Read the projected document over the MongoDB API
 // @note Same typical-advisor document the SQL lane read — the client array projects from ol_clients, whichever wire protocol you read it over.
+// @why Diversity: the CRM keeps find() over the MongoDB API while the book screen runs its top-N query in SQL over the same client rows, so there is one book and no branch.
+// @look The A-001 document's clients array matches the SQL projection, with no hasExtras flag.
+// @figure flow.svg Advisor and client tables feed a duality view for document consumers and one top-N query for the book screen
 const viaMongo = db.ol_advisor_dv.findOne({ _id: "A-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for A-001"); quit(1); }
 

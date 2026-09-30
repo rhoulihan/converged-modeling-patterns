@@ -46,6 +46,9 @@ CREATE INDEX bk_ix_readings ON bk_sensor_readings (machine_id, metric, reading_t
 -- The same three readings the document model appends to its bucket, as three rows.
 -- @step Insert the three readings
 -- @note Three small rows — no bucket to grow, no parent document to rewrite.
+-- @why Update locality stops compounding: each reading is its own small row in the hour's partition, so an insert costs the same at reading 3 or reading 36,000. There is no document to grow and no 16 MB cap to reach.
+-- @look Rows affected is 3; Measure it shows redo that stays near 1 KB at any bucket size.
+-- @figure erd.svg Plant, machine and append-only readings with a derived hourly rollup, beside one hot sensor-hour packed into a single bucket
 -- @measure ingest-reading
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts)
 SELECT 'M-100', 'TEMP', 88.4, TIMESTAMP '2026-08-01 10:00:05' FROM dual UNION ALL
@@ -60,6 +63,8 @@ COMMIT;
 -- single hour prunes to a single partition.
 -- @step Roll up the hour with GROUP BY
 -- @note Same answer the bucket counters gave, computed on read instead of maintained on every write.
+-- @why Read/write, priced honestly: the rollup is computed on read and pruned to the partitions asked for, but a range scan pays per row where the bucket was one fetch. Where reads repeat, the materialized view precomputes it.
+-- @look One row per machine and hour with n, avg_val and max_val, computed from the rows rather than maintained on every write.
 SELECT machine_id, metric, TRUNC(reading_ts, 'HH24') AS hour_start,
        COUNT(*)                   AS n,
        ROUND(AVG(reading_val), 3) AS avg_val,

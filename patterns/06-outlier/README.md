@@ -6,9 +6,23 @@ problem: >-
   Advisor documents embed their client book. Institutional books break the 16 MB cap, so
   the Outlier pattern adds overflow documents and a second code path in the application.
 knobs:
-  - { name: Diversity, setting: "Low — one book screen" }
-  - { name: Read / write, setting: "Read-heavy by day" }
-  - { name: Update locality, setting: "Skew ×800, p50 → max", hot: true }
+  - { name: Diversity, setting: "Low — one book screen", help: "The portal and the batch read the book the same way, top clients by AUM, so one shape serves both." }
+  - { name: Read / write, setting: "Read-heavy by day", help: "About 2,000 book reads a second at the open, and one AUM refresh storm a night." }
+  - { name: Update locality, setting: "Skew ×800, p50 → max", hot: true, help: "The largest book is about 800× the median and takes the nightly refresh and every transition: embedded is about 3× cheaper at the 180-client median, about 50× dearer at a 150,000-client book, with break-even near 3,200." }
+help:
+  tabs:
+    document:
+      why: "The starting point: embed the client book on the advisor document, which is right for the 99% of advisors under 500 clients. Books that outgrow the 16 MB cap spill into overflow documents behind a hasExtras flag, and every reader gains a branch."
+      look: "The whale read's has_extras, clients_embedded and clients_in_overflow: one advisor, two places to look."
+    converged:
+      why: "Clients are rows with an (advisor_id, aum DESC) index, so every book is the same top-N query whether it holds 180 clients or 148,000. At the median the single document was cheaper, about 3× in the deck's model; the rows buy one code path."
+      look: "The insert reports 1 row affected, and the whale's top 3 and next 3 come from the same query with OFFSET."
+    mongo:
+      why: "The CRM and the AI assistant read the book as a document over the MongoDB API, projected from the same client rows the book screen queries."
+      look: "The returned A-001 document carries its clients array and no hasExtras flag."
+    measure:
+      why: "The ratio is the redo for appending one client to the embedded book divided by the redo for one client row. The document side rewrites the whole book, so the ratio grows with the clients already embedded; the row insert stays near 1.2 KB."
+      look: "Your dot at 800 clients, near 17× (about 20 KB of redo against 1.2 KB)."
 measure:
   x_label: "clients embedded in the advisor's book"
   lab_x: 800
