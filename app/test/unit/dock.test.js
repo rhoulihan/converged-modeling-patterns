@@ -57,4 +57,45 @@ describe('Dock', () => {
     t.click(); expect(root.classList.contains('expanded')).toBe(true);
     t.click(); expect(root.classList.contains('expanded')).toBe(false);
   });
+
+  it('closes 600ms after focus leaves to outside the dock, with the pointer not on it (Load into console, then click away)', () => {
+    const { root, ed, dock } = mk();
+    dock.open('load');
+    ed.focus(); root.dispatchEvent(new Event('focusin'));
+    ed.blur(); root.dispatchEvent(new Event('focusout')); // relatedTarget is outside root
+    vi.advanceTimersByTime(599);
+    expect(root.classList.contains('expanded')).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(root.classList.contains('expanded')).toBe(false);
+  });
+
+  it('stays open if focus leaves the dock while the pointer is still hovering it', () => {
+    const { root, ed } = mk();
+    root.dispatchEvent(new Event('pointerenter')); vi.advanceTimersByTime(150);
+    expect(root.classList.contains('expanded')).toBe(true);
+    ed.focus(); root.dispatchEvent(new Event('focusin'));
+    ed.blur(); root.dispatchEvent(new Event('focusout'));
+    vi.advanceTimersByTime(2000);
+    expect(root.classList.contains('expanded')).toBe(true);
+  });
+
+  it('closes 600ms after a run finishes (setBusy(false)) with no hover and no focus', () => {
+    const { root, dock } = mk();
+    dock.setBusy(true);
+    expect(root.classList.contains('expanded')).toBe(true);
+    dock.setBusy(false);
+    vi.advanceTimersByTime(599);
+    expect(root.classList.contains('expanded')).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(root.classList.contains('expanded')).toBe(false);
+  });
+
+  it('never closes while pinned, even after a run finishes with no hover or focus', () => {
+    const { root, dock } = mk();
+    dock.togglePin();
+    dock.setBusy(true);
+    dock.setBusy(false);
+    vi.advanceTimersByTime(2000);
+    expect(root.classList.contains('expanded')).toBe(true);
+  });
 });

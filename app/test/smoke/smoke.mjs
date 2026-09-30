@@ -63,6 +63,8 @@ try {
         await t.click();
         const txt = await page.$eval('.help-pop', (e) => e.textContent.trim());
         if (txt.length < 20) fail(`${id}: help popover for ${sel} is empty`);
+        // One card's popover, left open for the screenshot, so a reviewer can see it in place.
+        if (sel === '.card h3 .help-i') await page.screenshot({ path: path.join(OUT, `${id}-help-${scheme}.png`) });
         await page.keyboard.press('Escape');
       }
       const runButtons = await page.$$('.card .actions button:nth-child(3)');
@@ -80,13 +82,14 @@ try {
       await page.setViewport({ width: 800, height: 900 });
       await page.screenshot({ path: path.join(OUT, `${id}-cards-${scheme}-800.png`) });
       await page.setViewport({ width: 1440, height: 900 });
-      // The Load/Run clicks above focus the console, which opens the dock and leaves it open —
-      // closing is otherwise driven only by a pointer-leave timer or an explicit toggle, never by
-      // a run finishing. This page is short enough that scrollIntoView cannot lift the Measure-it
-      // card above the fixed dock, so force the dock shut before clicking into that card. The
-      // 'expanded' class drops immediately, but #console's 180ms slide (lab.css) still has to
-      // finish, or the still-sliding panel can catch the next click meant for the page beneath it.
-      if (await expanded()) { await press(page, '#dock-toggle'); await new Promise((r) => setTimeout(r, 220)); }
+      // Dock: Load into console (above) opened it via focus, and it should still be open.
+      if (!(await expanded())) fail(`${id}: dock did not stay open after Load into console`);
+      // Move the pointer off the dock, then click the page heading to move focus out too —
+      // with neither hover nor focus on it, it should close on its own after ~600ms.
+      await page.mouse.move(10, 10);
+      await press(page, '#view h1');
+      await new Promise((r) => setTimeout(r, 900));
+      if (await expanded()) fail(`${id}: dock did not close after focus and hover both left`);
       const tabs = await page.$$('#view .tabs button.tab'); // pattern tabs, not the console's SQL/MongoDB lane tabs
       await press(page, tabs[tabs.length - 1]); // Measure it
       await press(page, '.card.measure .btn.primary');

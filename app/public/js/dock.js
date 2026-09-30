@@ -1,6 +1,7 @@
 // Console dock: a 40 px bar that slides the console up on hover, focus, load or run, and back
-// down 600 ms after the pointer leaves, unless the editor has focus, a run is in flight or the
-// dock is pinned. Touch devices (no hover) toggle on tap only.
+// down 600 ms after the pointer leaves, or after focus moves outside the dock, or after a run
+// finishes — whichever happens last while the pointer isn't on it — unless the dock is pinned
+// or another one of those stays true. Touch devices (no hover) toggle on tap only.
 const OPEN_DELAY = 150;
 const CLOSE_DELAY = 600;
 const KEY = 'lab.dock.pinned';
@@ -11,16 +12,28 @@ export class Dock {
     this.storage = storage;
     this.toggle = root.querySelector('#dock-toggle');
     this.pinBtn = root.querySelector('#dock-pin');
-    this.focused = false; this.busy = false; this.timer = null;
+    this.focused = false; this.busy = false; this.hovered = false; this.timer = null;
     this.hoverable = globalThis.matchMedia?.('(hover: hover)').matches ?? true;
     this.#setPinned(this.#read() === 'true');
     this.#render(this.pinned);
-    if (this.hoverable) {
-      root.addEventListener('pointerenter', () => this.#schedule(() => this.open('hover'), OPEN_DELAY));
-      root.addEventListener('pointerleave', () => this.#schedule(() => this.close(), CLOSE_DELAY));
-    }
+    // hovered is tracked unconditionally — a run or Load can open the dock on a touch
+    // device too, and closing still needs to know the pointer isn't sitting on it.
+    root.addEventListener('pointerenter', () => {
+      this.hovered = true;
+      if (this.hoverable) this.#schedule(() => this.open('hover'), OPEN_DELAY);
+    });
+    root.addEventListener('pointerleave', () => {
+      this.hovered = false;
+      if (this.hoverable) this.#schedule(() => this.close(), CLOSE_DELAY);
+    });
     root.addEventListener('focusin', () => { this.focused = true; this.open('focus'); });
-    root.addEventListener('focusout', (e) => { if (!root.contains(e.relatedTarget)) this.focused = false; });
+    root.addEventListener('focusout', (e) => {
+      if (!root.contains(e.relatedTarget)) {
+        this.focused = false;
+        // Load/Run open the dock via focus, not hover — nothing else ever closed it again.
+        if (!this.hovered) this.#schedule(() => this.close(), CLOSE_DELAY);
+      }
+    });
     root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.pinned) { this.focused = false; this.close(true); this.toggle?.focus(); } });
     this.toggle?.addEventListener('click', () => (this.expanded ? this.close(true) : this.open('toggle')));
     this.pinBtn?.addEventListener('click', () => this.togglePin());
@@ -37,7 +50,12 @@ export class Dock {
     this.#render(false);
   }
 
-  setBusy(on) { this.busy = on; this.root.classList.toggle('busy', on); if (on) this.open('run'); }
+  setBusy(on) {
+    this.busy = on;
+    this.root.classList.toggle('busy', on);
+    if (on) this.open('run');
+    else if (!this.hovered && !this.focused) this.#schedule(() => this.close(), CLOSE_DELAY);
+  }
 
   togglePin() {
     this.#setPinned(!this.pinned);

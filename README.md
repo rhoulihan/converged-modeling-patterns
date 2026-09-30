@@ -216,8 +216,10 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
 - **Reset this pattern** rebuilds its tables to the starting state.
 
 The console lives in a **dock** collapsed to a thin bar at the bottom of the page. Hover
-the bar (or Load/Run a query) to open it; move away and it closes on its own a moment
-later. Click **📌** to pin it open regardless, or **▲/▼ Console** to toggle it by hand.
+the bar, or use **Load into console**, to open it. It stays open while you're typing in
+it or a console run is in progress, and closes on its own about half a second after both
+your pointer leaves it and focus moves elsewhere (e.g. clicking back into the page).
+Click **📌** to pin it open regardless, or **▲/▼ Console** to toggle it by hand.
 
 Every card, tab and knob has a **ⓘ** next to it — hover for a quick tooltip, click for a
 dialog with what it does, why it matters and what to look for, and, where relevant, the
