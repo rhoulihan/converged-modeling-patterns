@@ -26,7 +26,13 @@ export class Dock {
       this.hovered = false;
       if (this.hoverable) this.#schedule(() => this.close(), CLOSE_DELAY);
     });
-    root.addEventListener('focusin', () => { this.focused = true; this.open('focus'); });
+    // Focus on the toggle or pin must not open the dock: Esc returns focus to the toggle (which
+    // would reopen what Esc just closed), and a tap focuses then clicks (which would open, then
+    // immediately close). The toggle's own click is the only thing that opens it from there.
+    root.addEventListener('focusin', (e) => {
+      this.focused = true;
+      if (e.target !== this.toggle && e.target !== this.pinBtn) this.open('focus');
+    });
     root.addEventListener('focusout', (e) => {
       if (!root.contains(e.relatedTarget)) {
         this.focused = false;
@@ -66,6 +72,8 @@ export class Dock {
   #setPinned(v) {
     this.pinned = v;
     this.root.classList.toggle('pinned', v);
+    // A pinned dock covers the bottom of the page; the body class lets CSS pad main#view for it.
+    this.root.ownerDocument?.body?.classList.toggle('dock-pinned', v);
     this.pinBtn?.setAttribute('aria-pressed', String(v));
   }
 

@@ -24,6 +24,7 @@ header.top { display: flex; align-items: center; gap: 16px; padding: 10px 24px; 
 header.top .brand { font: 700 15px var(--head); color: var(--ink); text-decoration: none; }
 header.top .who { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
 main#view { padding: 20px 24px 64px; max-width: 1180px; margin: 0 auto; }
+body.dock-pinned main#view { padding-bottom: calc(clamp(280px, 45vh, 60vh) + 24px); }
 h1, h2, h3 { font-family: var(--head); margin: 0 0 8px; }
 h1 { font-size: 30px; font-weight: 800; }
 .kicker { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }

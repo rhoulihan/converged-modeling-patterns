@@ -98,4 +98,47 @@ describe('Dock', () => {
     vi.advanceTimersByTime(2000);
     expect(root.classList.contains('expanded')).toBe(true);
   });
+
+  it('Esc from the editor collapses the dock and leaves focus on the toggle without reopening it', () => {
+    const { root, t, ed, dock } = mk();
+    dock.open('load');
+    ed.focus(); ed.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    ed.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    t.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    vi.advanceTimersByTime(2000);
+    expect(document.activeElement).toBe(t);
+    expect(root.classList.contains('expanded')).toBe(false);
+  });
+
+  it('on a touch device (hover: none), focus then click on the toggle toggles exactly once per click', () => {
+    const orig = globalThis.matchMedia;
+    globalThis.matchMedia = () => ({ matches: false });
+    try {
+      const { root, t, dock } = mk();
+      expect(dock.hoverable).toBe(false);
+      t.focus(); t.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); t.click();
+      expect(root.classList.contains('expanded')).toBe(true);
+      t.click();
+      expect(root.classList.contains('expanded')).toBe(false);
+    } finally { globalThis.matchMedia = orig; }
+  });
+
+  it('keyboard focus on the toggle or pin alone does not expand the dock; focus elsewhere inside does', () => {
+    const { root, t, pin, ed } = mk();
+    t.focus(); t.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(root.classList.contains('expanded')).toBe(false);
+    pin.focus(); pin.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(root.classList.contains('expanded')).toBe(false);
+    ed.focus(); ed.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(root.classList.contains('expanded')).toBe(true);
+  });
+
+  it('pinning toggles the dock-pinned class on body so the page can pad for the dock', () => {
+    const { dock } = mk();
+    expect(document.body.classList.contains('dock-pinned')).toBe(false);
+    dock.togglePin();
+    expect(document.body.classList.contains('dock-pinned')).toBe(true);
+    dock.togglePin();
+    expect(document.body.classList.contains('dock-pinned')).toBe(false);
+  });
 });
