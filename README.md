@@ -26,10 +26,12 @@ together.** Embed and you get atomic reads, until the document grows, hits 16 MB
 takes write amplification on every change. Reference and you get small writes, but
 now you need a join the engine may not love.
 
-Convergence adds a **third resolution the catalog never had: _project it._** Store
-the domain in canonical form once; project the shape each consumer wants (document,
-graph, time-series, relational) at read time, over the same rows, in the same
-transaction. **Duality does not change the physics knobs. It changes how the knobs
+Convergence adds a **third resolution the catalog never had: _project it._** Model
+the domain once, in canonical form: its entities, properties and relationships. Store
+it once, as rows; duality views and property graphs are further projections of those
+same rows. Each consumer's query, run through SQL, SQL/JSON, SQL/PGQ or the MongoDB
+API, reads the shape it wants (document, graph, time-series, relational) at read time,
+in the same transaction. **Duality does not change the physics knobs. It changes how the knobs
 get set.**
 
 The three knobs, on every design:

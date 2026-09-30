@@ -48,7 +48,7 @@ Entries missing help: **0**
 **Read the projected client document**
 - **Why:** Diversity is served without copies: the duality view assembles the advisor block through the foreign key on every read. That primary-key join is real read work, about 15% more per read in the deck's model.
 - **Look for:** The same client and advisor_office columns as the document model's read, now from xr_client_dv.
-- **Figure:** `erd.svg`: Advisor, client, account and trade stored once, beside the fan-out one advisor change causes in the embedded model
+- **Figure:** `erd.svg`: Advisor, client, account and trade in canonical form, each fact once, beside the fan-out one advisor change causes in the embedded model
 
 **Move advisor A-001 to a new office** · measured: advisor-move
 - **Why:** Update locality collapses: the advisor is one row, so an office change is one small row write however many clients project it.
