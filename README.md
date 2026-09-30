@@ -226,7 +226,7 @@ dialog with what it does, why it matters and what to look for, and, where releva
 deck figure it illustrates.
 
 **Measure it**'s chart plots a reference line — write amplification measured on 26ai Free
-at several sizes, same protocol — against **your** live point at this lab's actual size,
+at several sizes, same protocol — against **your** live point at this lab's actual size (on fresh or reset lab data),
 so you can see where your result falls on the curve rather than judging it in isolation.
 Beside the chart, a **deck workload model** thumbnail opens the pattern's full daily-cost
 illustration from the deck; it's a separate, illustrative model, not something Measure it

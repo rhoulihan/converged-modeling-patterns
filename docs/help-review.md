@@ -332,7 +332,7 @@ Entries missing help: **0**
 
 **Read the whale advisor (branch on hasExtras)**
 - **Why:** Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
-- **Look for:** clients_embedded is 801 and clients_in_overflow is 2: one advisor, read from two collections and stitched together.
+- **Look for:** clients_embedded is 801 and clients_in_overflow is 2 if you ran the two cards above (800 and 0 on fresh data): one advisor, read from two collections and stitched together.
 
 ### converged cards
 

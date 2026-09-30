@@ -14,7 +14,8 @@ if (!chrome) { console.error('no Chrome found; set CHROME_PATH'); process.exit(2
 
 const PATTERNS = ['01-extended-reference', '02-computed', '03-bucket', '04-subset', '05-tree-hierarchy', '06-outlier'];
 const fail = (m) => { console.error(`SMOKE FAIL: ${m}`); process.exit(1); };
-// The console is a fixed dock over the bottom 42vh; Puppeteer's own scroll can leave a
+// The console is a fixed dock over the bottom of the page (clamp(280px, 45vh, 60vh) when
+// expanded, a 40 px bar when collapsed); Puppeteer's own scroll can leave a
 // target under it, so scroll the target to the top of the viewport before a real click.
 const press = async (page, target) => {
   const el = typeof target === 'string' ? await page.$(target) : target;

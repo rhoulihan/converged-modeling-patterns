@@ -99,7 +99,7 @@ FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- @step Read the whale advisor (branch on hasExtras)
 -- @note Every reader must notice hasExtras and go stitch the overflow back in — the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
 -- @why Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
--- @look clients_embedded is 801 and clients_in_overflow is 2: one advisor, read from two collections and stitched together.
+-- @look clients_embedded is 801 and clients_in_overflow is 2 if you ran the two cards above (800 and 0 on fresh data): one advisor, read from two collections and stitched together.
 SELECT JSON_VALUE(d.data,'$._id')  AS advisor,
        JSON_VALUE(d.data,'$.hasExtras') AS has_extras,
        JSON_VALUE(d.data,'$.clients.size()' RETURNING NUMBER) AS clients_embedded,
