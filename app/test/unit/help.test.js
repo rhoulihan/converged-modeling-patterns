@@ -102,3 +102,38 @@ describe('hover tooltip', () => {
     expect(t.hasAttribute('aria-describedby')).toBe(false);
   });
 });
+
+describe('hover tooltip grace', () => {
+  beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); });
+  afterEach(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); vi.useRealTimers(); });
+  const hover = () => {
+    const t = helpTrigger({ why: 'w', figure: { file: 'erd.svg', caption: 'c' } }, { label: 'x', patternId: '02-computed' });
+    document.body.append(t);
+    t.dispatchEvent(new Event('pointerenter')); vi.advanceTimersByTime(250);
+    return t;
+  };
+  it('survives the gap between the trigger and the popover', () => {
+    const t = hover();
+    t.dispatchEvent(Object.assign(new Event('pointerleave'), { relatedTarget: null }));
+    vi.advanceTimersByTime(150);
+    const pop = document.querySelector('.help-pop');
+    expect(pop).not.toBeNull();
+    pop.dispatchEvent(new Event('pointerenter'));
+    vi.advanceTimersByTime(1000);
+    expect(document.querySelector('.help-pop')).not.toBeNull();
+    expect(document.querySelector('.help-fig-open')).not.toBeNull();
+  });
+  it('closes shortly after the pointer leaves both trigger and popover', () => {
+    const t = hover();
+    t.dispatchEvent(Object.assign(new Event('pointerleave'), { relatedTarget: null }));
+    vi.advanceTimersByTime(1000);
+    expect(document.querySelector('.help-pop')).toBeNull();
+    const t2 = hover();
+    const pop = document.querySelector('.help-pop');
+    t2.dispatchEvent(Object.assign(new Event('pointerleave'), { relatedTarget: null }));
+    pop.dispatchEvent(new Event('pointerenter'));
+    pop.dispatchEvent(new Event('pointerleave'));
+    vi.advanceTimersByTime(1000);
+    expect(document.querySelector('.help-pop')).toBeNull();
+  });
+});
