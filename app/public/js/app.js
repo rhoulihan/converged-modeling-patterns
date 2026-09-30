@@ -1,6 +1,7 @@
 // app/public/js/app.js
 import { getJSON, postJSON } from './api.js';
 import { Console, exec } from './console.js';
+import { Dock } from './dock.js';
 import { renderRun } from './results.js';
 import { renderMeasure } from './measure.js';
 
@@ -135,7 +136,8 @@ async function boot() {
   document.getElementById('console').hidden = false;
   who.textContent = config.mode === 'solo' ? 'solo · CMP_USER' : `${me.body.user.name} · ${me.body.user.schema}`;
   patterns = (await getJSON('/api/patterns')).body;
-  cons ??= new Console(document.getElementById('console'));
+  const consoleEl = document.getElementById('console');
+  cons ??= new Console(consoleEl, new Dock(consoleEl));
   window.onhashchange = route;
   route();
 }
