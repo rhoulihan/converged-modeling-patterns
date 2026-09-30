@@ -17,7 +17,10 @@ export function figuresRouter({ cfg, patterns }) {
     res.set('Content-Type', 'image/svg+xml');
     res.set('X-Content-Type-Options', 'nosniff');
     res.set('Cache-Control', 'public, max-age=3600');
-    return res.sendFile(full);
+    // Opened full size in its own tab an SVG is a document, so lock it down: no scripts, no loads.
+    res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+    // A file removed between existsSync and the read (or any read error) is a 404, not a 500.
+    return res.sendFile(full, (err) => { if (err && !res.headersSent) res.status(404).end(); });
   });
   return r;
 }

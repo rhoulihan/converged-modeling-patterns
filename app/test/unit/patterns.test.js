@@ -68,6 +68,21 @@ describe('loadPatterns (the real lab)', () => {
     const byId = Object.fromEntries(patterns.map((p) => [p.id, p]));
     for (const id of ['01-extended-reference', '02-computed', '03-bucket', '06-outlier']) expect(byId[id].lanes.mongo.length, id).toBeGreaterThanOrEqual(1);
   });
+  it('every referenced figure, and each pattern\'s model-curve.svg, exists under patterns/<id>/figures/', () => {
+    const root = path.resolve(import.meta.dirname, '../../../patterns');
+    let checked = 0;
+    for (const p of patterns) {
+      const cards = [...p.lanes.document, ...p.lanes.converged, ...p.lanes.mongo];
+      const files = new Set(['model-curve.svg']);
+      for (const c of cards) if (c.help?.figure?.file) files.add(c.help.figure.file);
+      for (const t of Object.values(p.meta.help.tabs)) if (t?.figure?.file) files.add(t.figure.file);
+      for (const f of files) {
+        expect(fs.existsSync(path.join(root, p.id, 'figures', f)), `${p.id}/figures/${f}`).toBe(true);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(patterns.length); // @figure references were actually found
+  });
   it('is deterministic', () => {
     const again = loadPatterns(path.resolve(import.meta.dirname, '../../../patterns'));
     expect(again.map((p) => p.version)).toEqual(patterns.map((p) => p.version));
@@ -115,6 +130,11 @@ describe('help and measure front matter', () => {
     expect(p.meta.help).toEqual({ tabs: {} });
     expect(p.meta.measure).toBeNull();
     expect(p.meta.knobs.every((k) => k.help === null)).toBe(true);
+  });
+  it('rejects a measure block without a non-empty x_label', () => {
+    for (const bad of [FM_HELP.replace('  x_label: "CDR line items in the document"\n', ''), FM_HELP.replace('x_label: "CDR line items in the document"', 'x_label: ""')]) {
+      expect(() => loadPatterns(fixture({ 'README.md': bad, '01-document-model.sql': DOC, '02-converged.sql': CONV }))).toThrow(/x_label/);
+    }
   });
   it('rejects a calibration with fewer than 4 points or lab_x outside the range', () => {
     const bad = FM_HELP.replace('lab_x: 1000', 'lab_x: 99999');

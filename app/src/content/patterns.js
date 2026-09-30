@@ -31,6 +31,7 @@ function frontMatter(file) {
     const cal = (fm.measure.calibration ?? []).map((c) => ({ x: Number(c.x), ratio: Number(c.ratio) }));
     if (cal.length < 4 || cal.some((c) => !(c.x > 0) || !(c.ratio > 0))) throw new Error(`${file}: measure.calibration needs ≥ 4 points with x > 0 and ratio > 0`);
     cal.sort((a, b) => a.x - b.x);
+    if (typeof fm.measure.x_label !== 'string' || !fm.measure.x_label.trim()) throw new Error(`${file}: measure.x_label must be a non-empty string`);
     const labX = Number(fm.measure.lab_x);
     if (!(labX >= cal[0].x && labX <= cal[cal.length - 1].x)) throw new Error(`${file}: measure.lab_x must lie inside the calibrated x range`);
     measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal };

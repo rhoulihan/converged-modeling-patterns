@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { helpTrigger, placePopover } from '../../public/js/help.js';
 
 describe('placePopover', () => {
@@ -83,5 +83,22 @@ describe('figure popover', () => {
       expect(a.getAttribute('rel')).toBe('noopener');
     });
     expect(d.querySelector('.help-fig-open').textContent).toBe('Open full size ↗');
+  });
+});
+
+describe('hover tooltip', () => {
+  beforeEach(() => { document.body.innerHTML = ''; vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
+  it('describes its trigger while open, and Esc anywhere closes it and drops the description', () => {
+    const t = helpTrigger({ why: 'Because.' }, { label: 'hover me' });
+    document.body.append(t);
+    t.dispatchEvent(new Event('pointerenter')); vi.advanceTimersByTime(200);
+    const pop = document.querySelector('.help-pop');
+    expect(pop.getAttribute('role')).toBe('tooltip');
+    expect(pop.id).not.toBe('');
+    expect(t.getAttribute('aria-describedby')).toBe(pop.id);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('.help-pop')).toBeNull();
+    expect(t.hasAttribute('aria-describedby')).toBe(false);
   });
 });

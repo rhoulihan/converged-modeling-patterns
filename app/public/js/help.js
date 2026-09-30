@@ -1,11 +1,13 @@
 // ⓘ help: a small button that opens one popover at a time with "What it does / Why it matters /
 // What to look for" (or a labelled list of items) and an optional deck figure — the popover widens
 // (.has-fig) and the figure links to the full-size file when one is shown. Hover opens a tooltip
-// (desktop); click, Enter or Space opens a dialog that keeps focus until Esc or an outside click.
+// (desktop) that describes its trigger (aria-describedby) and closes on Esc from anywhere; click,
+// Enter or Space opens a dialog that keeps focus until Esc or an outside click.
 // Text via textContent only.
 const GUTTER = 16;
 const GAP = 8;
 let current = null;
+let seq = 0;
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = String(text); return e; };
 
@@ -22,12 +24,14 @@ function closeCurrent(returnFocus = false) {
   const { pop, trigger } = current;
   pop.remove();
   trigger.setAttribute('aria-expanded', 'false');
+  trigger.removeAttribute('aria-describedby');
   current = null;
   if (returnFocus) trigger.focus();
 }
 
 function build(content, { label, patternId }, modal) {
   const pop = h('div', 'help-pop');
+  pop.id = `help-pop-${++seq}`;
   pop.setAttribute('role', modal ? 'dialog' : 'tooltip');
   pop.setAttribute('aria-label', `About: ${label}`);
   pop.tabIndex = -1;
@@ -75,12 +79,18 @@ function open(trigger, content, opts, modal) {
   pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeCurrent(true); } });
   pop.addEventListener('pointerleave', () => { if (!modal) closeCurrent(); });
   trigger.setAttribute('aria-expanded', 'true');
+  if (!modal) trigger.setAttribute('aria-describedby', pop.id);
   current = { pop, trigger, modal };
   if (modal) pop.focus();
 }
 
 document.addEventListener?.('pointerdown', (e) => {
   if (current && !current.pop.contains(e.target) && e.target !== current.trigger) closeCurrent();
+});
+
+// A hover tooltip never takes focus, so its own keydown never fires — Esc is caught here instead.
+document.addEventListener?.('keydown', (e) => {
+  if (e.key === 'Escape' && current && !current.modal) closeCurrent();
 });
 
 // Open a dialog popover anchored to any element (e.g. the Measure-it deck thumbnail).

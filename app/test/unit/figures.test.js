@@ -22,6 +22,8 @@ describe('GET /figures/:pattern/:file', () => {
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toMatch(/image\/svg\+xml/);
     expect(r.headers['x-content-type-options']).toBe('nosniff');
+    // Opened full size in its own tab, an SVG is a document: no scripts, no external loads.
+    expect(r.headers['content-security-policy']).toBe("default-src 'none'; style-src 'unsafe-inline'");
   });
   it.each([
     '/figures/99-nope/erd.svg',
