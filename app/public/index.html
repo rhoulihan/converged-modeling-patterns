@@ -18,6 +18,7 @@
 <main id="view" aria-live="polite"></main>
 <section id="console" aria-label="Console">
   <div class="bar">
+    <button type="button" class="dock-toggle" id="dock-toggle" aria-expanded="false" aria-controls="console-panes">▲ Console</button>
     <div class="tabs" role="tablist">
       <button type="button" data-lane="sql" class="on">SQL</button>
       <button type="button" data-lane="mongo">MongoDB</button>
@@ -25,8 +26,9 @@
     <button type="button" class="btn primary" id="run">Run ⌘/Ctrl+Enter</button>
     <button type="button" class="btn" id="history">History</button>
     <span class="status" id="status">ready</span>
+    <button type="button" class="dock-pin" id="dock-pin" aria-pressed="false" aria-label="Pin the console open" title="Keep the console open">📌</button>
   </div>
-  <div class="panes">
+  <div class="panes" id="console-panes">
     <div class="editor" id="editor-sql"></div>
     <div class="editor" id="editor-mongo" hidden></div>
     <div class="out" id="out"></div>

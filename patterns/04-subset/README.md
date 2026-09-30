@@ -6,9 +6,29 @@ problem: >-
   The policy document keeps the ten most recent claim events inline. Every event becomes a
   push-sort-trim rewrite of the policy to maintain a list a query could simply read.
 knobs:
-  - { name: Diversity, setting: "High — 4 consumers" }
-  - { name: Read / write, setting: "Read-heavy, ~67 : 1" }
-  - { name: Update locality, setting: "Every event hits the parent", hot: true }
+  - { name: Diversity, setting: "High — 4 consumers", help: "Agents, the customer app, adjusters and fraud all read claim events: the first two want the recent few, the last two want everything." }
+  - { name: Read / write, setting: "Read-heavy, ~67 : 1", help: "About 2 million summary reads a day against about 30,000 claim events, which is the case for keeping the subset inline." }
+  - { name: Update locality, setting: "Every event hits the parent", hot: true, help: "Every claim event rewrites the parent policy document and writes history too: break-even is about 83,000 events a day, and a 300,000-event CAT day makes the subset about 40% more expensive than querying." }
+help:
+  tabs:
+    document:
+      why: "The starting point: keep the most recent claims inline on the policy so the summary page reads one document, and push each full claim into a history collection. Every new claim is a whole-policy rewrite plus a second write that has to stay in step."
+      look: "recent_claims_inline holds exactly 3 claims, trimmed by hand on every write."
+    converged:
+      why: "One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; each claim is one insert."
+      look: "The insert reports 1 row affected, and the recent-claims query returns the newest 3 with no stored subset."
+    measure:
+      why: "The ratio is the redo for pushing and trimming the policy document divided by the redo for one claim insert. The document side rewrites every claim kept inline, so the ratio grows with the subset's size; the insert stays near 1 KB."
+      look: "Your dot at 3 inline claims sits near 1.6×, and it leaves out the history insert the document model also pays."
+measure:
+  x_label: "claims kept inline in the policy document"
+  lab_x: 3
+  deck_slides: "26–29"
+  calibration:
+    - { x: 3, ratio: 1.62 }   # doc 1680 B, conv 1036 B
+    - { x: 10, ratio: 1.95 }   # doc 2024 B, conv 1036 B
+    - { x: 100, ratio: 6.12 }   # doc 6336 B, conv 1036 B
+    - { x: 1000, ratio: 26.26 }   # doc 26576 B, conv 1012 B
 ---
 # Pattern 04 — Subset (hot inline / vertical partition)
 

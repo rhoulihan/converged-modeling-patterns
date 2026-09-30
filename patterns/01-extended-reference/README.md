@@ -7,9 +7,32 @@ problem: >-
   in every client and account document. Reads are instant — until an advisor moves offices
   and every embedded copy has to be found and rewritten.
 knobs:
-  - { name: Diversity, setting: "High — 4 consumers" }
-  - { name: Read / write, setting: "Extreme read skew" }
-  - { name: Update locality, setting: "Rare, fans out ×2,700", hot: true }
+  - { name: Diversity, setting: "High — 4 consumers", help: "The client portal, the advisor CRM, the statement run and the AI copilot all render the client with the advisor card, so four readers want it inline." }
+  - { name: Read / write, setting: "Extreme read skew", help: "About 50 million client-360 reads a day against roughly 300 advisor edits: on this knob alone, embedding the card is the right bet." }
+  - { name: Update locality, setting: "Rare, fans out ×2,700", hot: true, help: "Each advisor edit lands on about 2,700 documents (790 clients plus 1,920 accounts), so a reorg day of 8,000 changes is roughly 22 million document rewrites." }
+help:
+  tabs:
+    document:
+      why: "The starting point: copy the advisor card into every client document so the client-360 read needs no lookup. The bet pays until an advisor moves and every copy has to be found and rewritten."
+      look: "The advisor move's rows affected: one per client document that embeds A-001."
+    converged:
+      why: "The advisor is stored once and a duality view projects the same client document through the foreign key. Every read pays for a primary-key join (about 15% more read work in the deck's model); every advisor move is one row."
+      look: "The advisor move reports 1 row affected, and the confirm query still shows both of A-001's clients on NYC-09."
+    mongo:
+      why: "The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor row."
+      look: "The advisor.office in the returned document matches what the SQL read of xr_client_dv shows."
+    measure:
+      why: "The ratio is the document model's redo for the advisor move divided by the converged model's. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count."
+      look: "Your dot at 2 embedded copies, on a reference line that reaches about 3,000× at 1,000 copies."
+measure:
+  x_label: "documents embedding the moved advisor"
+  lab_x: 2
+  deck_slides: "14–17"
+  calibration:
+    - { x: 1, ratio: 3.47 }   # doc 1652 B, conv 476 B
+    - { x: 10, ratio: 30.71 }   # doc 14616 B, conv 476 B
+    - { x: 100, ratio: 303.83 }   # doc 144624 B, conv 476 B
+    - { x: 1000, ratio: 3036.59 }   # doc 1445416 B, conv 476 B
 ---
 # Pattern 01 — Extended Reference ⭐
 

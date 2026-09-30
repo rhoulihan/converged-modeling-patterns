@@ -1,7 +1,8 @@
 import * as acorn from 'acorn';
 import { parseMongoCommand } from './mongoCommand.js';
+import { addHelp } from './sqlParser.js';
 
-const ANNOT = /^\s*@(step|note)\b\s*(.*)$/i;
+const ANNOT = /^\s*@(step|note|why|look|figure)\b\s*(.*)$/i;
 
 export function parseMongoScript(text, file = 'script') {
   const comments = [];
@@ -32,9 +33,15 @@ export function parseMongoScript(text, file = 'script') {
     } catch (e) {
       throw new Error(`${where}: ${e.message}`);
     }
+    const help = { why: null, look: null, figure: null };
+    for (const x of mine) {
+      const k = x.m[1].toLowerCase();
+      if (k === 'why' || k === 'look' || k === 'figure') addHelp(help, k, x.m[2].trim(), where);
+    }
     steps.push({
       title: stepAnno.m[2].trim(),
       notes: mine.filter((x) => x.m[1].toLowerCase() === 'note').map((x) => x.m[2].trim()),
+      help,
       command,
       line: st.loc.start.line,
     });

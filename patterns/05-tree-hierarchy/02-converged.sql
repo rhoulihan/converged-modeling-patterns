@@ -70,6 +70,9 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
 -- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY, one pass.
 -- @step Explode the bicycle with CONNECT BY
 -- @note Native recursion streams the whole frontier in one pass — no recursive CTE damming each level into an intermediate relation.
+-- @why Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
+-- @look Each component with its qty and depth, indented under its parent.
+-- @figure erd.svg Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'
@@ -80,6 +83,8 @@ ORDER SIBLINGS BY child_id;
 -- N-hop question the materialized path could not express. SQL/PGQ, same rows.
 -- @step Ask a graph question: where is the wheel used?
 -- @note Multi-parent, N-hop, upward traversal — a downward prefix string simply cannot express this.
+-- @why Diversity: where-used runs upward across shared parts, which a downward path cannot express. A SQL/PGQ graph over the same two tables answers it with no second structure to maintain.
+-- @look P-1300, the trailer that shares the wheel, appears alongside the bicycle's assemblies.
 SELECT assembly
 FROM   GRAPH_TABLE (tr_bom_graph
          MATCH (a IS part)-[IS contains]->{1,4}(p IS part)
@@ -91,6 +96,8 @@ FROM   GRAPH_TABLE (tr_bom_graph
 -- The entire subtree moves with it; no descendant paths to rewrite.
 -- @step Re-parent the wheelset under the frame
 -- @note One edge update — the entire subtree moves with it, no descendant paths to rewrite.
+-- @why Update locality collapses: position is derived from the edges, so the move is one edge row however many parts hang beneath it.
+-- @look Rows affected is 1; Measure it shows redo near 1 KB for a subtree of any size.
 -- @measure reparent
 UPDATE tr_bom_edges SET parent_id = 'P-1200'
 WHERE  parent_id = 'P-1000' AND child_id = 'P-1100';
@@ -100,6 +107,8 @@ COMMIT;
 -- from that single edge change.
 -- @step Re-explode: confirm the subtree moved with the edge
 -- @note The wheelset (and everything under it) now hangs off the frame, from that single edge change.
+-- @why Update locality, resolved: the next explosion walks the edges as they are now, so the whole subtree moved with that one row.
+-- @look P-1100 and its children now appear under P-1200.
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'

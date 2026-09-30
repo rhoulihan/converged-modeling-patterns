@@ -215,6 +215,23 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
   constant;
 - **Reset this pattern** rebuilds its tables to the starting state.
 
+The console lives in a **dock** collapsed to a thin bar at the bottom of the page. Hover
+the bar, or use **Load into console**, to open it. It stays open while you're typing in
+it or a console run is in progress, and closes on its own about half a second after both
+your pointer leaves it and focus moves elsewhere (e.g. clicking back into the page).
+Click **📌** to pin it open regardless, or **▲/▼ Console** to toggle it by hand.
+
+Every card, tab and knob has a **ⓘ** next to it — hover for a quick tooltip, click for a
+dialog with what it does, why it matters and what to look for, and, where relevant, the
+deck figure it illustrates.
+
+**Measure it**'s chart plots a reference line — write amplification measured on 26ai Free
+at several sizes, same protocol — against **your** live point at this lab's actual size (on fresh or reset lab data),
+so you can see where your result falls on the curve rather than judging it in isolation.
+Beside the chart, a **deck workload model** thumbnail opens the pattern's full daily-cost
+illustration from the deck; it's a separate, illustrative model, not something Measure it
+proves directly.
+
 Execution is serialized — one statement runs against the database at a time, a
 first-come-first-served queue shows your place ("queued · N ahead"), and repeated
 read-only queries are served from a cache — so the console stays responsive with a full

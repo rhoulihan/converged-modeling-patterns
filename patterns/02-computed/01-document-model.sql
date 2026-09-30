@@ -67,6 +67,9 @@ COMMIT;
 -- Do this per CDR, thousands of times a cycle, on your busiest subscribers.
 -- @step Post one Call Detail Record for S-001
 -- @note Append the line item and re-tick the rollup — a read-modify-write of the WHOLE subscriber document (1,000 prior CDRs), once per CDR.
+-- @why Update locality is the hot knob here: every call lands on the same parent, so each CDR pays for rewriting everything already in the document.
+-- @look Rows affected is 1, but Measure it shows how many bytes that one row cost.
+-- @figure doc-shape.svg The subscriber document as built: a running cycle-usage rollup that every CDR rewrites
 -- @measure record-cdr
 UPDATE cp_subscriber_doc
 SET data = JSON_TRANSFORM(data,
@@ -82,6 +85,8 @@ COMMIT;
 -- The account page read the pattern optimizes for (cheap):
 -- @step Read the account page (rollup already there)
 -- @note One document, one lookup — the CDR's cost already landed on the write. Shows the line-item count, not the usage[] array itself.
+-- @why Read/write is where the pattern earns its keep: 30 balance checks a subscriber a day read a precomputed rollup from one document.
+-- @look mb_this_cycle comes straight off the document, and cdrs_in_document shows the 1,000-plus line items riding along with it.
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle,
        JSON_VALUE(data,'$.usage.size()' RETURNING NUMBER) AS cdrs_in_document
@@ -91,6 +96,8 @@ WHERE  JSON_VALUE(data,'$._id') = 'S-001';
 -- The Top-N dashboard read the pattern does NOT help (full scan + sort every load):
 -- @step Rank the top talkers (full scan + sort)
 -- @note No rollup to lean on across subscribers — SUM/SORT/LIMIT the whole collection, every load.
+-- @why Diversity bites here: the ops dashboard ranks usage across subscribers, and a rollup inside each document gives it nothing to seek on, so every load sorts the whole collection.
+-- @look Up to 5 subscribers ranked by mb_this_cycle, produced by sorting every document in the collection.
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle
 FROM   cp_subscriber_doc
