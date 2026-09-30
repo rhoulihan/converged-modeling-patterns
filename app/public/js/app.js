@@ -19,6 +19,18 @@ async function copy(text, b) {
   setTimeout(() => { b.textContent = 'Copy'; }, 1200);
 }
 
+// One combined ⓘ for the Copy/Load/Run row: each entry is what+why on one line, Run also keeps
+// its "look" line (what to check after running).
+function cardButtonsHelp() {
+  const line = (key) => { const c = common[key]; return c ? [c.what, c.why].filter(Boolean).join(' ') : ''; };
+  const items = [
+    { label: 'Copy', text: line('copy') },
+    { label: 'Load into console', text: line('load') },
+    { label: 'Run', text: [line('run'), common.run?.look].filter(Boolean).join(' ') },
+  ].filter((it) => it.text);
+  return items.length ? { title: 'The card buttons', items } : null;
+}
+
 function card(title, notes, code, lane, patternId, measureTag, help) {
   const c = h('div', 'card');
   if (measureTag) c.append(h('span', 'badge hot', `measured: ${measureTag}`));
@@ -38,9 +50,9 @@ function card(title, notes, code, lane, patternId, measureTag, help) {
   });
   const actions = h('div', 'actions');
   actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code)), runBtn);
-  const aHelp = h('span', 'actions-help');
-  for (const k of ['copy', 'load', 'run']) { const x = helpTrigger(common[k], { label: k }); if (x) aHelp.append(x); }
-  c.append(actions, aHelp, out);
+  const actionsHelp = helpTrigger(cardButtonsHelp(), { label: 'card buttons' });
+  if (actionsHelp) actions.append(actionsHelp);
+  c.append(actions, out);
   return c;
 }
 

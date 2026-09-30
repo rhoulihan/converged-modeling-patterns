@@ -42,7 +42,7 @@ h1 { font-size: 30px; font-weight: 800; }
 .card .note { color: var(--muted); font-size: 13.5px; margin: 0 0 8px; }
 .card.measure { border-left: 3px solid var(--flow); }
 pre.code { font: 12.5px/1.5 var(--mono); background: var(--chip); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 0 0 8px; white-space: pre; }
-.actions { display: flex; gap: 8px; }
+.actions { display: flex; gap: 8px; align-items: center; }
 button.btn { font: 600 13px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 12px; cursor: pointer; }
 button.btn:hover { border-color: var(--muted); } button.btn.primary { background: var(--cool); color: #fff; border-color: var(--cool); }
 button.btn:disabled { opacity: .5; cursor: default; }
@@ -84,9 +84,14 @@ details.jt { font: 12.5px var(--mono); margin-left: 12px; } details.jt > summary
 .help-i:focus-visible { outline: 2px solid var(--flow); outline-offset: 1px; }
 .help-pop { position: absolute; z-index: 40; max-width: 420px; max-height: min(70vh, 520px); overflow: auto; background: var(--panel); color: var(--ink);
   border: 1px solid var(--hairline); border-left: 3px solid var(--flow); border-radius: 10px; padding: 10px 14px; box-shadow: 0 10px 28px rgba(0,0,0,.18); font-size: 13.5px; }
+.help-pop.has-fig { width: min(760px, 92vw); max-width: min(760px, 92vw); }
 .help-pop p { margin: 2px 0 8px; }
 .help-pop .help-title { font: 700 14px var(--head); margin-bottom: 4px; }
 .help-pop .help-k { font: 600 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.help-pop .help-fig { margin: 6px 0 0; } .help-pop .help-fig img { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--paper); }
+.help-pop .help-fig { margin: 6px 0 0; }
+.help-pop .help-fig a { display: block; }
+.help-pop .help-fig img { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--paper); }
 .help-pop .help-fig figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.help-pop .help-fig-open { display: inline-block; margin-top: 4px; font: 600 12px var(--sans); color: var(--flow); text-decoration: none; }
+.help-pop .help-fig-open:hover { text-decoration: underline; }
 .card h3 .help-i, .tabs .help-i, .knob .help-i { margin-left: 4px; }

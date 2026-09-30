@@ -39,3 +39,49 @@ describe('helpTrigger', () => {
     expect(document.querySelector('.help-pop').textContent).toContain('b');
   });
 });
+
+describe('helpTrigger items', () => {
+  beforeEach(() => { document.body.innerHTML = ''; });
+  it('returns null when items is empty and nothing else is set', () => {
+    expect(helpTrigger({ items: [] }, { label: 'card buttons' })).toBeNull();
+  });
+  it('renders all item labels and texts', () => {
+    const t = helpTrigger({
+      title: 'The card buttons',
+      items: [
+        { label: 'Copy', text: 'Copies the statement to your clipboard.' },
+        { label: 'Load into console', text: 'Opens the statement in the console.' },
+        { label: 'Run', text: 'Runs the statement. Elapsed time and rows show under the result.' },
+      ],
+    }, { label: 'card buttons' });
+    document.body.append(t);
+    t.click();
+    const d = document.querySelector('.help-pop');
+    expect(d.querySelector('.help-title').textContent).toBe('The card buttons');
+    expect(d.textContent).toContain('Copy');
+    expect(d.textContent).toContain('Copies the statement to your clipboard.');
+    expect(d.textContent).toContain('Load into console');
+    expect(d.textContent).toContain('Opens the statement in the console.');
+    expect(d.textContent).toContain('Run');
+    expect(d.textContent).toContain('Elapsed time and rows show under the result.');
+  });
+});
+
+describe('figure popover', () => {
+  beforeEach(() => { document.body.innerHTML = ''; });
+  it('widens with .has-fig and wraps the figure (and an "open full size" link) to the full file', () => {
+    const t = helpTrigger({ why: 'x', figure: { file: 'model-curve.svg', caption: 'cap' } }, { label: 'y', patternId: '02-computed' });
+    document.body.append(t);
+    t.click();
+    const d = document.querySelector('.help-pop');
+    expect(d.classList.contains('has-fig')).toBe(true);
+    const links = [...d.querySelectorAll('.help-fig a')];
+    expect(links).toHaveLength(2);
+    links.forEach((a) => {
+      expect(a.getAttribute('href')).toBe('/figures/02-computed/model-curve.svg');
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toBe('noopener');
+    });
+    expect(d.querySelector('.help-fig-open').textContent).toBe('Open full size ↗');
+  });
+});

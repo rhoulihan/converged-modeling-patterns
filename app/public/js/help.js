@@ -1,6 +1,8 @@
 // ⓘ help: a small button that opens one popover at a time with "What it does / Why it matters /
-// What to look for" and an optional deck figure. Hover opens a tooltip (desktop); click, Enter or
-// Space opens a dialog that keeps focus until Esc or an outside click. Text via textContent only.
+// What to look for" (or a labelled list of items) and an optional deck figure — the popover widens
+// (.has-fig) and the figure links to the full-size file when one is shown. Hover opens a tooltip
+// (desktop); click, Enter or Space opens a dialog that keeps focus until Esc or an outside click.
+// Text via textContent only.
 const GUTTER = 16;
 const GAP = 8;
 let current = null;
@@ -30,17 +32,30 @@ function build(content, { label, patternId }, modal) {
   pop.setAttribute('aria-label', `About: ${label}`);
   pop.tabIndex = -1;
   if (content.title) pop.append(h('div', 'help-title', content.title));
+  content.items?.forEach((it) => pop.append(h('div', 'help-k', it.label), h('p', null, it.text)));
   if (content.what) pop.append(h('div', 'help-k', 'What it does'), h('p', null, content.what));
   if (content.why) pop.append(h('div', 'help-k', 'Why it matters'), h('p', null, content.why));
   if (content.look) pop.append(h('div', 'help-k', 'What to look for'), h('p', null, content.look));
   if (content.figure && patternId) {
+    pop.classList.add('has-fig');
+    const href = `/figures/${patternId}/${content.figure.file}`;
     const fig = h('figure', 'help-fig');
+    const link = h('a');
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener';
     const img = h('img');
-    img.src = `/figures/${patternId}/${content.figure.file}`;
+    img.src = href;
     img.alt = content.figure.caption ?? label;
     img.loading = 'lazy';
-    fig.append(img);
+    link.append(img);
+    fig.append(link);
     if (content.figure.caption) fig.append(h('figcaption', null, content.figure.caption));
+    const open = h('a', 'help-fig-open', 'Open full size ↗');
+    open.href = href;
+    open.target = '_blank';
+    open.rel = 'noopener';
+    fig.append(open);
     pop.append(fig);
   }
   return pop;
@@ -72,7 +87,7 @@ document.addEventListener?.('pointerdown', (e) => {
 export function openHelp(anchor, content, opts) { open(anchor, content, opts, true); }
 
 export function helpTrigger(content, opts) {
-  if (!content || !(content.why || content.look || content.what || content.figure)) return null;
+  if (!content || !(content.why || content.look || content.what || content.figure || content.items?.length)) return null;
   const b = h('button', 'help-i', 'ⓘ');
   b.type = 'button';
   b.setAttribute('aria-label', `About: ${opts.label}`);
