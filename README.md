@@ -92,7 +92,7 @@ Run any of these live: each `[PASS]` line is a slide's claim, executed.
 |---|---|---|---|---|
 | [01](patterns/01-extended-reference/) ⭐ | **Extended Reference** | Wealth mgmt | Advisor moves offices → fan-out update across 100Ks of embedded copies + update anomaly | **Project, don't copy** — advisor normalized once, duality projects it live |
 | [02](patterns/02-computed/) | **Computed** | Telecom | Every CDR re-aggregates + rewrites the whole subscriber doc → write storm | Append-only rows + trigger-maintained summary (staleness 0); **Top-N 60s → 500ms** |
-| [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading re-serializes the growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
+| [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading rewrites the whole, growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
 | [04](patterns/04-subset/) | **Subset** | Insurance | Push-and-trim on every claim to serve a full read that hardly happens | One table + composite index; **query the hot slice** with `FETCH FIRST` |
 | [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path; where-used a prefix can't express | Adjacency edges (reorg = one row) + `CONNECT BY` + `GRAPH_TABLE` |
 | [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc — "just more rows, the optimizer plans for it" |
@@ -119,6 +119,10 @@ converged-modeling-patterns/
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
 │   └── init/            #   01-grants.sql, 02-ords-enable.sql
+├── app/                 # the hands-on console — Node 22 Express app, compose service `lab-ui` on :3100
+│   ├── src/             #   server, gate/cache, SQL+Mongo runners, content loader, HTTP + admin routes
+│   ├── public/          #   the browser UI (offline vendor bundle, no outbound requests)
+│   └── test/            #   unit, integration, smoke (Puppeteer) and load tests
 └── patterns/
     ├── 01-extended-reference/   # ⭐ wealth mgmt — duality projection
     │   ├── README.md            #    the teaching: use case → hard edge → needle-flip → softening
@@ -170,6 +174,9 @@ collides with another Oracle/ORDS/Mongo stack:
 | SQL*Net | 1521 | **1522** | `CMP_PORT` |
 | ORDS / Database Actions | 8181 | **8182** | `CMP_ORDS_PORT` |
 | Oracle API for MongoDB | 27017 | **27018** | `CMP_MONGO_PORT` |
+| Hands-on console (`lab-ui`) | 3000 | **3100** | `CMP_UI_PORT` |
+
+All four bind to `127.0.0.1` on the host (`CMP_DB_BIND` / `CMP_UI_BIND` to change).
 
 Drive it yourself:
 
@@ -188,6 +195,53 @@ docker exec -i -e MURI="$MURI" cmp-oracle bash -lc 'mongosh "$MURI" --quiet --fi
 
 Login: `cmp_user / CmpUser2026`, service `FREEPDB1`, schema ORDS-enabled as `CMP_USER`.
 Override `ORACLE_PASSWORD` / `CMP_PASSWORD` as you like.
+
+## Hands-on console
+
+`docker compose up -d` also starts **`lab-ui`** — a browser console for this repo — at
+**http://localhost:3100**. Every query in the six patterns, and in the lecture, can be
+read, copied, edited and run from there, against the same 26ai container `run.sh` uses:
+
+- one page per pattern: the problem, the three knob settings, and query cards for the
+  document model, the converged model and (where it exists) the MongoDB API;
+- **Copy**, **Load into console**, **Run** on every card, plus a console pane with its
+  own **SQL** and **MongoDB** tabs for ad hoc statements;
+- **Measure it** runs the document-model write and its converged counterpart back to
+  back in one exclusive slot. Each side runs once unmeasured as a warm-up (parse and
+  first-touch effects stay out of the numbers), then once measured: it reads the
+  engine's own statistics (redo size, block changes, logical reads) before and after,
+  with in-memory undo switched off so the counters are current, and rolls back. Numbers are a
+  single-session, 26ai Free measurement — expect small run-to-run variance, not a fixed
+  constant;
+- **Reset this pattern** rebuilds its tables to the starting state.
+
+Execution is serialized — one statement runs against the database at a time, a
+first-come-first-served queue shows your place ("queued · N ahead"), and repeated
+read-only queries are served from a cache — so the console stays responsive with a full
+room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `LAB_MODE` | `solo` | `solo`: one user, no sign-in. `event`: sign-in, a private workspace per attendee, admin page |
+| `CMP_UI_PORT` | `3100` | host port for the console |
+| `CMP_UI_BIND` | `127.0.0.1` | interface the console binds to; `0.0.0.0` for an event so the room can reach it |
+| `CMP_DB_BIND` | `127.0.0.1` | interface for the database ports (1522/8182/27018); keep it on localhost, even for an event |
+| `LAB_ADMIN_PASSWORD` | `LabAdmin2026` | the console's provisioning account; event mode refuses to start on the default |
+| `DB_POOL_MAX` / `MONGO_POOL_MAX` | `1` / `1` | connection caps behind the queue |
+| `EVENT_CODE`, `ADMIN_PASSWORD` | — | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
+
+Every host port binds to `127.0.0.1` by default. For an event, publish only the console
+(`CMP_UI_BIND=0.0.0.0`): publishing the database ports would hand attendees LAB_ADMIN and
+SYS, whose credentials are in this repo. Don't run `./run.sh` during an event — its test
+stage shares the database.
+
+Solo mode (the default) needs no configuration. `./run.sh` folds the console's own unit
+and integration tests in as a last stage against the same database — **19 passed, 0
+failed**, combined with the patterns. `cd app && npm run test:smoke` is a separate
+headless-Chrome walkthrough of every pattern page (screenshots land in
+`app/test/artifacts/`, git-ignored), and `npm run test:load` drives a simulated event;
+see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) for running it against
+your own room size before a large session.
 
 ## The MongoDB lane + cross-API parity
 
@@ -248,7 +302,8 @@ and slowest queries to the workshop lab.
 
 - **26ai throughout.** Validated on Oracle AI Database 26ai Free (`23.26.3-faststart`),
   ORDS 26.2, mongosh from the current MongoDB 8.0 repo. Every `.sql`, every `.js`, and
-  every cross-API parity assertion runs clean on a live container (`18 passed, 0 failed`).
+  every cross-API parity assertion runs clean on a live container, and `./run.sh` folds
+  in the hands-on console's own test suite as a last stage (`19 passed, 0 failed`).
 - **Customer-neutral.** No named customers; the domains are illustrative and reusable.
 - **Two lanes, asserted equal.** The SQL lane validates via `sqlplus`; the MongoDB lane
   validates via `mongosh`, and the parity scripts assert the two lanes return identical

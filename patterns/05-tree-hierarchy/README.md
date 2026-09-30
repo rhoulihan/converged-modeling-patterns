@@ -1,3 +1,15 @@
+---
+title: Tree / Hierarchy
+industry: Manufacturing bill of materials
+deck: "30–33"
+problem: >-
+  Each part carries a materialized path. Re-parenting a subassembly rewrites every
+  descendant, and "which products use this part?" cannot be answered from a path.
+knobs:
+  - { name: Diversity, setting: "High — 4 questions" }
+  - { name: Read / write, setting: "Read-heavy" }
+  - { name: Update locality, setting: "Lands on every descendant", hot: true }
+---
 # Pattern 05 — Tree / Hierarchy
 
 **Manufacturing.** Explode a bill of materials — read a whole subassembly's

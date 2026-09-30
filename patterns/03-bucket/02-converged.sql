@@ -5,7 +5,7 @@
 --
 -- Readings are tiny, append-only rows in an INTERVAL-partitioned table -- Oracle
 -- opens a new hourly partition automatically as time advances. Each insert is a
--- single small row: no array to grow, no bucket page to re-serialize, no 16 MB
+-- single small row: no array to grow, no bucket document to rewrite, no 16 MB
 -- ceiling. The per-hour summary is a GROUP BY over a partition range (the
 -- optimizer prunes to just the hours asked for). Want it precomputed? A
 -- materialized view rolls it up; want it through the Mongo lane? $sql-in-pipeline
@@ -43,6 +43,9 @@ INTERVAL (INTERVAL '1' HOUR)
 CREATE INDEX bk_ix_readings ON bk_sensor_readings (machine_id, metric, reading_ts);
 
 -- Every reading is one small insert. No parent to rewrite; constant cost.
+-- @step Insert one reading
+-- @note A single small row — no bucket to grow, no parent document to rewrite.
+-- @measure ingest-reading
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',88.4, TIMESTAMP '2026-08-01 10:00:05');
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',89.1, TIMESTAMP '2026-08-01 10:00:10');
 INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts) VALUES ('M-100','TEMP',91.7, TIMESTAMP '2026-08-01 10:00:15');
@@ -53,6 +56,8 @@ COMMIT;
 -- The rollup = GROUP BY over a partitioned range. Same answer the bucket
 -- counters gave, computed on read, nothing maintained on write. Asking for a
 -- single hour prunes to a single partition.
+-- @step Roll up the hour with GROUP BY
+-- @note Same answer the bucket counters gave, computed on read instead of maintained on every write.
 SELECT machine_id, metric, TRUNC(reading_ts, 'HH24') AS hour_start,
        COUNT(*)                   AS n,
        ROUND(AVG(reading_val), 3) AS avg_val,

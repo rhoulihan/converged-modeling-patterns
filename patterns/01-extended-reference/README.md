@@ -1,3 +1,16 @@
+---
+title: Extended Reference
+industry: Wealth management
+deck: "14–17"
+problem: >-
+  Four consumers render every client with their advisor, so the advisor card is embedded
+  in every client and account document. Reads are instant — until an advisor moves offices
+  and every embedded copy has to be found and rewritten.
+knobs:
+  - { name: Diversity, setting: "High — 4 consumers" }
+  - { name: Read / write, setting: "Extreme read skew" }
+  - { name: Update locality, setting: "Rare, fans out ×2,700", hot: true }
+---
 # Pattern 01 — Extended Reference ⭐
 
 **Wealth management.** Open any client or account and show the servicing advisor's

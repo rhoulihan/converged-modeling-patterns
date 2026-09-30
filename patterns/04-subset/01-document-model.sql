@@ -42,16 +42,23 @@ COMMIT;
 --   (a) append it to the inline array, (b) trim the oldest, (c) write the full
 --   claim to the overflow collection. Three writes for one claim.
 -- (a) append newest + (b) trim oldest: rewrites the whole policy document.
+-- @step Push CL-1004 in, trim the oldest claim
+-- @note Append plus trim rewrites the WHOLE policy document — one of three writes for a single new claim.
+-- @measure claim-event
 UPDATE sb_policy_doc
 SET data = JSON_TRANSFORM(data,
              APPEND '$.recentClaims' = JSON_OBJECT('claimId' VALUE 'CL-1004', 'amount' VALUE 4200),
              REMOVE '$.recentClaims[0]')
 WHERE JSON_VALUE(data,'$._id') = 'P-001';
 -- (c) the full claim also goes to the overflow collection: the second write.
+-- @step Write the full claim to the overflow collection
+-- @note The second write for the same claim — the history collection must be kept in step with the inline subset by hand.
 INSERT INTO sb_claim_history VALUES (JSON('{"_id":"CL-1004","policyId":"P-001","amount":4200}'));
 COMMIT;
 
 -- The common read the pattern optimizes for: recent claims, one document.
+-- @step Read the recent claims (one document)
+-- @note recentClaims now shows CL-1004 in, CL-1001 trimmed out — three writes paid to keep this one read cheap.
 SELECT JSON_VALUE(data,'$._id') AS policy,
        JSON_QUERY(data,'$.recentClaims') AS recent_claims_inline
 FROM   sb_policy_doc WHERE JSON_VALUE(data,'$._id') = 'P-001';

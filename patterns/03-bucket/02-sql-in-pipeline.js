@@ -7,6 +7,8 @@
 // This is the Mongo-lane developer's on-ramp to the converged rollup — no leaving
 // the pipeline, no maintaining a bucket.
 // ============================================================================
+// @step Hourly rollup with $sql in the pipeline
+// @note Full SQL over the Mongo wire protocol — parallel execution, cost-based optimization, no 100 MB stage / 16 MB output caps.
 const rows = db.aggregate([{ $sql: `
   select json {
            'machineId' : machine_id,

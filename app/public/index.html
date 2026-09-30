@@ -1,0 +1,37 @@
+<!-- app/public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Converged Modeling Lab</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/fonts.css">
+<link rel="stylesheet" href="/css/lab.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/">Converged Modeling Lab</a>
+  <span class="kicker">Oracle AI Database 26ai</span>
+  <span class="who" id="who"></span>
+</header>
+<main id="view" aria-live="polite"></main>
+<section id="console" aria-label="Console">
+  <div class="bar">
+    <div class="tabs" role="tablist">
+      <button type="button" data-lane="sql" class="on">SQL</button>
+      <button type="button" data-lane="mongo">MongoDB</button>
+    </div>
+    <button type="button" class="btn primary" id="run">Run ⌘/Ctrl+Enter</button>
+    <button type="button" class="btn" id="history">History</button>
+    <span class="status" id="status">ready</span>
+  </div>
+  <div class="panes">
+    <div class="editor" id="editor-sql"></div>
+    <div class="editor" id="editor-mongo" hidden></div>
+    <div class="out" id="out"></div>
+  </div>
+</section>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

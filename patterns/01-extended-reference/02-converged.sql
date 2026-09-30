@@ -66,6 +66,8 @@ SELECT JSON {
 } FROM xr_clients c WITH INSERT UPDATE DELETE;
 
 -- Same read the document model served — identical shape, zero stored copies.
+-- @step Read the projected client document
+-- @note Same shape as the document model's read — the advisor block is a live projection through the FK, not a stored copy.
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_dv;
@@ -75,10 +77,15 @@ FROM   xr_client_dv;
 -- document that projects A-001 is instantly, transactionally correct. No
 -- fan-out. No stale copy. No CDC job to reconcile the portal with the copilot.
 -- ---------------------------------------------------------------------------
+-- @step Move advisor A-001 to a new office
+-- @note One row — every client document that projects A-001 is correct in the same transaction, no fan-out, no stale copy.
+-- @measure advisor-move
 UPDATE xr_advisors SET office = 'NYC-09', desk = '+1-212-555-0999'
 WHERE  advisor_id = 'A-001';
 COMMIT;
 
+-- @step Confirm every client reflects the move
+-- @note Both C-001 and C-002 now read NYC-09 — from one write to one row.
 SELECT JSON_VALUE(data, '$._id') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office_now
 FROM   xr_client_dv

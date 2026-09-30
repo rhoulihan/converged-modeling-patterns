@@ -8,10 +8,9 @@
 -- array, and keep running counters on the bucket. Fewer, fatter documents.
 --
 -- THE WRITE-AMPLIFICATION COST -- this is THE canonical write-amp pattern. Each
--- reading is an array $push PLUS a counter re-update, and because the storage
--- engine never edits a block in place, the ENTIRE growing bucket page is
--- re-serialized into a new block on every single append. The bucket only grows,
--- so the rewrite cost climbs all cycle -- and a hot sensor marches its bucket
+-- reading is an array $push PLUS a counter re-update: a read-modify-write of the
+-- WHOLE bucket document, on every single append. The bucket only grows, so the
+-- redo each append costs grows with it all cycle -- and a hot sensor marches its bucket
 -- straight at the 16 MB document ceiling, where writes simply start failing.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
@@ -32,7 +31,10 @@ INSERT INTO bk_sensor_doc VALUES (JSON('{"_id":"M-100|TEMP|2026-08-01T10",
 COMMIT;
 
 -- Three readings arrive. Each one PUSHES to the array AND re-updates the
--- counters -- and each re-serializes the whole (growing) bucket document.
+-- counters -- each one a read-modify-write of the whole (growing) bucket document.
+-- @step Ingest three readings into the bucket
+-- @note Each reading is an array APPEND plus a counter update — a read-modify-write of the WHOLE (growing) bucket, once per reading.
+-- @measure ingest-reading
 BEGIN
   FOR v IN (SELECT * FROM (
               SELECT 88.4 val, '2026-08-01T10:00:05Z' ts FROM dual UNION ALL
@@ -50,9 +52,11 @@ END;
 /
 COMMIT;
 -- ^ 3 whole-document rewrites for 3 readings. At real cadence the bucket is
---   re-serialized on every tick and only gets more expensive as it fills.
+--   rewritten on every tick and only gets more expensive as it fills.
 
 -- The read the pattern optimizes for: one bucket, counters already there.
+-- @step Read the bucket (counters already there)
+-- @note One document, running counters already maintained — cheap, until the bucket has to grow again.
 SELECT JSON_VALUE(data,'$.machineId') AS machine,
        JSON_VALUE(data,'$.count' RETURNING NUMBER) AS n,
        ROUND(JSON_VALUE(data,'$.sum' RETURNING NUMBER)

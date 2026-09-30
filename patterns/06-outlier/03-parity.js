@@ -23,6 +23,8 @@ const eq = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const viaSql = JSON.parse(process.env.SQL_RESULT || "null");
 if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 
+// @step Read the projected document over the MongoDB API
+// @note Same typical-advisor document the SQL lane read — the client array projects from ol_clients, whichever wire protocol you read it over.
 const viaMongo = db.ol_advisor_dv.findOne({ _id: "A-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for A-001"); quit(1); }
 

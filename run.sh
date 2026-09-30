@@ -15,6 +15,11 @@
 #
 # Idempotent: rerun as often as you like. SQL-only patterns (no *.js) simply skip
 # the Mongo lane.
+#
+# Stage 3:   the lab console's vitest suites (app/), in a throwaway container. Skipped
+#            while cmp-lab-ui runs in event mode (never run this during an event); if a
+#            (solo) cmp-lab-ui is running it is restarted afterwards so its in-memory
+#            dirty/built flags and result cache reload from the database.
 # ============================================================================
 set -uo pipefail
 cd "$(dirname "$0")"
@@ -31,6 +36,13 @@ FILTER="${1:-}"
 
 dexec()  { docker compose exec -T "$SVC" bash -lc "$1"; }          # in-container bash
 sqlpipe(){ docker compose exec -T "$SVC" bash -lc "sqlplus -s -L $APP"; }  # stdin -> sqlplus
+
+# Record the console's state BEFORE compose touches anything (stage 3 depends on it).
+ui_event() {  # true when cmp-lab-ui is running with LAB_MODE=event
+  [ "$(docker inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ] &&
+    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' cmp-lab-ui 2>/dev/null | grep -qx 'LAB_MODE=event'
+}
+ui_event_at_start=0; ui_event && ui_event_at_start=1
 
 echo "==> Bringing up the stack (docker compose up -d) ..."
 ORACLE_PASSWORD="$ORACLE_PASSWORD" CMP_PASSWORD="$CMP_PASSWORD" docker compose up -d
@@ -97,6 +109,27 @@ for d in patterns/*/; do
     [ -f "$js" ] && run_js "$js" "${d%/}"
   done
 done
+
+# Stage 3: the hands-on console's own tests (unit + integration) against this database.
+# Skipped when a single pattern is requested.
+if [ -z "$FILTER" ]; then
+  echo ""; echo "################  lab console (app/)  ################"
+  if [ "$ui_event_at_start" = 1 ] || ui_event; then
+    echo "     [SKIP] lab-ui tests: cmp-lab-ui is running in EVENT mode. The integration tests"
+    echo "            share its database; run them after the event (see docs/instructor-runbook.md)."
+  else
+    # --no-deps: stage 1 already brought the database up; never recreate it from here.
+    if docker compose --profile test build lab-ui-test && docker compose --profile test run --rm --no-deps lab-ui-test; then
+      echo "     [PASS] lab-ui tests"; pass=$((pass+1))
+    else
+      echo "     [FAIL] lab-ui tests"; fail=$((fail+1)); failed="$failed lab-ui-tests"
+    fi
+    if [ "$(docker inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ]; then
+      echo "==> Restarting lab-ui so it reloads its dirty/built flags and cache ..."
+      docker compose restart lab-ui >/dev/null
+    fi
+  fi
+fi
 
 echo ""; echo "==================================================================="
 echo "  RESULT: $pass passed, $fail failed  (SQL + MongoDB lanes)"

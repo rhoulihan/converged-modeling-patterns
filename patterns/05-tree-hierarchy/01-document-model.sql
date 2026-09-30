@@ -36,6 +36,8 @@ COMMIT;
 
 -- The read the pattern optimizes for: everything under the wheelset = one prefix
 -- scan. This is the genuine strength of the materialized path.
+-- @step Read a subtree with a prefix scan
+-- @note Everything under the wheelset in one index range scan — the genuine strength of the materialized path.
 SELECT JSON_VALUE(data,'$._id') AS part, JSON_VALUE(data,'$.name') AS name
 FROM   tr_bom_doc
 WHERE  JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1100%'
@@ -46,6 +48,9 @@ ORDER  BY JSON_VALUE(data,'$.path');
 -- move, but every descendant's path must be rewritten -- a whole-document
 -- rewrite per node in the subtree.
 -- ---------------------------------------------------------------------------
+-- @step Re-parent the wheelset under the frame
+-- @note One logical move, but every descendant's path must be rewritten — a whole-document rewrite per node in the subtree.
+-- @measure reparent
 UPDATE tr_bom_doc
 SET data = JSON_TRANSFORM(data,
              SET '$.path' = REPLACE(JSON_VALUE(data,'$.path'),
@@ -53,6 +58,8 @@ SET data = JSON_TRANSFORM(data,
 WHERE JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1100%';
 COMMIT;
 
+-- @step Confirm every descendant moved
+-- @note Count of docs now carrying the new path prefix — one logical move, one rewrite per descendant.
 SELECT 'reparent rewrote ' || COUNT(*) || ' descendant docs' AS write_amplification
 FROM   tr_bom_doc
 WHERE  JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1200/P-1100%';

@@ -7,3 +7,4 @@
 .env
 
 # nothing generated is checked in; the DB lives in a docker volume
+.superpowers/

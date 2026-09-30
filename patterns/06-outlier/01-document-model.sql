@@ -13,6 +13,11 @@
 -- That is the 16 MB storage-engine limit LEAKING INTO YOUR APPLICATION CODE. The
 -- pattern does not solve the outlier -- it ADMITS the model breaks for the fat
 -- tail and pushes the special case up into every consumer.
+--
+-- AND THE WRITES: until it spills, the whale's book is one growing document, so
+-- adding a client is a read-modify-write of the whole 800-client book. Spilling
+-- to overflow is itself cheap -- the outlier pattern costs you the growth
+-- rewrite of the document before the spill, plus a branch in every reader.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 
@@ -34,30 +39,62 @@ INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-001","name":"Grace Advisor","
              {"clientId":"C-002","aum":180000},
              {"clientId":"C-003","aum":420000}]}'));
 
--- Whale advisor: 100K-client institutional book. Only the first slice fits in the
--- document; hasExtras=true says "the rest is elsewhere." Now every reader must
--- special-case this advisor.
-INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-900","name":"Institutional Desk","hasExtras":true,
-  "clients":[{"clientId":"C-900001","aum":9000000},
-             {"clientId":"C-900002","aum":8500000}]}'));
+-- Whale advisor: stands in for a 100K-client institutional book. 800 clients are
+-- already embedded (the x800 skew over the typical book; ~30 KB of JSON),
+-- generated, not pasted. It has not spilled yet: hasExtras=false.
+INSERT INTO ol_advisor_doc
+SELECT JSON_OBJECT('_id' VALUE 'A-900', 'name' VALUE 'Institutional Desk', 'hasExtras' VALUE FALSE,
+         'clients' VALUE clients RETURNING JSON)
+FROM  (SELECT JSON_ARRAYAGG(JSON_OBJECT('clientId' VALUE 'C-' || TO_CHAR(900000 + LEVEL),
+                                        'aum'      VALUE 9000000 - (LEVEL - 1) * 10000)
+                            ORDER BY LEVEL RETURNING JSON) AS clients
+       FROM   dual CONNECT BY LEVEL <= 800);
+COMMIT;
+
+-- @step Add one client to the whale's embedded book
+-- @note Appending one client is a read-modify-write of the whole 800-client book — the growth rewrite you pay on every add until the document spills.
+-- @measure add-client
+UPDATE ol_advisor_doc
+SET    data = JSON_TRANSFORM(data, APPEND '$.clients' = JSON_OBJECT('clientId' VALUE 'C-900801', 'aum' VALUE 1000000))
+WHERE  JSON_VALUE(data,'$._id') = 'A-900';
+COMMIT;
+
+-- Once the book outgrows the document (the real whale's 100K clients cannot fit
+-- under 16 MB; this 800-client book stands in for it), the tail spills into an
+-- overflow document.
+-- @step Spill the next clients to an overflow document
+-- @note Spilling to overflow is itself cheap — the outlier pattern costs you the growth rewrite of the document before the spill, plus a branch in every reader.
 INSERT INTO ol_advisor_overflow VALUES (JSON('{"_id":"A-900#part-2","advisorId":"A-900",
-  "clients":[{"clientId":"C-900003","aum":7800000},
-             {"clientId":"C-900004","aum":7100000}]}'));
+  "clients":[{"clientId":"C-900802","aum":990000},
+             {"clientId":"C-900803","aum":980000}]}'));
+COMMIT;
+
+-- @step Flag the whale: hasExtras = true
+-- @note From here on, every reader has to check this flag and go fetch the overflow.
+UPDATE ol_advisor_doc
+SET    data = JSON_TRANSFORM(data, SET '$.hasExtras' = TRUE)
+WHERE  JSON_VALUE(data,'$._id') = 'A-900';
 COMMIT;
 
 -- The read for a TYPICAL advisor: one document, done.
+-- @step Read a typical advisor (one document)
+-- @note The ordinary case: one document, done — no branch needed.
 SELECT JSON_VALUE(data,'$._id') AS advisor,
        JSON_VALUE(data,'$.hasExtras') AS has_extras,
-       JSON_QUERY(data,'$.clients') AS clients_inline
+       JSON_QUERY(data,'$.clients' RETURNING CLOB) AS clients_inline
 FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 
 -- The read for the WHALE: the application must notice hasExtras and go stitch the
 -- overflow back in. The 16 MB limit is now branching logic in every consumer
 -- (including the LLM's context builder).
+-- @step Read the whale advisor (branch on hasExtras)
+-- @note Every reader must notice hasExtras and go stitch the overflow back in — the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
 SELECT JSON_VALUE(d.data,'$._id')  AS advisor,
        JSON_VALUE(d.data,'$.hasExtras') AS has_extras,
-       JSON_QUERY(d.data,'$.clients') AS clients_page1,
-       JSON_QUERY(o.data,'$.clients') AS clients_overflow
+       JSON_VALUE(d.data,'$.clients.size()' RETURNING NUMBER) AS clients_embedded,
+       JSON_QUERY(d.data,'$.clients[0 to 4]' RETURNING CLOB WITH ARRAY WRAPPER) AS clients_embedded_first5,
+       JSON_VALUE(o.data,'$.clients.size()' RETURNING NUMBER) AS clients_in_overflow,
+       JSON_QUERY(o.data,'$.clients' RETURNING CLOB) AS clients_overflow
 FROM   ol_advisor_doc d
 LEFT   JOIN ol_advisor_overflow o
        ON JSON_VALUE(o.data,'$.advisorId') = JSON_VALUE(d.data,'$._id')
