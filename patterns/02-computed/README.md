@@ -9,6 +9,15 @@ knobs:
   - { name: Diversity, setting: "Medium-high — 4 consumers" }
   - { name: Read / write, setting: "Write-heavy on the rollup" }
   - { name: Update locality, setting: "Every write, one parent", hot: true }
+measure:
+  x_label: "CDR line items in the subscriber document"
+  lab_x: 1000
+  deck_slides: "18–21"
+  calibration:
+    - { x: 10, ratio: 1.73 }   # doc 2708 B, conv 1568 B
+    - { x: 100, ratio: 7.16 }   # doc 11288 B, conv 1576 B
+    - { x: 1000, ratio: 32.53 }   # doc 51792 B, conv 1592 B
+    - { x: 5000, ratio: 203.24 }   # doc 323560 B, conv 1592 B
 ---
 # Pattern 02 — Computed
 

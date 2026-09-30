@@ -9,6 +9,15 @@ knobs:
   - { name: Diversity, setting: "High — 4 questions" }
   - { name: Read / write, setting: "Read-heavy" }
   - { name: Update locality, setting: "Lands on every descendant", hot: true }
+measure:
+  x_label: "parts in the moved subtree"
+  lab_x: 3
+  deck_slides: "30–33"
+  calibration:
+    - { x: 3, ratio: 4.23 }   # doc 3972 B, conv 940 B
+    - { x: 30, ratio: 40.92 }   # doc 39448 B, conv 964 B
+    - { x: 300, ratio: 409.29 }   # doc 394556 B, conv 964 B
+    - { x: 3000, ratio: 3997.97 }   # doc 3949992 B, conv 988 B
 ---
 # Pattern 05 — Tree / Hierarchy
 

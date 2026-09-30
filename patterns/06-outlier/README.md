@@ -9,6 +9,15 @@ knobs:
   - { name: Diversity, setting: "Low — one book screen" }
   - { name: Read / write, setting: "Read-heavy by day" }
   - { name: Update locality, setting: "Skew ×800, p50 → max", hot: true }
+measure:
+  x_label: "clients embedded in the advisor's book"
+  lab_x: 800
+  deck_slides: "34–37"
+  calibration:
+    - { x: 10, ratio: 1.65 }   # doc 2016 B, conv 1224 B
+    - { x: 100, ratio: 5.01 }   # doc 6136 B, conv 1224 B
+    - { x: 800, ratio: 16.96 }   # doc 20760 B, conv 1224 B
+    - { x: 2000, ratio: 43.39 }   # doc 48768 B, conv 1124 B
 ---
 # Pattern 06 — Outlier (whale documents)
 

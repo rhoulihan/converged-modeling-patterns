@@ -10,6 +10,15 @@ knobs:
   - { name: Diversity, setting: "High — 4 consumers" }
   - { name: Read / write, setting: "Extreme read skew" }
   - { name: Update locality, setting: "Rare, fans out ×2,700", hot: true }
+measure:
+  x_label: "documents embedding the moved advisor"
+  lab_x: 2
+  deck_slides: "14–17"
+  calibration:
+    - { x: 1, ratio: 3.47 }   # doc 1652 B, conv 476 B
+    - { x: 10, ratio: 30.71 }   # doc 14616 B, conv 476 B
+    - { x: 100, ratio: 303.83 }   # doc 144624 B, conv 476 B
+    - { x: 1000, ratio: 3036.59 }   # doc 1445416 B, conv 476 B
 ---
 # Pattern 01 — Extended Reference ⭐
 

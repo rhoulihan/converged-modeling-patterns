@@ -9,6 +9,15 @@ knobs:
   - { name: Diversity, setting: "Medium — 4 read shapes" }
   - { name: Read / write, setting: "Write-heavy" }
   - { name: Update locality, setting: "Every write, same document", hot: true }
+measure:
+  x_label: "readings in the bucket after the write"
+  lab_x: 3
+  deck_slides: "22–25"
+  calibration:
+    - { x: 3, ratio: 6.06 }   # doc 4776 B, conv 788 B
+    - { x: 100, ratio: 31.21 }   # doc 24596 B, conv 788 B
+    - { x: 1000, ratio: 139.11 }   # doc 109616 B, conv 788 B
+    - { x: 3600, ratio: 597.29 }   # doc 470664 B, conv 788 B
 ---
 # Pattern 03 — Bucket (time-series)
 

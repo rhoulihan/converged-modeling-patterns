@@ -9,6 +9,15 @@ knobs:
   - { name: Diversity, setting: "High — 4 consumers" }
   - { name: Read / write, setting: "Read-heavy, ~67 : 1" }
   - { name: Update locality, setting: "Every event hits the parent", hot: true }
+measure:
+  x_label: "claims kept inline in the policy document"
+  lab_x: 3
+  deck_slides: "26–29"
+  calibration:
+    - { x: 3, ratio: 1.62 }   # doc 1680 B, conv 1036 B
+    - { x: 10, ratio: 1.95 }   # doc 2024 B, conv 1036 B
+    - { x: 100, ratio: 6.12 }   # doc 6336 B, conv 1036 B
+    - { x: 1000, ratio: 26.26 }   # doc 26576 B, conv 1012 B
 ---
 # Pattern 04 — Subset (hot inline / vertical partition)
 
