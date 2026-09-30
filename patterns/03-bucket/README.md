@@ -38,7 +38,7 @@ measure:
 **Manufacturing / IoT.** Ingest millions of tiny sensor readings; read them back as
 per-machine, per-hour summaries.
 
-> The canonical write-amplification pattern. Let the engine amortize, not your schema.
+> The textbook write-amplification pattern. Let the engine amortize, not your schema.
 
 ## The document bet
 

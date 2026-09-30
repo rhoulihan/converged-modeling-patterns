@@ -27,7 +27,7 @@ BEGIN
 END;
 /
 
--- Canonical form: advisor stored ONCE.
+-- Relational projection: the advisor is stored ONCE, as one row.
 CREATE TABLE xr_advisors (
   advisor_id  VARCHAR2(12)  PRIMARY KEY,
   full_name   VARCHAR2(120) NOT NULL,
@@ -70,7 +70,7 @@ SELECT JSON {
 -- @note Same shape as the document model's read: the advisor block is a live projection through the FK, not a stored copy.
 -- @why Diversity is served without copies: the duality view assembles the advisor block through the foreign key on every read. That primary-key join is real read work, about 15% more per read in the deck's model.
 -- @look The same client and advisor_office columns as the document model's read, now from xr_client_dv.
--- @figure erd.svg Advisor, client, account and trade stored once, beside the fan-out one advisor change causes in the embedded model
+-- @figure erd.svg Advisor, client, account and trade in canonical form, each fact once, beside the fan-out one advisor change causes in the embedded model
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_dv;
