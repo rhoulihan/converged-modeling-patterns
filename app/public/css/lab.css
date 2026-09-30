@@ -79,3 +79,14 @@ details.jt { font: 12.5px var(--mono); margin-left: 12px; } details.jt > summary
 .signin .btn { margin-top: 16px; }
 .flash { color: var(--hot); font-size: 13px; margin-top: 8px; }
 @media (max-width: 800px) { #console .panes { grid-template-columns: 1fr; } }
+.help-i { font: 13px var(--sans); line-height: 1; background: none; border: 0; color: var(--faint); cursor: pointer; padding: 2px 4px; border-radius: 50%; vertical-align: middle; }
+.help-i:hover, .help-i[aria-expanded="true"] { color: var(--flow); }
+.help-i:focus-visible { outline: 2px solid var(--flow); outline-offset: 1px; }
+.help-pop { position: absolute; z-index: 40; max-width: 420px; max-height: min(70vh, 520px); overflow: auto; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--hairline); border-left: 3px solid var(--flow); border-radius: 10px; padding: 10px 14px; box-shadow: 0 10px 28px rgba(0,0,0,.18); font-size: 13.5px; }
+.help-pop p { margin: 2px 0 8px; }
+.help-pop .help-title { font: 700 14px var(--head); margin-bottom: 4px; }
+.help-pop .help-k { font: 600 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.help-pop .help-fig { margin: 6px 0 0; } .help-pop .help-fig img { width: 100%; height: auto; display: block; border-radius: 6px; background: var(--paper); }
+.help-pop .help-fig figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.card h3 .help-i, .tabs .help-i, .knob .help-i { margin-left: 4px; }

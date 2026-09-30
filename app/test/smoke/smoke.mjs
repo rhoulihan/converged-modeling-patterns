@@ -49,7 +49,7 @@ try {
       await page.waitForSelector('#out .result', { timeout: 60000 });
       if (await page.$('#out .result.error')) fail(`${id}: console run returned an error`);
       await page.screenshot({ path: path.join(OUT, `${id}-cards-${scheme}.png`) });
-      const tabs = await page.$$('#view .tabs button'); // pattern tabs, not the console's SQL/MongoDB lane tabs
+      const tabs = await page.$$('#view .tabs button.tab'); // pattern tabs, not the console's SQL/MongoDB lane tabs
       await press(page, tabs[tabs.length - 1]); // Measure it
       await press(page, '.card.measure .btn.primary');
       await page.waitForSelector('.measure-out svg', { timeout: 60000 });

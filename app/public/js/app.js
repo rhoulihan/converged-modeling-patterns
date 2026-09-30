@@ -4,10 +4,11 @@ import { Console, exec } from './console.js';
 import { Dock } from './dock.js';
 import { renderRun } from './results.js';
 import { renderMeasure } from './measure.js';
+import { helpTrigger } from './help.js';
 
 const view = document.getElementById('view');
 const who = document.getElementById('who');
-let config; let patterns = []; let cons;
+let config; let patterns = []; let cons; let common = {};
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = String(text); return e; };
 const btn = (label, onClick, cls = 'btn') => { const b = h('button', cls, label); b.type = 'button'; b.addEventListener('click', onClick); return b; };
@@ -18,10 +19,13 @@ async function copy(text, b) {
   setTimeout(() => { b.textContent = 'Copy'; }, 1200);
 }
 
-function card(title, notes, code, lane, patternId, measureTag) {
+function card(title, notes, code, lane, patternId, measureTag, help) {
   const c = h('div', 'card');
   if (measureTag) c.append(h('span', 'badge hot', `measured: ${measureTag}`));
-  c.append(h('h3', null, title));
+  const t = h('h3', null, title);
+  const hi = helpTrigger(help, { label: title, patternId });
+  if (hi) t.append(hi);
+  c.append(t);
   notes.forEach((n) => c.append(h('p', 'note', n)));
   c.append(h('pre', 'code', code));
   const out = h('div', 'card-out');
@@ -34,7 +38,9 @@ function card(title, notes, code, lane, patternId, measureTag) {
   });
   const actions = h('div', 'actions');
   actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code)), runBtn);
-  c.append(actions, out);
+  const aHelp = h('span', 'actions-help');
+  for (const k of ['copy', 'load', 'run']) { const x = helpTrigger(common[k], { label: k }); if (x) aHelp.append(x); }
+  c.append(actions, aHelp, out);
   return c;
 }
 
@@ -75,7 +81,7 @@ function patternPage(id) {
   const n = patterns.indexOf(p) + 1;
   const head = h('div');
   const knobs = h('div', 'knobs');
-  p.meta.knobs.forEach((k) => { const s = h('span', `knob${k.hot ? ' hot' : ''}`); s.append(h('b', null, `${k.name}: `), document.createTextNode(k.setting)); knobs.append(s); });
+  p.meta.knobs.forEach((k) => { const s = h('span', `knob${k.hot ? ' hot' : ''}`); s.append(h('b', null, `${k.name}: `), document.createTextNode(k.setting)); const hi = helpTrigger(k.help ? { why: k.help, figure: { file: 'model-curve.svg', caption: 'The three knobs and where they flip this pattern (deck)' } } : null, { label: k.name, patternId: id }); if (hi) s.append(hi); knobs.append(s); });
   const status = h('span', 'rmeta');
   const reset = btn('Reset this pattern', async () => {
     reset.disabled = true; status.textContent = 'resetting…';
@@ -83,21 +89,29 @@ function patternPage(id) {
     reset.disabled = false;
     status.textContent = r.status === 200 ? (r.body.ok ? 'reset done' : `reset failed: ${r.body.errors[0]?.error}`) : (MSG[r.status] ?? `error ${r.status}`);
   });
-  head.append(h('div', 'kicker', `Pattern ${n} · ${p.meta.industry} · deck slides ${p.meta.deck}`), h('h1', null, p.meta.title), h('p', 'problem', p.meta.problem), knobs, reset, status);
+  const resetHelp = helpTrigger(common.reset, { label: 'Reset' });
+  head.append(h('div', 'kicker', `Pattern ${n} · ${p.meta.industry} · deck slides ${p.meta.deck}`), h('h1', null, p.meta.title), h('p', 'problem', p.meta.problem), knobs, reset);
+  if (resetHelp) head.append(resetHelp);
+  head.append(status);
 
   const tabs = [
-    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure))],
-    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure))],
-    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null))]] : []),
+    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
+    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
+    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help))]] : []),
     ['Measure it', () => p.measures.map((m) => measureCard(p, m))],
   ];
+  const TABKEY = { 'Document model': 'document', 'Converged': 'converged', 'MongoDB API': 'mongo', 'Measure it': 'measure' };
   const bar = h('div', 'tabs');
   const body = h('div');
   const select = (i) => {
-    [...bar.children].forEach((b, j) => b.classList.toggle('on', i === j));
+    [...bar.querySelectorAll('.tab')].forEach((b, j) => b.classList.toggle('on', i === j));
     body.replaceChildren(...tabs[i][1]());
   };
-  tabs.forEach(([label], i) => bar.append(btn(label, () => select(i), '')));
+  tabs.forEach(([label], i) => {
+    bar.append(btn(label, () => select(i), 'tab'));
+    const hi = helpTrigger(p.meta.help.tabs[TABKEY[label]], { label, patternId: id });
+    if (hi) bar.append(hi);
+  });
   view.replaceChildren(head, bar, body);
   select(0);
 }
@@ -136,6 +150,7 @@ async function boot() {
   document.getElementById('console').hidden = false;
   who.textContent = config.mode === 'solo' ? 'solo · CMP_USER' : `${me.body.user.name} · ${me.body.user.schema}`;
   patterns = (await getJSON('/api/patterns')).body;
+  common = (await getJSON('/help/common.json')).body ?? {};
   const consoleEl = document.getElementById('console');
   cons ??= new Console(consoleEl, new Dock(consoleEl));
   window.onhashchange = route;
