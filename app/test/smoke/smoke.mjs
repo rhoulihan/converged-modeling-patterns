@@ -28,6 +28,18 @@ try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1440, height: 900 });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+    // Headless Chrome always reports (hover: none)/(pointer: coarse) regardless of the host's
+    // real input devices, and CDP's media-feature emulation (used above) does not cover hover or
+    // pointer — so the dock's own hover gate (there by design, to avoid sticky hover on touch)
+    // would never engage under this runner, no matter what page.hover() does. Patch matchMedia
+    // for just those two features before the app boots, so this run reflects the mouse-driven
+    // desktop behaviour the dock actually ships for.
+    await page.evaluateOnNewDocument(() => {
+      const native = window.matchMedia.bind(window);
+      window.matchMedia = (q) => (/\(\s*hover\s*:\s*hover\s*\)/.test(q) || /\(\s*pointer\s*:\s*fine\s*\)/.test(q))
+        ? { matches: true, media: q, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => true }
+        : native(q);
+    });
     const external = [];
     page.on('request', (r) => { if (!r.url().startsWith(URL) && !r.url().startsWith('data:')) external.push(r.url()); });
     await page.goto(URL, { waitUntil: 'networkidle0' });
@@ -37,6 +49,22 @@ try {
     for (const id of PATTERNS) {
       await page.goto(`${URL}/#/p/${id}`, { waitUntil: 'networkidle0' });
       await page.waitForSelector('.card');
+      // Dock: collapsed on arrival, expands on hover, and on Load.
+      const expanded = () => page.$eval('#console', (e) => e.classList.contains('expanded'));
+      if (await expanded()) fail(`${id}: dock should start collapsed`);
+      await page.hover('#console .bar'); await new Promise((r) => setTimeout(r, 300));
+      if (!(await expanded())) fail(`${id}: dock did not expand on hover`);
+      await page.mouse.move(10, 10); await new Promise((r) => setTimeout(r, 900));
+      if (await expanded()) fail(`${id}: dock did not collapse after leaving`);
+      // Help: a card ⓘ and a tab ⓘ open popovers with text.
+      for (const sel of ['.card h3 .help-i', '#view .tabs .help-i']) {
+        const t = await page.$(sel);
+        if (!t) fail(`${id}: no help trigger for ${sel}`);
+        await t.click();
+        const txt = await page.$eval('.help-pop', (e) => e.textContent.trim());
+        if (txt.length < 20) fail(`${id}: help popover for ${sel} is empty`);
+        await page.keyboard.press('Escape');
+      }
       const runButtons = await page.$$('.card .actions button:nth-child(3)');
       await press(page, runButtons[0]);
       await page.waitForSelector('.card-out .result', { timeout: 60000 });
@@ -49,14 +77,29 @@ try {
       await page.waitForSelector('#out .result', { timeout: 60000 });
       if (await page.$('#out .result.error')) fail(`${id}: console run returned an error`);
       await page.screenshot({ path: path.join(OUT, `${id}-cards-${scheme}.png`) });
+      await page.setViewport({ width: 800, height: 900 });
+      await page.screenshot({ path: path.join(OUT, `${id}-cards-${scheme}-800.png`) });
+      await page.setViewport({ width: 1440, height: 900 });
+      // The Load/Run clicks above focus the console, which opens the dock and leaves it open —
+      // closing is otherwise driven only by a pointer-leave timer or an explicit toggle, never by
+      // a run finishing. This page is short enough that scrollIntoView cannot lift the Measure-it
+      // card above the fixed dock, so force the dock shut before clicking into that card. The
+      // 'expanded' class drops immediately, but #console's 180ms slide (lab.css) still has to
+      // finish, or the still-sliding panel can catch the next click meant for the page beneath it.
+      if (await expanded()) { await press(page, '#dock-toggle'); await new Promise((r) => setTimeout(r, 220)); }
       const tabs = await page.$$('#view .tabs button.tab'); // pattern tabs, not the console's SQL/MongoDB lane tabs
       await press(page, tabs[tabs.length - 1]); // Measure it
       await press(page, '.card.measure .btn.primary');
       await page.waitForSelector('.measure-out svg', { timeout: 60000 });
+      if (!(await page.$('.measure-out svg.curve circle.live-redo'))) fail(`${id}: measure curve has no live marker`);
+      if (!(await page.$('.measure-out .stat-bars'))) fail(`${id}: measure stat bars missing`);
       if (await page.$('.measure-out .result.error')) fail(`${id}: measure-it returned an error`);
       // fullPage renders the fixed console dock mid-page, over the measure result: hide it for this shot
       await page.$eval('#console', (c) => { c.hidden = true; });
       await page.screenshot({ path: path.join(OUT, `${id}-measure-${scheme}.png`), fullPage: true });
+      await page.setViewport({ width: 800, height: 900 });
+      await page.screenshot({ path: path.join(OUT, `${id}-measure-${scheme}-800.png`), fullPage: true });
+      await page.setViewport({ width: 1440, height: 900 });
       await page.$eval('#console', (c) => { c.hidden = false; });
     }
     if (external.length) fail(`external requests: ${external.join(', ')}`);

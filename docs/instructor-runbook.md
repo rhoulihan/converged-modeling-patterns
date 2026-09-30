@@ -78,6 +78,8 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
   it is spent the statement executing is stopped and the rest return `LAB-TIMEOUT`.
   It is adjustable live from the admin page, 1–60 s, if a demo genuinely needs longer.
   Resets have their own 120 s budget.
+- Point attendees at the ⓘ next to any card, tab or knob; the Measure-it curve shows
+  where their result sits against a reference run.
 
 ## After the session
 
