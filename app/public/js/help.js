@@ -6,6 +6,12 @@
 // Text via textContent only.
 const GUTTER = 16;
 const GAP = 8;
+// Grace period for a hover tooltip: long enough to cross the gap from the ⓘ into the
+// popover (and reach its links), short enough that it still feels like hover.
+const LEAVE_GRACE = 350;
+let leaveTimer = null;
+const cancelLeave = () => { clearTimeout(leaveTimer); leaveTimer = null; };
+const scheduleLeave = () => { cancelLeave(); leaveTimer = setTimeout(() => { if (current && !current.modal) closeCurrent(); }, LEAVE_GRACE); };
 let current = null;
 let seq = 0;
 
@@ -20,6 +26,7 @@ export function placePopover(rect, size, vp) {
 }
 
 function closeCurrent(returnFocus = false) {
+  cancelLeave();
   if (!current) return;
   const { pop, trigger } = current;
   pop.remove();
@@ -53,13 +60,14 @@ function build(content, { label, patternId }, modal) {
     img.alt = content.figure.caption ?? label;
     img.loading = 'lazy';
     link.append(img);
-    fig.append(link);
-    if (content.figure.caption) fig.append(h('figcaption', null, content.figure.caption));
+    // The full-size link goes ABOVE the figure: a tall figure pushes anything below it
+    // out of the popover's visible area, where a hover tooltip can't be scrolled to.
     const open = h('a', 'help-fig-open', 'Open full size ↗');
     open.href = href;
     open.target = '_blank';
     open.rel = 'noopener';
-    fig.append(open);
+    fig.append(open, link);
+    if (content.figure.caption) fig.append(h('figcaption', null, content.figure.caption));
     pop.append(fig);
   }
   return pop;
@@ -77,7 +85,8 @@ function open(trigger, content, opts, modal) {
   pop.style.left = `${p.left + window.scrollX}px`;
   pop.dataset.side = p.side;
   pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeCurrent(true); } });
-  pop.addEventListener('pointerleave', () => { if (!modal) closeCurrent(); });
+  pop.addEventListener('pointerenter', () => { if (!modal) cancelLeave(); });
+  pop.addEventListener('pointerleave', () => { if (!modal) scheduleLeave(); });
   trigger.setAttribute('aria-expanded', 'true');
   if (!modal) trigger.setAttribute('aria-describedby', pop.id);
   current = { pop, trigger, modal };
@@ -105,10 +114,13 @@ export function helpTrigger(content, opts) {
   b.setAttribute('aria-expanded', 'false');
   let hoverTimer = null;
   b.addEventListener('click', (e) => { e.stopPropagation(); open(b, content, opts, true); });
-  b.addEventListener('pointerenter', () => { hoverTimer = setTimeout(() => open(b, content, opts, false), 200); });
+  b.addEventListener('pointerenter', () => {
+    if (current?.trigger === b && !current.modal) { cancelLeave(); return; }
+    hoverTimer = setTimeout(() => open(b, content, opts, false), 200);
+  });
   b.addEventListener('pointerleave', (e) => {
     clearTimeout(hoverTimer);
-    if (current?.trigger === b && !current.modal && !current.pop.contains(e.relatedTarget)) closeCurrent();
+    if (current?.trigger === b && !current.modal && !current.pop.contains(e.relatedTarget)) scheduleLeave();
   });
   return b;
 }
