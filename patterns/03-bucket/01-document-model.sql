@@ -35,7 +35,7 @@ COMMIT;
 -- @step Ingest three readings into the bucket
 -- @note Each reading is an array APPEND plus a counter update — a read-modify-write of the WHOLE (growing) bucket, once per reading.
 -- @why Update locality is the hot knob: every reading lands on the same bucket, so each append is a read-modify-write of every reading already in it. Bytes moved per hour grow with the square of the readings.
--- @look The block runs 3 updates against one document; Measure it shows what those 3 rewrites cost next to 3 row inserts.
+-- @look The PL/SQL block completes with no row count; Measure it shows what its 3 whole-bucket rewrites cost next to 3 row inserts.
 -- @figure doc-shape.svg The sensor-hour bucket as built: counters and an array that every reading rewrites
 -- @measure ingest-reading
 BEGIN

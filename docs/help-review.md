@@ -21,7 +21,7 @@ Entries missing help: **0**
 - **Look for:** The advisor move reports 1 row affected, and the confirm query still shows both of A-001's clients on NYC-09.
 
 **mongo**
-- **Why:** The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor block.
+- **Why:** The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor row.
 - **Look for:** The advisor.office in the returned document matches what the SQL read of xr_client_dv shows.
 
 **measure**
@@ -69,7 +69,7 @@ Entries missing help: **0**
 
 ### Knobs
 - **Diversity** (Medium-high — 4 consumers): The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape.
-- **Read / write** (Write-heavy on the rollup): About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so the rollup is written nearly as often as it is read.
+- **Read / write** (Write-heavy on the rollup): About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so on average the rollup is written once for every three reads, and for heavy users it is written more often than it is read.
 - **Update locality** (Every write, one parent): Every CDR lands on the same subscriber document: break-even is about 4.4 CDRs a subscriber a day, and a 400-a-day heavy user costs about 2.5× the work embedded.
 
 ### Tabs
@@ -102,12 +102,12 @@ Entries missing help: **0**
 
 **Rank the top talkers (full scan + sort)**
 - **Why:** Diversity bites here: the ops dashboard ranks usage across subscribers, and a rollup inside each document gives it nothing to seek on, so every load sorts the whole collection.
-- **Look for:** Subscribers ranked by mb_this_cycle; at 12 million subscribers, each load is a sort of all of them.
+- **Look for:** Up to 5 subscribers ranked by mb_this_cycle, produced by sorting every document in the collection.
 
 ### converged cards
 
 **Post one Call Detail Record for S-001** · measured: record-cdr
-- **Why:** Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; this side holds the lock for about 1.5 KB of work.
+- **Why:** Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; here each serialized write is about 1.5 KB instead of the whole document.
 - **Look for:** Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
 - **Figure:** `erd.svg` — Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
 
@@ -117,7 +117,7 @@ Entries missing help: **0**
 
 **Rank the top talkers (index range scan)**
 - **Why:** Diversity: the ops dashboard gets its own access path, a descending index on total_mb, so Top-N stops after 5 index entries instead of sorting every subscriber.
-- **Look for:** The ranked rows come back in total_mb order; the field version of this change took a dashboard from 60 seconds to 500 ms.
+- **Look for:** Up to 5 rows in total_mb order, the same ranking as the document model's sort, read from the head of the index.
 
 **Read the projected subscriber document**
 - **Why:** Diversity without a second copy: the duality view projects the subscriber document with cycleUsage inline and read-only, joined by primary key on each read.
@@ -158,7 +158,7 @@ Entries missing help: **0**
 
 **Ingest three readings into the bucket** · measured: ingest-reading
 - **Why:** Update locality is the hot knob: every reading lands on the same bucket, so each append is a read-modify-write of every reading already in it. Bytes moved per hour grow with the square of the readings.
-- **Look for:** The block runs 3 updates against one document; Measure it shows what those 3 rewrites cost next to 3 row inserts.
+- **Look for:** The PL/SQL block completes with no row count; Measure it shows what its 3 whole-bucket rewrites cost next to 3 row inserts.
 - **Figure:** `doc-shape.svg` — The sensor-hour bucket as built: counters and an array that every reading rewrites
 
 **Read the bucket (counters already there)**
@@ -233,8 +233,6 @@ Entries missing help: **0**
 - **Why:** Diversity: agents get the policy document they had, assembled by SQL/JSON, and adjusters get the full history from the same rows by dropping FETCH FIRST.
 - **Look for:** policy_document shows the header with recentClaims newest first, built by the query rather than stored.
 
-### mongo cards
-
 ## 05-tree-hierarchy · Tree / Hierarchy
 
 ### Knobs
@@ -273,7 +271,7 @@ Entries missing help: **0**
 ### converged cards
 
 **Explode the bicycle with CONNECT BY**
-- **Why:** Read/write, priced honestly: CONNECT BY walks the edges level by level in one pass, about 30% more work per explosion than a prefix scan in the deck's model.
+- **Why:** Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
 - **Look for:** Each component with its qty and depth, indented under its parent.
 - **Figure:** `erd.svg` — Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 
@@ -288,8 +286,6 @@ Entries missing help: **0**
 **Re-explode: confirm the subtree moved with the edge**
 - **Why:** Update locality, resolved: the next explosion walks the edges as they are now, so the whole subtree moved with that one row.
 - **Look for:** P-1100 and its children now appear under P-1200.
-
-### mongo cards
 
 ## 06-outlier · Outlier
 
@@ -308,7 +304,7 @@ Entries missing help: **0**
 - **Look for:** The insert reports 1 row affected, and the whale's top 3 and next 3 come from the same query with OFFSET.
 
 **mongo**
-- **Why:** The CRM and the AI assistant read the book as a document over the MongoDB API, projected from the same client rows the book screen queries.
+- **Why:** The CRM reads the book as a document over the MongoDB API and the AI assistant reads the same projection over SQL/JSON, both from the client rows the book screen queries.
 - **Look for:** The returned A-001 document carries its clients array and no hasExtras flag.
 
 **measure**
@@ -336,7 +332,7 @@ Entries missing help: **0**
 
 **Read the whale advisor (branch on hasExtras)**
 - **Why:** Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
-- **Look for:** clients_embedded and clients_in_overflow come from two places that the reader has to stitch together.
+- **Look for:** clients_embedded is 801 and clients_in_overflow is 2: one advisor, read from two collections and stitched together.
 
 ### converged cards
 

@@ -97,7 +97,7 @@ WHERE  JSON_VALUE(data,'$._id') = 'S-001';
 -- @step Rank the top talkers (full scan + sort)
 -- @note No rollup to lean on across subscribers — SUM/SORT/LIMIT the whole collection, every load.
 -- @why Diversity bites here: the ops dashboard ranks usage across subscribers, and a rollup inside each document gives it nothing to seek on, so every load sorts the whole collection.
--- @look Subscribers ranked by mb_this_cycle; at 12 million subscribers, each load is a sort of all of them.
+-- @look Up to 5 subscribers ranked by mb_this_cycle, produced by sorting every document in the collection.
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle
 FROM   cp_subscriber_doc

@@ -18,7 +18,7 @@ help:
       why: "Clients are rows with an (advisor_id, aum DESC) index, so every book is the same top-N query whether it holds 180 clients or 148,000. At the median the single document was cheaper, about 3× in the deck's model; the rows buy one code path."
       look: "The insert reports 1 row affected, and the whale's top 3 and next 3 come from the same query with OFFSET."
     mongo:
-      why: "The CRM and the AI assistant read the book as a document over the MongoDB API, projected from the same client rows the book screen queries."
+      why: "The CRM reads the book as a document over the MongoDB API and the AI assistant reads the same projection over SQL/JSON, both from the client rows the book screen queries."
       look: "The returned A-001 document carries its clients array and no hasExtras flag."
     measure:
       why: "The ratio is the redo for appending one client to the embedded book divided by the redo for one client row. The document side rewrites the whole book, so the ratio grows with the clients already embedded; the row insert stays near 1.2 KB."

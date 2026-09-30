@@ -94,7 +94,7 @@ COMMIT;
 -- CDRs stream in as tiny appends; the summary tracks them in the same commit.
 -- @step Post one Call Detail Record for S-001
 -- @note One small row; the trigger maintains the summary in the same transaction. Both models serialize per subscriber; the converged write is ~1.5 KB instead of the whole document.
--- @why Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; this side holds the lock for about 1.5 KB of work.
+-- @why Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; here each serialized write is about 1.5 KB instead of the whole document.
 -- @look Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
 -- @figure erd.svg Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
 -- @measure record-cdr
@@ -112,8 +112,9 @@ SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_i
 -- (EXPLAIN PLAN FOR this SELECT shows INDEX RANGE SCAN, not SORT ORDER BY.)
 -- @step Rank the top talkers (index range scan)
 -- @note No SUM, no SORT — the descending index turns Top-N into a range scan that stops after N rows.
+-- @note Field result for this change (anonymized): the dashboard's hot Top-N went from 60 s to 500 ms.
 -- @why Diversity: the ops dashboard gets its own access path, a descending index on total_mb, so Top-N stops after 5 index entries instead of sorting every subscriber.
--- @look The ranked rows come back in total_mb order; the field version of this change took a dashboard from 60 seconds to 500 ms.
+-- @look Up to 5 rows in total_mb order, the same ranking as the document model's sort, read from the head of the index.
 SELECT subscriber_id, total_mb, cost
 FROM   cp_subscriber_usage
 ORDER  BY total_mb DESC

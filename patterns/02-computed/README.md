@@ -7,7 +7,7 @@ problem: >-
   charging read one document — but every call record now rewrites that hot document.
 knobs:
   - { name: Diversity, setting: "Medium-high — 4 consumers", help: "The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape." }
-  - { name: Read / write, setting: "Write-heavy on the rollup", help: "About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so the rollup is written nearly as often as it is read." }
+  - { name: Read / write, setting: "Write-heavy on the rollup", help: "About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so on average the rollup is written once for every three reads, and for heavy users it is written more often than it is read." }
   - { name: Update locality, setting: "Every write, one parent", hot: true, help: "Every CDR lands on the same subscriber document: break-even is about 4.4 CDRs a subscriber a day, and a 400-a-day heavy user costs about 2.5× the work embedded." }
 help:
   tabs:

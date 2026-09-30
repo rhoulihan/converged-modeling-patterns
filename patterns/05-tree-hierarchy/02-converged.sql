@@ -70,7 +70,7 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
 -- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY, one pass.
 -- @step Explode the bicycle with CONNECT BY
 -- @note Native recursion streams the whole frontier in one pass — no recursive CTE damming each level into an intermediate relation.
--- @why Read/write, priced honestly: CONNECT BY walks the edges level by level in one pass, about 30% more work per explosion than a prefix scan in the deck's model.
+-- @why Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
 -- @look Each component with its qty and depth, indented under its parent.
 -- @figure erd.svg Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth

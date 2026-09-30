@@ -19,7 +19,7 @@ help:
       why: "The advisor is stored once and a duality view projects the same client document through the foreign key. Every read pays for a primary-key join (about 15% more read work in the deck's model); every advisor move is one row."
       look: "The advisor move reports 1 row affected, and the confirm query still shows both of A-001's clients on NYC-09."
     mongo:
-      why: "The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor block."
+      why: "The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor row."
       look: "The advisor.office in the returned document matches what the SQL read of xr_client_dv shows."
     measure:
       why: "The ratio is the document model's redo for the advisor move divided by the converged model's. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count."

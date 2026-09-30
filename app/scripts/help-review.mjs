@@ -17,6 +17,7 @@ for (const p of loadPatterns(root)) {
   const tabKeys = ['document', 'converged', ...(p.lanes.mongo.length ? ['mongo'] : []), 'measure'];
   line('### Tabs'); for (const k of tabKeys) { const t = p.meta.help.tabs[k]; line(`**${k}**`); const hl = help(t); if (!hl.length) { line('- ⚠ MISSING'); missing++; } else hl.forEach(line); line(); }
   for (const [lane, steps] of Object.entries(p.lanes)) {
+    if (!steps.length) continue;
     line(`### ${lane} cards`); line();
     for (const st of steps) {
       line(`**${st.title}**${st.measure ? ` · measured: ${st.measure}` : ''}`);
