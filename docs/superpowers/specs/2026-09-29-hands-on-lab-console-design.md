@@ -235,5 +235,5 @@ rebuilds the chosen pattern from its SQL files. No admin page.
 
 1. Build in this repo (local commits).
 2. After PR #12 merges, sync into `labs/converged-modeling-patterns/` on a new hub branch and open
-   a follow-up PR for wpluta, mirroring the conventions used in PR #12 (UPL, labs README row
+   a follow-up PR for the hub maintainers, mirroring the conventions used in PR #12 (UPL, labs README row
    unchanged, per-lab workflow updated).
