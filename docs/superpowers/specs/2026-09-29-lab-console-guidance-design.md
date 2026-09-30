@@ -87,8 +87,8 @@ statistic means.
 ### Figures
 - Static SVGs in `patterns/<id>/figures/`, served read-only at `/figures/<id>/<file>.svg`
   (path-validated: `^[a-z0-9-]+\.svg$`, pattern id from the loaded set only).
-- Generated from the **same deck generators** (`tasks/deck_patterns/pNN_*.py` + `deckfig.py`
-  in the author's content repo) by a small export script there; only the built SVGs are
+- Generated from the **same deck generators** (in the author's deck-generator repo, not part
+  of this repository) by a small export script there; only the built SVGs are
   committed to this public repo. Per pattern: `erd.svg` (canonical ERD), `knobs.svg` (three
   gauges), `doc-shape.svg` (the document-model sketch), `model-curve.svg` (the deck's
   workload curve, used in §3). Palette/fonts follow the deck house style and render on both

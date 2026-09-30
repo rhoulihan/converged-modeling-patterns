@@ -19,18 +19,17 @@
 
 ## Global Constraints
 
-- Repo `/mnt/c/Users/rickh/GitHub/converged-modeling-patterns`, branch `feat/lab-guidance`. Never push without the author's approval. Never commit to `master`.
-- The only other repo touched is `/mnt/c/Users/rickh/GitHub/LinkedIn`, and only in Task 2. There, add one new script under `tasks/` and nothing else. Do not commit in that repo.
+- This repository (`converged-modeling-patterns`), branch `feat/lab-guidance`. Never push without the author's approval. Never commit to `master`.
+- The only other repo touched is the author's deck-generator repo (not part of this repository), and only in Task 2. There, add one new export script and nothing else. Do not commit in that repo.
 - All DOM insertion goes through `textContent`, `createElement` or `createElementNS`. No `innerHTML`, `insertAdjacentHTML` or `outerHTML` anywhere.
 - Figures load via `<img src="/figures/...">`. Figure file names must match `^[a-z0-9-]+\.svg$`, and the pattern id must be one of the loaded pattern ids.
 - Always write "Oracle AI Database 26ai", never 23ai.
 - Help text must make no engine-internals claims ("in place", "partial update", "never edits a block"). Never say or imply a join is free. Voice: direct, physics-grounded, no marketing adjectives.
 - Theme: reuse the CSS tokens already in `app/public/css/lab.css` (`--hot --cool --flow --ink --muted --faint --hairline --panel --paper --chip`). Everything must render in light and dark mode.
 - Docker: never recreate `cmp-oracle` or `cmp-lab-ui`, never `down -v`, never prune, never start a second compose project (fixed container names collide). The running lab is in **event mode** with secrets in `.env`. Anything that connects to the DB from the host (integration tests, the host-run console, the calibration script) runs with `.env` sourced (`set -a; . ../.env; set +a`) so LAB_ADMIN's password is never reset. Unit tests need no database.
-- Every commit message ends with:
+- Every commit message ends with the standard co-author trailer:
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_01BeoRFyVLAZ7nma6UueR1P6
   ```
 
 ## Review Focus
@@ -69,7 +68,7 @@
 | `app/scripts/help-review.mjs` | create | generates `docs/help-review.md` for the author |
 | `app/test/unit/*.test.js` | create/modify | tests per task |
 | `app/test/smoke/smoke.mjs` | modify | dock, help and measure checks |
-| `/mnt/c/Users/rickh/GitHub/LinkedIn/tasks/export_lab_figures.py` | create | export deck figures into the lab repo |
+| export script in the author's deck-generator repo (not part of this repository) | create | export deck figures into the lab repo |
 
 **Figure mapping.** This refines spec §2 to what the deck generators actually produce.
 
@@ -409,93 +408,27 @@ git commit -m "feat(lab-ui): help annotations, front-matter help/measure, figure
 ### Task 2: Export deck figures into the lab repo
 
 **Files:**
-- Create: `/mnt/c/Users/rickh/GitHub/LinkedIn/tasks/export_lab_figures.py` (not committed; the author commits that repo)
+- Create: an export script in the author's deck-generator repo (not part of this repository; not committed here — the author commits that repo)
 - Create: `patterns/<id>/figures/{doc-shape,erd,model-curve,flow}.svg` for all 6 patterns (committed in the lab repo)
 
 **Interfaces:**
-- Consumes: `tasks/deck_patterns/pNN_*.py` `fig_doc()`, `fig_model()`, `fig_knobs()`, `fig_flow()` → `Fig`; `Fig.svg()` → str using `var(--token)` colours.
+- Consumes: the deck generator's per-pattern figure functions `fig_doc()`, `fig_model()`, `fig_knobs()`, `fig_flow()` → `Fig`; `Fig.svg()` → str using `var(--token)` colours.
 - Produces: 24 standalone SVGs that render with correct colours inside `<img>`. They carry their own `<style>` with light tokens and `@media (prefers-color-scheme: dark)` tokens, and a transparent background.
 
 - [ ] **Step 1: Write the export script**
 
-Create `/mnt/c/Users/rickh/GitHub/LinkedIn/tasks/export_lab_figures.py`:
-```python
-"""Export the deck's pattern figures as standalone SVGs for the companion lab.
-
-The deck SVGs colour everything with CSS custom properties (var(--hot) ...), which an <img>
-cannot see from the host page. Each exported file therefore carries its own <style> defining
-the same tokens the lab uses, for light and dark schemes.
-
-Usage:  python3 tasks/export_lab_figures.py /mnt/c/Users/rickh/GitHub/converged-modeling-patterns/patterns
-"""
-from __future__ import annotations
-
-import importlib.util
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
-
-MODULES = {
-    "01-extended-reference": "p01_extended_reference",
-    "02-computed": "p02_computed",
-    "03-bucket": "p03_bucket",
-    "04-subset": "p04_subset",
-    "05-tree-hierarchy": "p05_tree_hierarchy",
-    "06-outlier": "p06_outlier",
-}
-FIGS = {"doc-shape": "fig_doc", "erd": "fig_model", "model-curve": "fig_knobs", "flow": "fig_flow"}
-
-LIGHT = ("--paper:#F6F8F9;--panel:#FFFFFF;--ink:#1C2733;--muted:#5A6B7C;--faint:#8B99A7;--hairline:#D8DEE4;"
-         "--hot:#B3372B;--hot-soft:rgba(179,55,43,.10);--cool:#0E8A63;--cool-soft:rgba(14,138,99,.10);"
-         "--flow:#2563EB;--flow-soft:rgba(37,99,235,.10);--chip:#EDF1F4;")
-DARK = ("--paper:#131A22;--panel:#1A232E;--ink:#E8EDF2;--muted:#93A3B4;--faint:#6B7B8C;--hairline:#26313D;"
-        "--hot:#E06552;--hot-soft:rgba(224,101,82,.14);--cool:#21A57F;--cool-soft:rgba(33,165,127,.14);"
-        "--flow:#60A5FA;--flow-soft:rgba(96,165,250,.16);--chip:#222D39;")
-STYLE = f"<style>svg{{{LIGHT}}}@media (prefers-color-scheme: dark){{svg{{{DARK}}}}}</style>"
-
-
-def load(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / "deck_patterns" / f"{name}.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def standalone(svg: str) -> str:
-    head, sep, rest = svg.partition(">")
-    assert sep and head.startswith("<svg"), "unexpected SVG root"
-    return head + ">" + STYLE + rest
-
-
-def main(dest: Path) -> None:
-    for pid, modname in MODULES.items():
-        mod = load(modname)
-        out = dest / pid / "figures"
-        out.mkdir(parents=True, exist_ok=True)
-        for fname, fn in FIGS.items():
-            svg = standalone(getattr(mod, fn)().svg(cls="labfig"))
-            (out / f"{fname}.svg").write_text(svg, encoding="utf-8")
-            print(f"{pid}/{fname}.svg  {len(svg):,} B")
-
-
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    main(Path(sys.argv[1]))
-```
+In the author's deck-generator repo (not part of this repository), write a small export script. For each of the six patterns it imports that pattern's deck figure module and calls the four figure functions, mapped `doc-shape` ← `fig_doc`, `erd` ← `fig_model`, `model-curve` ← `fig_knobs`, `flow` ← `fig_flow`. The deck SVGs colour everything with CSS custom properties (`var(--hot)` …), which an `<img>` cannot see from the host page, so the script injects a `<style>` right after the `<svg …>` root that defines the same tokens the lab uses (`--paper --panel --ink --muted --faint --hairline --hot --cool --flow --chip`, plus `--hot-soft --cool-soft --flow-soft`), once for light and once under `@media (prefers-color-scheme: dark)`, and writes each result to `patterns/<id>/figures/<name>.svg` under the lab's `patterns/` directory, which it takes as its only argument. It prints one line per file with its size.
 
 - [ ] **Step 2: Run the export**
 
-Run: `cd /mnt/c/Users/rickh/GitHub/LinkedIn && python3 tasks/export_lab_figures.py /mnt/c/Users/rickh/GitHub/converged-modeling-patterns/patterns`
+Run the export script from the author's deck-generator repo, passing this repository's `patterns/` directory.
 Expected: 24 lines like `02-computed/erd.svg  18,432 B`. Each `Fig.svg()` call runs the deck's own collision checks, so a `FigureError` here means a deck bug; stop and report it.
 
 - [ ] **Step 3: Verify by rasterising (light and dark)**
 
 Run from the lab repo, reusing puppeteer-core from `app/node_modules`:
 ```bash
-cd /mnt/c/Users/rickh/GitHub/converged-modeling-patterns/app && node -e '
+cd app && node -e '
 const puppeteer = require("puppeteer-core"); const fs = require("fs"); const path = require("path");
 const chrome = process.env.CHROME_PATH || "/usr/bin/google-chrome";
 (async () => { const b = await puppeteer.launch({ executablePath: chrome, headless: "new" });
@@ -515,8 +448,8 @@ If Chrome is elsewhere, use the path the smoke test auto-detects.
 
 - [ ] **Step 4: Commit (lab repo only)**
 
+From the repository root:
 ```bash
-cd /mnt/c/Users/rickh/GitHub/converged-modeling-patterns
 git add patterns/*/figures
 git commit -m "feat(patterns): deck figures exported for in-lab help (light + dark tokens)"
 ```
