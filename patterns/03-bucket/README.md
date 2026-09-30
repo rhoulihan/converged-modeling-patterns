@@ -14,10 +14,10 @@ measure:
   lab_x: 3
   deck_slides: "22–25"
   calibration:
-    - { x: 3, ratio: 6.06 }   # doc 4776 B, conv 788 B
-    - { x: 100, ratio: 31.21 }   # doc 24596 B, conv 788 B
-    - { x: 1000, ratio: 139.11 }   # doc 109616 B, conv 788 B
-    - { x: 3600, ratio: 597.29 }   # doc 470664 B, conv 788 B
+    - { x: 3, ratio: 4.89 }   # doc 4776 B, conv 976 B
+    - { x: 100, ratio: 24.57 }   # doc 24664 B, conv 1004 B
+    - { x: 1000, ratio: 109.18 }   # doc 109616 B, conv 1004 B
+    - { x: 3600, ratio: 469.84 }   # doc 471716 B, conv 1004 B
 ---
 # Pattern 03 — Bucket (time-series)
 
@@ -47,7 +47,7 @@ Stop hand-rolling buckets. Let **range partitioning** do the amortization the bu
 was faking, and let `GROUP BY` do the rollup:
 
 - Readings are tiny, append-only rows in an **INTERVAL-partitioned** table — Oracle
-  opens a new hourly partition on its own as time advances. Each insert is one small
+  opens a new hourly partition on its own as time advances. Each reading is one small
   row: no array to grow, no document to rewrite, no 16 MB ceiling.
 - The per-hour summary is a `GROUP BY` over a partition range; asking for one hour
   **prunes** to one partition. Reads dwarf writes? A materialized view precomputes it.
