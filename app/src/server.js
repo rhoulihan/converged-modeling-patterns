@@ -11,6 +11,7 @@ import { Workspaces } from './services/workspaces.js';
 import { Runner } from './services/runner.js';
 import { apiRouter } from './routes/api.js';
 import { adminRouter } from './routes/admin.js';
+import { figuresRouter } from './routes/figures.js';
 
 export function createApp(deps) {
   const app = express();
@@ -18,6 +19,7 @@ export function createApp(deps) {
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/admin', adminRouter(deps));
   app.use('/api', apiRouter(deps));
+  app.use('/figures', figuresRouter(deps));
   app.use(express.static(path.resolve(import.meta.dirname, '../public'), { maxAge: '1h' }));
   app.use((err, req, res, next) => { // body-parser errors etc.
     if (res.headersSent) return next(err);

@@ -49,11 +49,12 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     id: p.id,
     meta: p.meta,
     cards: {
-      document: p.lanes.document.map(({ title, notes, sql, measure }) => ({ title, notes, sql, measure })),
-      converged: p.lanes.converged.map(({ title, notes, sql, measure }) => ({ title, notes, sql, measure })),
-      mongo: p.lanes.mongo.map(({ title, notes, command }) => ({ title, notes, command })),
+      document: p.lanes.document.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
+      converged: p.lanes.converged.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
+      mongo: p.lanes.mongo.map(({ title, notes, command, help }) => ({ title, notes, command, help })),
     },
-    measures: p.measures.map((m) => ({ tag: m.tag, documentSql: m.document.sql, convergedSql: m.converged.sql })),
+    measures: p.measures.map((m) => ({ tag: m.tag, documentSql: m.document.sql, convergedSql: m.converged.sql,
+      help: { document: m.document.help, converged: m.converged.help } })),
   }))));
 
   const validPattern = (id) => id === null || id === undefined || patterns.some((p) => p.id === id);

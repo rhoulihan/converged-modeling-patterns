@@ -4,7 +4,20 @@
 // SET TRANSACTION / SET ROLE are SQL statements, not SQL*Plus settings.
 const SQLPLUS = /^(SET(?!\s+(TRANSACTION|ROLE)\b)|PROMPT|COLUMN|COL|WHENEVER|EXIT|QUIT|SPOOL|DEFINE|UNDEFINE|SHOW|TTITLE|BTITLE|BREAK|CLEAR)\b|^@/i;
 const PLSQL_START = /^(BEGIN|DECLARE)\b|^CREATE\s+(OR\s+REPLACE\s+)?((NON)?EDITIONABLE\s+)?(TRIGGER|PROCEDURE|FUNCTION|PACKAGE|TYPE)\b/i;
-const ANNOT = /^--\s*@(step|note|measure)\b\s*(.*)$/i;
+const ANNOT = /^--\s*@(step|note|measure|why|look|figure)\b\s*(.*)$/i;
+const FIGURE = /^([a-z0-9-]+\.svg)\s+(.+)$/;
+
+// Shared by the SQL and mongosh parsers: fold one help annotation into an accumulator.
+export function addHelp(help, kind, val, where = 'annotation') {
+  if (kind === 'figure') {
+    const f = val.match(FIGURE);
+    if (!f) throw new Error(`${where}: @figure needs "<name>.svg <caption>" with a plain file name`);
+    help.figure = { file: f[1], caption: f[2].trim() };
+  } else {
+    help[kind] = help[kind] ? `${help[kind]} ${val}` : val;
+  }
+}
+const emptyHelp = () => ({ why: null, look: null, figure: null });
 
 function scanLine(line, inString) {
   for (let i = 0; i < line.length; i++) {
@@ -41,7 +54,8 @@ export function parseSqlFile(text) {
   const flush = () => {
     const sql = buf.join('\n').trim();
     if (sql) {
-      out.push({ sql, title: anno?.title ?? null, notes: anno?.notes ?? [], measure: anno?.measure ?? null, plsql, line: startLine });
+      out.push({ sql, title: anno?.title ?? null, notes: anno?.notes ?? [], measure: anno?.measure ?? null,
+        help: anno?.help ?? emptyHelp(), plsql, line: startLine });
     }
     anno = null;
     buf = [];
@@ -55,12 +69,13 @@ export function parseSqlFile(text) {
       if (!t || t === '/') return;
       const a = t.match(ANNOT);
       if (a) {
-        anno ??= { title: null, notes: [], measure: null };
+        anno ??= { title: null, notes: [], measure: null, help: emptyHelp() };
         const kind = a[1].toLowerCase();
         const val = a[2].trim();
         if (kind === 'step') anno.title = val;
         else if (kind === 'note') anno.notes.push(val);
-        else anno.measure = val;
+        else if (kind === 'measure') anno.measure = val;
+        else addHelp(anno.help, kind, val, `line ${idx + 1}`);
         return;
       }
       if (t.startsWith('--') || SQLPLUS.test(t)) return;

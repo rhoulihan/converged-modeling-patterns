@@ -18,9 +18,10 @@ describe('parseMongoScript', () => {
       '  print(r);',
       '}',
     ].join('\n'));
+    const noHelp = { why: null, look: null, figure: null };
     expect(steps).toEqual([
-      { title: 'Read the projected document', notes: ['Same view, over the MongoDB API'], command: 'db.xr_client_dv.findOne({_id: "C-001"})', line: 4 },
-      { title: 'Hourly rollup with $sql', notes: [], command: 'db.aggregate([{ $sql: `select 1 from dual` }])', line: 7 },
+      { title: 'Read the projected document', notes: ['Same view, over the MongoDB API'], help: noHelp, command: 'db.xr_client_dv.findOne({_id: "C-001"})', line: 4 },
+      { title: 'Hourly rollup with $sql', notes: [], help: noHelp, command: 'db.aggregate([{ $sql: `select 1 from dual` }])', line: 7 },
     ]);
   });
   it('rejects @step on a statement that is not a db command', () => {
@@ -37,5 +38,12 @@ describe('parseMongoScript', () => {
         expect(() => parseMongoScript(fs.readFileSync(p, 'utf8'), p)).not.toThrow();
       }
     }
+  });
+});
+
+describe('help annotations (mongo)', () => {
+  it('attaches // @why, @look and @figure to the step', () => {
+    const [s] = parseMongoScript('// @step Find\n// @why One document.\n// @look count is 1\n// @figure flow.svg The flow\ndb.c.find({})\n');
+    expect(s.help).toEqual({ why: 'One document.', look: 'count is 1', figure: { file: 'flow.svg', caption: 'The flow' } });
   });
 });
