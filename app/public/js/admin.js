@@ -37,7 +37,7 @@ async function render() {
   if (r.status === 404) { view.replaceChildren(h('p', 'problem', 'The admin page is only available in event mode (LAB_MODE=event).')); return; }
   if (r.status !== 200 || !r.body?.gate) {
     // One failed poll (a restart, a busy database) must not stop the page: say so, retry.
-    const note = h('p', 'flash', `Status unavailable (${r.status ? `HTTP ${r.status}` : 'no response'}) — retrying…`);
+    const note = h('p', 'flash', `Status unavailable (${r.status ? `HTTP ${r.status}` : 'no response'}), retrying…`);
     const old = view.querySelector('p.flash.stale');
     if (old) old.replaceWith(note); else view.prepend(note);
     note.classList.add('stale');

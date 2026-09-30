@@ -3,7 +3,7 @@ import { createEditor } from '/vendor/cm.js';
 import { getJSON, postJSON } from './api.js';
 import { renderRun } from './results.js';
 
-const MESSAGES = { 401: 'please sign in again', 409: 'you already have a request queued', 423: 'paused by instructor', 429: 'busy — the database is serving others, try again' };
+const MESSAGES = { 401: 'please sign in again', 409: 'you already have a request queued', 423: 'paused by instructor', 429: 'busy: the database is serving others, try again' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },

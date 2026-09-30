@@ -1,14 +1,14 @@
 -- ============================================================================
 -- Pattern 01 · Extended Reference · THE DOCUMENT MODEL (the starting point)
 -- Industry: wealth management. Access pattern: open any client or account and
--- show the servicing advisor's name, office, and desk line — without a join.
+-- show the servicing advisor's name, office, and desk line. No join needed.
 --
 -- The document move: copy the most-read advisor fields INTO every client doc so
 -- the read never has to look them up. "Only copy fields that rarely change."
 --
 -- THE WRITE-AMPLIFICATION COST (made explicit below): the advisor is now stored
--- N times, once per client. The moment a copied value changes — advisor moves
--- offices, changes desk line — you must find and rewrite EVERY embedded copy.
+-- N times, once per client. The moment a copied value changes (advisor moves
+-- offices, changes desk line) you must find and rewrite EVERY embedded copy.
 -- On a book of 100K clients that is a 100K-document fan-out update, and every
 -- doc you miss is now stale... and it feeds both the client portal AND the LLM.
 -- "Write amplification in, update anomaly out."
@@ -41,7 +41,7 @@ COMMIT;
 -- The read the pattern optimizes for: zero-join, everything inline. This is why
 -- people reach for the embed.
 -- @step Read the embedded advisor block
--- @note Zero-join read — every client doc already carries its own copy of the advisor's office and desk.
+-- @note Zero-join read: every client doc already carries its own copy of the advisor's office and desk.
 -- @why Read/write is why teams embed: at 50 million client-360 reads a day against about 300 advisor edits, a read with no lookup is the right thing to optimize.
 -- @look Every client row returns its own advisor_office, and the statement touches one table.
 -- @figure doc-shape.svg The client document as built: the advisor card copied into every client and account
@@ -51,13 +51,13 @@ FROM   xr_client_doc;
 
 -- ---------------------------------------------------------------------------
 -- THE NEEDLE FLIPS HERE. Advisor A-001 moves from NYC-01 to NYC-09. There is no
--- advisor record to update — the advisor only exists as copies. So the write
+-- advisor record to update: the advisor only exists as copies. So the write
 -- fans out across EVERY client doc that embeds A-001, and each JSON_TRANSFORM
 -- re-serializes the whole document into a new block (WiredTiger copy-on-write;
 -- OSON re-encode on Oracle). 3 rows here; 100,000 on a real book.
 -- ---------------------------------------------------------------------------
 -- @step Move advisor A-001 to a new office
--- @note Every client document that embeds A-001 gets rewritten — one logical change fans out to every embedded copy, not to one row.
+-- @note Every client document that embeds A-001 gets rewritten: one logical change fans out to every embedded copy, not to one row.
 -- @why Update locality is the hot knob: the advisor exists only as copies, so one office change is a read-modify-write of every document that embeds A-001. At 2,700 embedding documents per advisor, that is 2,700 rewrites per edit.
 -- @look Rows affected is 2 here, one per embedded copy; Measure it shows the redo those copies cost.
 -- @measure advisor-move
@@ -71,7 +71,7 @@ WHERE  JSON_VALUE(data, '$.advisor.advisorId') = 'A-001';
 COMMIT;
 
 -- @step Confirm the fan-out
--- @note Count of client docs now showing the new office — one logical change touched every embedded copy.
+-- @note Count of client docs now showing the new office: one logical change touched every embedded copy.
 -- @why Update locality again: the count is how far one logical change had to travel. At 2,700 copies per advisor that fan-out is a job, not one transaction, and until it finishes the portal and the copilot can read different offices.
 -- @look The write_amplification line reports 2 client docs, the number that becomes 2,700 at production scale.
 SELECT 'document model: advisor change fanned out to ' ||

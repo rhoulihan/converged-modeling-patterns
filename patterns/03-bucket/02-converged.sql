@@ -45,7 +45,7 @@ CREATE INDEX bk_ix_readings ON bk_sensor_readings (machine_id, metric, reading_t
 -- Every reading is one small row. No parent to rewrite; constant cost per reading.
 -- The same three readings the document model appends to its bucket, as three rows.
 -- @step Insert the three readings
--- @note Three small rows — no bucket to grow, no parent document to rewrite.
+-- @note Three small rows: no bucket to grow, no parent document to rewrite.
 -- @why Update locality stops compounding: each reading is its own small row in the hour's partition, so an insert costs the same at reading 3 or reading 36,000. There is no document to grow and no 16 MB cap to reach.
 -- @look Rows affected is 3; Measure it shows redo that stays near 1 KB at any bucket size.
 -- @figure erd.svg Plant, machine and append-only readings with a derived hourly rollup, beside one hot sensor-hour packed into a single bucket

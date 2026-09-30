@@ -1,18 +1,18 @@
 # Converged Modeling Patterns
 
-Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine —
+Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine:
 Converged Data Modeling."** Every document-modeling pattern in this repo is a
 runnable, side-by-side demonstration: the document-model starting point a developer
 would build, and the converged alternative that keeps the read win **without** paying
 the write-amplification the pattern was quietly charging you.
 
-Runs on **Oracle AI Database 26ai Free** — one container, one command. Two lanes:
+Runs on **Oracle AI Database 26ai Free**: one container, one command. Two lanes:
 the same data through **SQL** (`sqlplus`) and through the **Oracle API for MongoDB**
 (`mongosh`), with automated assertions that the two lanes return **byte-identical**
-results. One truth, many shapes — proven, not asserted.
+results. One truth, many shapes. Proven, not asserted.
 
 > **Data modeling is a physics problem, not a philosophy problem.** The famous
-> document patterns are not folklore — they are disciplined responses to real
+> document patterns are not folklore. They are disciplined responses to real
 > storage-engine constraints. This repo asks one question of each: *does that
 > constraint still exist on a converged engine?* When it does, keep the pattern.
 > When it was a workaround for a missing capability, there is a better shape.
@@ -22,28 +22,28 @@ results. One truth, many shapes — proven, not asserted.
 ## The one idea
 
 Every pattern trades along the same axis: **what you access together, you store
-together.** Embed and you get atomic reads — until the document grows, hits 16 MB, or
-takes write amplification on every change. Reference and you get small writes — but
+together.** Embed and you get atomic reads, until the document grows, hits 16 MB, or
+takes write amplification on every change. Reference and you get small writes, but
 now you need a join the engine may not love.
 
 Convergence adds a **third resolution the catalog never had: _project it._** Store
-the domain in canonical form once; project the shape each consumer wants — document,
-graph, time-series, relational — at read time, over the same rows, in the same
+the domain in canonical form once; project the shape each consumer wants (document,
+graph, time-series, relational) at read time, over the same rows, in the same
 transaction. **Duality does not change the physics knobs. It changes how the knobs
 get set.**
 
 The three knobs, on every design:
 
-1. **Diversity of access patterns** — how many consumers want a *different shape* of
+1. **Diversity of access patterns**: how many consumers want a *different shape* of
    the same truth? (Diversity pushes toward relational + projection.)
-2. **Read/write ratio** — *where* compute should happen: write-time or read-time.
-3. **Update %, and where the update lands** — the knob that quietly kills more designs
+2. **Read/write ratio**: *where* compute should happen, write-time or read-time.
+3. **Update %, and where the update lands**: the knob that quietly kills more designs
    than the other two combined. A high-velocity field buried in a large document is
    write amplification waiting to happen.
 
 The breakpoint to keep in your head: **maintain a precomputed structure only if
 `read-freq × read-cost > write-freq × maintenance-cost`.** Writes get heavy or reads
-get rare, and it flips — and a real cost-based optimizer moves that breakpoint by
+get rare, and it flips. A real cost-based optimizer moves that breakpoint by
 making read-time compute cheap.
 
 ---
@@ -51,27 +51,27 @@ making read-time compute cheap.
 ## How this repo supports the presentation
 
 This repository is the **runnable backing** for the 90-minute lecture *"Model the
-Domain, Not the Engine."* Nothing in the talk is a claim you have to take on faith —
+Domain, Not the Engine."* Nothing in the talk is a claim you have to take on faith:
 every pattern, every needle-flip, and the "one truth, many shapes" thesis itself is a
 command you can run here, live, on a laptop. It serves two audiences:
 
-- **Presenters** — step out of the slides and into a terminal at any pattern.
+- **Presenters**: step out of the slides and into a terminal at any pattern.
   `./run.sh 03-bucket` proves the Bucket `$sql` rollup and its cross-API parity in
   front of the room; the numbers on the slides are reproduced by the same scripts.
-- **Developers you send here afterward** — the repo *is* the takeaway. Each pattern is
+- **Developers you send here afterward**: the repo *is* the takeaway. Each pattern is
   a side-by-side they can read, run, modify, and measure against their own cardinality.
 
 ### Lecture → repo map
 
 | Lecture beat | What backs it, here |
 |---|---|
-| **Why converged / "model once, project many"** — one truth served as many shapes | The duality views (`xr_client_dv`, `cp_subscriber_dv`, `ol_advisor_dv`) read **identically** through SQL and the MongoDB API; the `03-parity.js` scripts assert it byte-for-byte |
-| **The physics** — three knobs, write amplification, the breakpoint | *The one idea* (above); every `01-document-model.sql` makes the write cost explicit in comments, every `02-converged.sql` shows where the needle flips |
-| **The pattern walk** — six patterns, six industries | `patterns/01…06`, **1:1 with the slides** — same patterns, same industries, same hard edges |
-| **Bucket's `$sql`-in-pipeline value-add** — parallel analytics, no pipeline caps | `patterns/03-bucket/02-sql-in-pipeline.js` — full SQL over the Mongo wire, runnable |
-| **"One truth, many shapes" — proven, not asserted** | The four cross-API parity scripts (`0{1,2,6}/03-parity.js`, `03/03-parity.js`) — SQL result and MongoDB result asserted equal |
-| **The honesty anchor** — where document still wins | *Where document still wins* (below) — the single-collection guidance, in words and as a rule |
-| **Measure, don't guess** — the bake-off | *Measure it, don't guess it* (below) + the reason-then-measure modeling skill |
+| **Why converged / "model once, project many"**: one truth served as many shapes | The duality views (`xr_client_dv`, `cp_subscriber_dv`, `ol_advisor_dv`) read **identically** through SQL and the MongoDB API; the `03-parity.js` scripts assert it byte-for-byte |
+| **The physics**: three knobs, write amplification, the breakpoint | *The one idea* (above); every `01-document-model.sql` makes the write cost explicit in comments, every `02-converged.sql` shows where the needle flips |
+| **The pattern walk**: six patterns, six industries | `patterns/01…06`, **1:1 with the slides**: same patterns, same industries, same hard edges |
+| **Bucket's `$sql`-in-pipeline value-add**: parallel analytics, no pipeline caps | `patterns/03-bucket/02-sql-in-pipeline.js`: full SQL over the Mongo wire, runnable |
+| **"One truth, many shapes": proven, not asserted** | The four cross-API parity scripts (`0{1,2,6}/03-parity.js`, `03/03-parity.js`): SQL result and MongoDB result asserted equal |
+| **The honesty anchor**: where document still wins | *Where document still wins* (below): the single-collection guidance, in words and as a rule |
+| **Measure, don't guess**: the bake-off | *Measure it, don't guess it* (below) + the reason-then-measure modeling skill |
 | **The anonymized proof numbers** (60s→500ms, 29s→sub-400ms, 9–15×) | Cited in the per-pattern READMEs, tagged as anonymized field results |
 
 ### Live-demo playbook
@@ -90,21 +90,21 @@ Run any of these live: each `[PASS]` line is a slide's claim, executed.
 
 | # | Pattern | Industry | Where the needle flips | Converged softening |
 |---|---|---|---|---|
-| [01](patterns/01-extended-reference/) ⭐ | **Extended Reference** | Wealth mgmt | Advisor moves offices → fan-out update across 100Ks of embedded copies + update anomaly | **Project, don't copy** — advisor normalized once, duality projects it live |
+| [01](patterns/01-extended-reference/) ⭐ | **Extended Reference** | Wealth mgmt | Advisor moves offices → fan-out update across 100Ks of embedded copies + update anomaly | **Project, don't copy**: advisor normalized once, duality projects it live |
 | [02](patterns/02-computed/) | **Computed** | Telecom | Every CDR re-aggregates + rewrites the whole subscriber doc → write storm | Append-only rows + trigger-maintained summary (staleness 0); **Top-N 60s → 500ms** |
 | [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading rewrites the whole, growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
 | [04](patterns/04-subset/) | **Subset** | Insurance | Push-and-trim on every claim to serve a full read that hardly happens | One table + composite index; **query the hot slice** with `FETCH FIRST` |
 | [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path; where-used a prefix can't express | Adjacency edges (reorg = one row) + `CONNECT BY` + `GRAPH_TABLE` |
-| [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc — "just more rows, the optimizer plans for it" |
+| [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc: "just more rows, the optimizer plans for it" |
 
 Each folder holds a `README.md` (the teaching), `01-document-model.sql` (the starting
 point, with the write cost made explicit in comments), and `02-converged.sql` (the
 alternative, with the needle-flip explained). The four patterns that expose a duality
-view (01, 02, 06) or a rollup (03) also carry a **MongoDB lane** — `*.js` scripts that
+view (01, 02, 06) or a rollup (03) also carry a **MongoDB lane**: `*.js` scripts that
 run through `mongosh` and assert cross-API parity (see below).
 
-Numbers above are **anonymized field results** from real engagements, cited as such —
-your mileage depends on scale, cardinality, and access mix. *A win at the wrong scale
+Numbers above are **anonymized field results** from real engagements, cited as such.
+Your mileage depends on scale, cardinality, and access mix. *A win at the wrong scale
 is not a win.* Measure your own (see below).
 
 ---
@@ -115,30 +115,30 @@ is not a win.* Measure your own (see below).
 converged-modeling-patterns/
 ├── run.sh               # one command: build, wait, grant, run every pattern × both lanes, graded
 ├── compose.yml          # the 26ai + ORDS + Mongo-API service (non-default host ports)
-├── docker/              # the image, built from scratch — DB + ORDS + mongosh, no ONNX/vector layer
+├── docker/              # the image, built from scratch: DB + ORDS + mongosh, no ONNX/vector layer
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
 │   └── init/            #   01-grants.sql, 02-ords-enable.sql
-├── app/                 # the hands-on console — Node 22 Express app, compose service `lab-ui` on :3100
+├── app/                 # the hands-on console: Node 22 Express app, compose service `lab-ui` on :3100
 │   ├── src/             #   server, gate/cache, SQL+Mongo runners, content loader, HTTP + admin routes
 │   ├── public/          #   the browser UI (offline vendor bundle, no outbound requests)
 │   └── test/            #   unit, integration, smoke (Puppeteer) and load tests
 └── patterns/
-    ├── 01-extended-reference/   # ⭐ wealth mgmt — duality projection
+    ├── 01-extended-reference/   # ⭐ wealth mgmt, duality projection
     │   ├── README.md            #    the teaching: use case → hard edge → needle-flip → softening
     │   ├── 01-document-model.sql#    the starting point (write cost made explicit in comments)
     │   ├── 02-converged.sql     #    the converged alternative (the flip, explained)
     │   ├── 03-parity.js         #    Mongo lane: SAME doc via SQL and MongoDB API, byte-equal
     │   └── _capture.sql         #    captures the SQL-side result for the parity assertion
-    ├── 02-computed/             # telecom — rollup, staleness 0        (+ 03-parity.js, _capture.sql)
-    ├── 03-bucket/               # manufacturing/IoT — time-series
+    ├── 02-computed/             # telecom, rollup, staleness 0        (+ 03-parity.js, _capture.sql)
+    ├── 03-bucket/               # manufacturing/IoT, time-series
     │   ├── 01-document-model.sql / .js   # the $push bucket that grows (SQL + Mongo lanes)
     │   ├── 02-converged.sql     #    partitioned rows + GROUP BY rollup
     │   ├── 02-sql-in-pipeline.js#    $sql over the Mongo wire (the value-add)
     │   └── 03-parity.js         #    Mongo $sql rollup == SQL GROUP BY, asserted
-    ├── 04-subset/               # insurance — pure SQL (no natural single Mongo collection)
-    ├── 05-tree-hierarchy/       # manufacturing BOM — pure SQL (adjacency + CONNECT BY + GRAPH_TABLE)
-    └── 06-outlier/              # financial — duality projection       (+ 03-parity.js, _capture.sql)
+    ├── 04-subset/               # insurance, pure SQL (no natural single Mongo collection)
+    ├── 05-tree-hierarchy/       # manufacturing BOM, pure SQL (adjacency + CONNECT BY + GRAPH_TABLE)
+    └── 06-outlier/              # financial, duality projection       (+ 03-parity.js, _capture.sql)
 ```
 
 Every pattern folder is self-contained and teaches the same four beats as its slide.
@@ -165,7 +165,7 @@ simply skip the Mongo lane.
 
 The image is built fresh from [`docker/`](docker/): Oracle AI Database 26ai Free
 (`gvenzl/oracle-free:23.26.3-faststart`) + **ORDS** (fronting the Database API and the
-Oracle API for MongoDB) + **mongosh**. No vector/ONNX layer — these patterns use no
+Oracle API for MongoDB) + **mongosh**. No vector/ONNX layer: these patterns use no
 vectors. Ports (host → container), defaulted to **non-standard** values so nothing
 collides with another Oracle/ORDS/Mongo stack:
 
@@ -198,7 +198,7 @@ Override `ORACLE_PASSWORD` / `CMP_PASSWORD` as you like.
 
 ## Hands-on console
 
-`docker compose up -d` also starts **`lab-ui`** — a browser console for this repo — at
+`docker compose up -d` also starts **`lab-ui`** (a browser console for this repo) at
 **http://localhost:3100**. Every query in the six patterns, and in the lecture, can be
 read, copied, edited and run from there, against the same 26ai container `run.sh` uses:
 
@@ -211,7 +211,7 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
   first-touch effects stay out of the numbers), then once measured: it reads the
   engine's own statistics (redo size, block changes, logical reads) before and after,
   with in-memory undo switched off so the counters are current, and rolls back. Numbers are a
-  single-session, 26ai Free measurement — expect small run-to-run variance, not a fixed
+  single-session, 26ai Free measurement: expect small run-to-run variance, not a fixed
   constant;
 - **Reset this pattern** rebuilds its tables to the starting state.
 
@@ -221,20 +221,20 @@ it or a console run is in progress, and closes on its own about half a second af
 your pointer leaves it and focus moves elsewhere (e.g. clicking back into the page).
 Click **📌** to pin it open regardless, or **▲/▼ Console** to toggle it by hand.
 
-Every card, tab and knob has a **ⓘ** next to it — hover for a quick tooltip, click for a
+Every card, tab and knob has a **ⓘ** next to it: hover for a quick tooltip, click for a
 dialog with what it does, why it matters and what to look for, and, where relevant, the
 deck figure it illustrates.
 
-**Measure it**'s chart plots a reference line — write amplification measured on 26ai Free
-at several sizes, same protocol — against **your** live point at this lab's actual size (on fresh or reset lab data),
+**Measure it**'s chart plots a reference line (write amplification measured on 26ai Free
+at several sizes, same protocol) against **your** live point at this lab's actual size (on fresh or reset lab data),
 so you can see where your result falls on the curve rather than judging it in isolation.
 Beside the chart, a **deck workload model** thumbnail opens the pattern's full daily-cost
 illustration from the deck; it's a separate, illustrative model, not something Measure it
 proves directly.
 
-Execution is serialized — one statement runs against the database at a time, a
+Execution is serialized: one statement runs against the database at a time, a
 first-come-first-served queue shows your place ("queued · N ahead"), and repeated
-read-only queries are served from a cache — so the console stays responsive with a full
+read-only queries are served from a cache, so the console stays responsive with a full
 room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
 
 | Setting | Default | Meaning |
@@ -245,15 +245,15 @@ room on the 26ai Free container's 2 CPU threads / 2 GB RAM.
 | `CMP_DB_BIND` | `127.0.0.1` | interface for the database ports (1522/8182/27018); keep it on localhost, even for an event |
 | `LAB_ADMIN_PASSWORD` | `LabAdmin2026` | the console's provisioning account; event mode refuses to start on the default |
 | `DB_POOL_MAX` / `MONGO_POOL_MAX` | `1` / `1` | connection caps behind the queue |
-| `EVENT_CODE`, `ADMIN_PASSWORD` | — | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
+| `EVENT_CODE`, `ADMIN_PASSWORD` | none | event mode only; see [`docs/instructor-runbook.md`](docs/instructor-runbook.md) |
 
 Every host port binds to `127.0.0.1` by default. For an event, publish only the console
 (`CMP_UI_BIND=0.0.0.0`): publishing the database ports would hand attendees LAB_ADMIN and
-SYS, whose credentials are in this repo. Don't run `./run.sh` during an event — its test
+SYS, whose credentials are in this repo. Don't run `./run.sh` during an event: its test
 stage shares the database.
 
 Solo mode (the default) needs no configuration. `./run.sh` folds the console's own unit
-and integration tests in as a last stage against the same database — **19 passed, 0
+and integration tests in as a last stage against the same database: **19 passed, 0
 failed**, combined with the patterns. `cd app && npm run test:smoke` is a separate
 headless-Chrome walkthrough of every pattern page (screenshots land in
 `app/test/artifacts/`, git-ignored), and `npm run test:load` drives a simulated event;
@@ -263,19 +263,19 @@ your own room size before a large session.
 ## The MongoDB lane + cross-API parity
 
 The Oracle API for MongoDB surfaces the same schema over the Mongo wire protocol, so a
-MongoDB developer meets these patterns in their own tools — and the repo proves the two
+MongoDB developer meets these patterns in their own tools, and the repo proves the two
 lanes agree:
 
 - **`$sql`-in-pipeline** (Bucket): `patterns/03-bucket/02-sql-in-pipeline.js` issues the
   hourly time-series rollup as **full SQL through the Mongo wire** via Oracle's `$sql`
-  aggregation stage — parallel execution, cost-based optimization, and none of the
+  aggregation stage: parallel execution, cost-based optimization, and none of the
   100 MB stage / 16 MB output caps a native pipeline hits.
 - **Rollup parity** (Bucket): `03-parity.js` asserts the Mongo `$sql` rollup equals the
   SQL lane's `02-converged.sql` `GROUP BY` (same machine/hour COUNT/AVG/MAX), and that
   both equal the hand-maintained document-model bucket counters.
 - **Document parity** (Extended Reference ⭐, Computed, Outlier): each `03-parity.js`
-  reads the **same duality-view document two ways** — `SELECT ... FROM <view>` (SQL) and
-  `db.<view>.findOne(...)` (MongoDB API) — and asserts they are **byte-equal** after
+  reads the **same duality-view document two ways**: `SELECT ... FROM <view>` (SQL) and
+  `db.<view>.findOne(...)` (MongoDB API), and asserts they are **byte-equal** after
   canonicalizing JSON and ignoring the duality `_metadata` (etag/asof). This is the
   executable proof of *"one truth, many shapes."*
 
@@ -289,16 +289,16 @@ adjacency/graph traversal).
 
 This is not "relational beats document." It is *shape per access pattern, on one
 engine.* The document model is the right tool for most reads, and for a real class of
-writes. The white-hot case — a shopping cart or event stream taking tens of millions
-of tiny add/remove operations a day and read constantly — belongs in a **single
+writes. The white-hot case (a shopping cart or event stream taking tens of millions
+of tiny add/remove operations a day and read constantly) belongs in a **single
 collection** (one small document per line item, keyed `cart#sku`), **not** a duality
 view. A duality view is a read-time join; do not put one in front of a write-storm.
-**A single collection is not a duality view** — a duality view assembles a document by
+**A single collection is not a duality view**: a duality view assembles a document by
 joining normalized tables; a single collection gathers documents on an index. Both
 are first-class here.
 
 The other half of the 90/10: entitlement / array-containment workloads have run
-**~9–15× faster in the document shape** than a 27-table normalized schema — on the
+**~9–15× faster in the document shape** than a 27-table normalized schema, on the
 *same* engine. The point was never the shape. The point is you no longer have to pick
 one for the whole system.
 
@@ -306,7 +306,7 @@ one for the whole system.
 
 ## Measure it, don't guess it
 
-Every needle-flip in this repo is a *breakpoint* — a frequency or scale at which the
+Every needle-flip in this repo is a *breakpoint*: a frequency or scale at which the
 winner changes. On a converged engine you don't have to guess where it is:
 reproduce the schema, generate data at real cardinality, build the candidate shapes,
 and **measure read _and_ write cost** (writes are access patterns too). See the
@@ -328,5 +328,5 @@ and slowest queries to the workshop lab.
 
 ## License
 
-Universal Permissive License (UPL) 1.0 — see [LICENSE](LICENSE). Copyright (c) 2026
+Universal Permissive License (UPL) 1.0, see [LICENSE](LICENSE). Copyright (c) 2026
 Oracle and/or its affiliates.

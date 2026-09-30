@@ -1,6 +1,6 @@
-# Instructor runbook — hands-on console in event mode
+# Instructor runbook: hands-on console in event mode
 
-Solo mode (the default) needs none of this — it's one user, no sign-in, nothing to
+Solo mode (the default) needs none of this. It's one user, no sign-in, nothing to
 prepare. This runbook is for running the console with a room full of attendees.
 
 ## Before the session (15 minutes)
@@ -19,7 +19,7 @@ prepare. This runbook is for running the console with a room full of attendees.
    default. `CMP_UI_BIND=0.0.0.0` publishes port 3100 on every interface so attendees
    can reach it; by default it binds to `127.0.0.1` only. Passwords must not contain `"`.
 
-   **Leave the database ports (1522, 8182, 27018) on localhost** — do not set
+   **Leave the database ports (1522, 8182, 27018) on localhost**: do not set
    `CMP_DB_BIND`. The console reaches the database over the compose network and never
    needs them published. Opening them to the room would hand attendees the database
    itself: LAB_ADMIN (which creates and drops users) and SYS, with credentials that are
@@ -36,8 +36,8 @@ prepare. This runbook is for running the console with a room full of attendees.
 ## Capacity
 
 The SQL lane has been load-tested at 150 simultaneous attendees, prewarmed, all clicking
-**Run** in the same burst — 20% doing their own write, 80% running the identical read
-query: **0** requests came back `429`/`5xx`, **120 of 150** reads were served from the
+**Run** in the same burst (20% doing their own write, 80% running the identical read
+query): **0** requests came back `429`/`5xx`, **120 of 150** reads were served from the
 cache instead of hitting the database, the database never had more than **1** attendee
 session active at once (the gate held), and latency was **p50 ≈ 1.1 s / p95 ≈ 1.8 s**.
 That measurement is SQL only: the MongoDB lane goes through the same gate, but it has not
@@ -83,32 +83,32 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
 
 ## After the session
 
-- **End event** cuts off every attendee workspace at once — each schema is locked (no
-  new connections, whatever it was doing) and queued for dropping — and returns
+- **End event** cuts off every attendee workspace at once: each schema is locked (no
+  new connections, whatever it was doing) and queued for dropping, and returns
   `{ dropped: 0, pending: N }`. A background sweep does the dropping: its first pass runs
   within 30 s and it retries every 30 s; after a workspace has sat pending for 2 minutes
   it kills that schema's remaining database sessions (the Oracle API for MongoDB holds
   idle sessions open past client disconnect) and drops it on the retry. The admin page
   (or `GET /api/admin/status`, field `pending`) shows the count still being dropped; it
   falls to `0` within a few minutes.
-- Then `docker compose down`. Adding `-v` **deletes the database volume** (all lab data) — only do that when you mean to start from scratch.
+- Then `docker compose down`. Adding `-v` **deletes the database volume** (all lab data). Only do that when you mean to start from scratch.
 
 ## Limits to know
 
 - One statement executes at a time (a 1-permit gate); each run (all its statements
   together) times out after 10 s by default; each result is capped at 500 rows / 1 MB (`truncated: true` beyond
-  that); a request waits at most 30 s in the queue before "busy — the database is
+  that); a request waits at most 30 s in the queue before "busy: the database is
   serving others, try again" (`429`).
 - Oracle AI Database 26ai Free: 2 CPU threads, 2 GB RAM, 12 GB of user data. Each
-  attendee schema is capped at a 50 MB quota — ample for the patterns' scaled-down
-  data; ~150 of them fit comfortably.
+  attendee schema is capped at a 50 MB quota (ample for the patterns' scaled-down
+  data); ~150 of them fit comfortably.
 - **Measure it** runs each side twice, both rolled back: one unmeasured warm-up, then the
   measured pass (V$MYSTAT deltas, in-memory undo off for that session). It is a
-  single-session measurement on 26ai Free, not a fixed constant —
+  single-session measurement on 26ai Free, not a fixed constant:
   an `INSERT` can vary by roughly ±76 redo bytes / ±1 block run to run, and a large JSON
   append can step by a whole LOB chunk. Say "same order of magnitude," not exact bytes,
   when presenting it live. If the card shows a `LAB-MEASURE` error instead of numbers,
-  the session-level setting the measurement depends on failed to apply — rerun it; if it
+  the session-level setting the measurement depends on failed to apply. Rerun it; if it
   keeps failing, note it and move on rather than debugging live.
 - Patterns 02 and 06 are deliberately scaled up so their write cost is visible:
   subscriber `S-001` (Computed) carries 1,000 CDR line items, and whale `A-900`
@@ -120,5 +120,5 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
   | 02 – Computed | ~52 KB redo / 19 blocks | ~1.6 KB / 11 blocks | ~33× |
   | 06 – Outlier | ~20 KB / 15 blocks | ~1.0–1.1 KB / 7–8 blocks | ~20× |
 
-  These are read-modify-write costs of a growing document versus a small appended row —
+  These are read-modify-write costs of a growing document versus a small appended row,
   not a claim about how either engine stores JSON internally.

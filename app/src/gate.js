@@ -28,7 +28,7 @@ export class Gate {
   run(who, fn) {
     if (this.#paused) return Promise.reject(paused());
     if (this.#queue.some((e) => e.userId === who.userId)) {
-      return Promise.reject(new GateError('already_queued', 409, 'already queued — wait for your previous request'));
+      return Promise.reject(new GateError('already_queued', 409, 'already queued, wait for your previous request'));
     }
     const weight = who.exclusive ? this.#permits : 1;
     return new Promise((resolve, reject) => {

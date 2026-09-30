@@ -2,7 +2,7 @@
 -- Pattern 02 · Computed · THE CONVERGED ALTERNATIVE
 -- Two moves, both keeping the read win without paying whole-document write amp.
 --
--- 1) CDRs are APPEND-ONLY relational rows — one small insert per CDR, no parent
+-- 1) CDRs are APPEND-ONLY relational rows: one small insert per CDR, no parent
 --    document to rewrite. A maintained summary carries the rollup and is kept
 --    current IN THE SAME TRANSACTION by a row trigger. Both models serialize per
 --    subscriber (the summary row locks, just as the document does); the
@@ -11,7 +11,7 @@
 --    a materialized view WITH REFRESH FAST ON COMMIT over a CDR mview log.)
 --
 -- 2) Hot Top-N becomes an INDEX RANGE SCAN. A descending index on the summary's
---    usage column turns "top talkers" into an O(log n) seek + FETCH FIRST N —
+--    usage column turns "top talkers" into an O(log n) seek + FETCH FIRST N,
 --    no SUM, no SORT, no full-collection scan. This is the field pattern behind
 --    the 60s -> 500ms dashboard result (a real landing page, anonymized).
 --
@@ -103,7 +103,7 @@ COMMIT;
 
 -- Account page read: the rollup is already there (staleness = 0), one PK lookup.
 -- @step Read the account page (rollup already there)
--- @note Staleness = 0 — the trigger kept this current in the same transaction as the CDR insert.
+-- @note Staleness = 0: the trigger kept this current in the same transaction as the CDR insert.
 -- @why Read/write: the balance check still reads a precomputed rollup, now from a narrow summary row the trigger keeps current in the CDR's own transaction.
 -- @look total_mb and cost come from one primary-key lookup on cp_subscriber_usage, with no aggregation over cp_cdr.
 SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_id = 'S-001';
@@ -111,7 +111,7 @@ SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_i
 -- Hot Top-N: an index range scan on cp_ix_usage_topn + FETCH FIRST N.
 -- (EXPLAIN PLAN FOR this SELECT shows INDEX RANGE SCAN, not SORT ORDER BY.)
 -- @step Rank the top talkers (index range scan)
--- @note No SUM, no SORT — the descending index turns Top-N into a range scan that stops after N rows.
+-- @note No SUM, no SORT: the descending index turns Top-N into a range scan that stops after N rows.
 -- @note Field result for this change (anonymized): the dashboard's hot Top-N went from 60 s to 500 ms.
 -- @why Diversity: the ops dashboard gets its own access path, a descending index on total_mb, so Top-N stops after 5 index entries instead of sorting every subscriber.
 -- @look Up to 5 rows in total_mb order, the same ranking as the document model's sort, read from the head of the index.
@@ -120,7 +120,7 @@ FROM   cp_subscriber_usage
 ORDER  BY total_mb DESC
 FETCH  FIRST 5 ROWS ONLY;
 
--- Prefer the document shape at the API? Project it — rollup included, live.
+-- Prefer the document shape at the API? Project it: rollup included, live.
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW cp_subscriber_dv AS
 SELECT JSON {
   '_id'    : s.subscriber_id,
@@ -134,7 +134,7 @@ SELECT JSON {
 } FROM cp_subscribers s WITH INSERT UPDATE DELETE;
 
 -- @step Read the projected subscriber document
--- @note The duality view includes the live rollup — no separate document to maintain for the API shape.
+-- @note The duality view includes the live rollup: no separate document to maintain for the API shape.
 -- @why Diversity without a second copy: the duality view projects the subscriber document with cycleUsage inline and read-only, joined by primary key on each read.
 -- @look subscriber_document shows cycleUsage with the same totals as the account-page read.
 SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document

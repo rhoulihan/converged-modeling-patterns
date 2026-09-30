@@ -1,7 +1,7 @@
 // ============================================================================
 // Pattern 03 · Bucket · THE DOCUMENT MODEL in the MongoDB lane (mongosh)
 // The $push bucket: each reading grows the bucket document and re-updates its
-// counters — a read-modify-write of the WHOLE (growing) document on every
+// counters: a read-modify-write of the WHOLE (growing) document on every
 // append, the canonical write-amplification. Runnable illustration.
 // Run via run.sh (Mongo lane) or:  mongosh "<uri>" --file 01-document-model.js
 // ============================================================================
@@ -12,7 +12,7 @@ C.drop();
 C.insertOne({ _id: "M-100|TEMP|2026-08-01T10", machineId: "M-100", metric: "TEMP",
               hourStart: "2026-08-01T10:00:00Z", count: 0, sum: 0, max: null, readings: [] });
 
-// Readings arrive. Each one is a $push + counter update — one whole-document
+// Readings arrive. Each one is a $push + counter update: one whole-document
 // rewrite per reading. On a hot sensor this bucket marches at the 16 MB ceiling.
 const arrivals = [
   { ts: "2026-08-01T10:00:05Z", val: 88.4 },

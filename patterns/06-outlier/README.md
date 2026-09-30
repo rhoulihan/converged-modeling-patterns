@@ -6,7 +6,7 @@ problem: >-
   Advisor documents embed their client book. Institutional books break the 16 MB cap, so
   the Outlier pattern adds overflow documents and a second code path in the application.
 knobs:
-  - { name: Diversity, setting: "Low — one book screen", help: "The portal and the batch read the book the same way, top clients by AUM, so one shape serves both." }
+  - { name: Diversity, setting: "Low: one book screen", help: "The portal and the batch read the book the same way, top clients by AUM, so one shape serves both." }
   - { name: Read / write, setting: "Read-heavy by day", help: "About 2,000 book reads a second at the open, and one AUM refresh storm a night." }
   - { name: Update locality, setting: "Skew ×800, p50 → max", hot: true, help: "The largest book is about 800× the median and takes the nightly refresh and every transition: embedded is about 3× cheaper at the 180-client median, about 50× dearer at a 150,000-client book, with break-even near 3,200." }
 help:
@@ -33,7 +33,7 @@ measure:
     - { x: 800, ratio: 16.96 }   # doc 20760 B, conv 1224 B
     - { x: 2000, ratio: 43.39 }   # doc 48768 B, conv 1124 B
 ---
-# Pattern 06 — Outlier (whale documents)
+# Pattern 06: Outlier (whale documents)
 
 **Financial / wealth management.** Open an advisor and read their book of clients as
 one document.
@@ -43,7 +43,7 @@ one document.
 ## The document bet
 
 The Outlier pattern tunes the document for the *typical* record and special-cases the
-fat tail. Embed the client book on the advisor document — fine for the ordinary
+fat tail. Embed the client book on the advisor document, fine for the ordinary
 advisor, a few dozen to a few hundred clients fits comfortably.
 
 ## Where the needle flips
@@ -52,7 +52,7 @@ A handful of institutional advisors carry **100,000-client books.** Their docume
 blows past the **16 MB ceiling**, so the pattern adds a `hasExtras` flag, spills the
 tail into an **overflow collection**, and now **every reader must branch**: *"if
 hasExtras, go fetch the overflow and stitch it back."* That is the 16 MB
-storage-engine limit **leaking into your application code** — and into the LLM's
+storage-engine limit **leaking into your application code**, and into the LLM's
 context builder, which now has to know about the special case too.
 
 The pattern does not solve the outlier. It **admits the model breaks** for the fat
@@ -60,7 +60,7 @@ tail and pushes the special case up into every consumer.
 
 The writes pay too. Until it spills, the whale's book is one growing document: in the
 lab, advisor A-900 already embeds 800 clients, and adding one more is a
-read-modify-write of the whole book. Spilling to overflow is itself cheap — the
+read-modify-write of the whole book. Spilling to overflow is itself cheap: the
 outlier pattern costs you the growth rewrite of the document before the spill, plus
 a branch in every reader.
 
@@ -69,9 +69,9 @@ a branch in every reader.
 There is no special document shape. Clients are **rows in one table**, referenced by
 advisor:
 
-- The **typical** advisor's book is projected as a document by a **duality view** —
+- The **typical** advisor's book is projected as a document by a **duality view**:
   no flag, no branch.
-- The institutional **whale** is the *same table, same optimizer* — it just returns
+- The institutional **whale** is the *same table, same optimizer*: it just returns
   more rows, and you **page** them with `FETCH FIRST` / `OFFSET` over the
   `(advisor_id, aum DESC)` index. That is the whole "outlier" story on a converged
   engine: ordinary pagination over ordinary rows.
