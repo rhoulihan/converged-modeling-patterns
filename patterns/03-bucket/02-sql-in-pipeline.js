@@ -1,10 +1,11 @@
 // ============================================================================
 // Pattern 03 · Bucket · $sql-IN-PIPELINE through the MongoDB API (mongosh)
 // The converged hourly rollup, issued as FULL SQL over the Mongo wire protocol via
-// Oracle's own $sql aggregation stage: parallel execution, cost-based optimization,
+// $sql, Oracle's addition to the MongoDB aggregation pipeline (a full SQL statement
+// as one stage of db.aggregate()): parallel execution, cost-based optimization,
 // and NO 100 MB stage / 16 MB output caps. It reads the converged, INTERVAL-
 // partitioned bk_sensor_readings table (created by the SQL lane's 02-converged.sql).
-// This is the Mongo-lane developer's on-ramp to the converged rollup: no leaving
+// This is the MongoDB API developer's on-ramp to the converged rollup: no leaving
 // the pipeline, no maintaining a bucket.
 // ============================================================================
 // @step Hourly rollup with $sql in the pipeline

@@ -1,8 +1,8 @@
 // ============================================================================
-// Pattern 03 · Bucket · THE DOCUMENT MODEL in the MongoDB lane (mongosh)
+// Pattern 03 · Bucket · THE DOCUMENT MODEL through the MongoDB API (mongosh)
 // The $push bucket: each reading grows the bucket document and re-updates its
 // counters: a read-modify-write of the WHOLE (growing) document on every
-// append, the canonical write-amplification. Runnable illustration.
+// append, the textbook write-amplification. Runnable illustration.
 // Run via run.sh (Mongo lane) or:  mongosh "<uri>" --file 01-document-model.js
 // ============================================================================
 const C = db.bk_bucket_js;

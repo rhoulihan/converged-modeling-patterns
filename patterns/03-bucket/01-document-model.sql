@@ -4,14 +4,18 @@
 -- readings; read back per-machine, per-hour summaries.
 --
 -- The document move: don't store a document per reading (millions of tiny docs).
--- Group them into a bucket doc per machine per hour, push each reading into an
--- array, and keep running counters on the bucket. Fewer, fatter documents.
+-- Group them into a bucket doc per sensor per hour, push each reading into an
+-- array, and keep running counters on the bucket. Fewer, fatter documents, and a
+-- one-document dashboard read. The read side is genuinely good.
 --
--- THE WRITE-AMPLIFICATION COST -- this is THE canonical write-amp pattern. Each
+-- THE WRITE-AMPLIFICATION COST -- this is THE textbook write-amp pattern. Each
 -- reading is an array $push PLUS a counter re-update: a read-modify-write of the
 -- WHOLE bucket document, on every single append. The bucket only grows, so the
 -- redo each append costs grows with it all cycle -- and a hot sensor marches its bucket
 -- straight at the 16 MB document ceiling, where writes simply start failing.
+-- The readings themselves are immutable facts; the amplification comes from the
+-- mutable bucket wrapped around them. Slow sensors (below ~900 readings a bucket,
+-- e.g. one a minute) are where this shape still wins.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 

@@ -15,7 +15,7 @@ help:
       why: "The starting point: keep the most recent claims inline on the policy so the summary page reads one document, and push each full claim into a history collection. Every new claim is a whole-policy rewrite plus a second write that has to stay in step."
       look: "recent_claims_inline holds exactly 3 claims, trimmed by hand on every write."
     converged:
-      why: "One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; each claim is one insert."
+      why: "One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; what that buys is one insert per claim and nothing to keep in step."
       look: "The insert reports 1 row affected, and the recent-claims query returns the newest 3 with no stored subset."
     measure:
       why: "The ratio is the redo for pushing and trimming the policy document divided by the redo for one claim insert. The document side rewrites every claim kept inline, so the ratio grows with the subset's size; the insert stays near 1 KB."
@@ -32,8 +32,9 @@ measure:
 ---
 # Pattern 04: Subset (hot inline / vertical partition)
 
-**Insurance.** The policy page shows the 3 most recent claims instantly; the full
-claim history is opened rarely.
+**Insurance.** The policy summary page shows the most recent claim events instantly
+(the deck uses 10; this lab keeps 3 so the output stays readable); the full claim
+history is opened far less often.
 
 > Stop maintaining the subset. Query it.
 
@@ -42,39 +43,59 @@ claim history is opened rarely.
 The Subset pattern keeps the hot slice (the recent N claims) **inline** on the
 policy document so the common read touches one document, and pushes the cold tail
 into a separate history collection. Keep the working set in RAM; keep the hot read
-to a single fetch.
+to a single fetch. In the deck's workload (8 million policies, about 2 million
+summary reads a day against about 30,000 claim events) that bet is sound: the
+summary read dwarfs the event write.
 
 ## Where the needle flips
 
-To keep the inline subset "recent," **every new claim** has to push into the inline
-array, **trim** the array back to N, *and* insert the full claim into the overflow
-collection, two writes, plus a whole-document rewrite of the policy, on every
-claim. You are paying a maintenance write on **every** write to serve a full-history
-read that **hardly ever happens.** Writes are heavy; the read you optimized for is
-rare. The needle is pointing the wrong way.
+To keep the inline subset "recent," **every new claim event** pays twice: a
+push-sort-trim **rewrite of the whole policy document**, *and* an insert of the full
+event into the history collection. That is two writes in two places for one fact, and
+if the second write fails, the summary and the history disagree. It also
+concentrates: every event on every claim lands on the same policy document, which
+becomes the hottest document in the system because of a list it has to maintain.
+
+On a normal day the Subset pattern still wins. In the deck's illustrative cost model
+(not a benchmark), querying adds about 25% to each summary read, and on 2 million
+reads that premium is real. Break-even is about **83,000 events a day**. A
+catastrophe (CAT) day, such as a hurricane landfall, runs at about **300,000**
+events, and then the Subset pattern costs about **40% more** than querying, with
+every extra write a whole-document rewrite on exactly the policies the customer app
+is hammering. Size the model for the storm, not the sunny day.
 
 ## The converged softening
 
-There is **one claims table**: hot and cold live together. A composite index on
-`(policy_id, claim_ts DESC)` makes "the recent N" an index range scan that **stops
-after N rows**: an O(log n) seek, no maintenance write, no overflow collection, no
-trimming. Every claim is a single append. The full policy document (header plus its
-recent claims) is assembled **at read time** with SQL/JSON, so hot and cold are
+The canonical form is policy, claim and claim event, where a claim event is an
+immutable fact recorded once. Here it is projected as rows on **one claims table**:
+hot and cold live together. A composite index on `(policy_id, claim_ts DESC)` keeps
+each policy's claims pre-sorted, so "the recent N" is an index range scan that
+**stops after N rows**. Every claim is one insert and one index entry: no
+maintenance rewrite, no history collection, no trimming. SQL/JSON assembles the same
+policy document (header plus its recent claims) **at read time**, so hot and cold are
 reunited by the query, never by a maintenance job.
 
-The subset stops being *state you maintain* and becomes *a projection you ask for.*
-The rare full-history read is the same query without the `FETCH FIRST`.
+That is the tradeoff, priced honestly: the summary read now does more work than a
+single document fetch (about 25% in the deck's model). What it buys is a write path
+that does not collapse in a storm, and one copy of every event for fraud review and
+audit. The subset stops being *state you maintain* and becomes *a projected shape you
+ask for.* The rarer full-history read is the same query without the `FETCH FIRST`.
+
+**When the document shape is still right:** if the inline slice is frozen at write
+time and rarely changes (for example, the three coverages printed on the
+declarations page), keep it in the document. A slice that changes on every event is
+a query.
 
 ## In this folder
 
 | File | What it shows |
 |---|---|
-| `01-document-model.sql` | Recent-N inline + overflow collection; each claim is push + trim + overflow write |
-| `02-converged.sql` | One claims table + descending composite index; recent-N via `FETCH FIRST`; doc assembled on read |
+| `01-document-model.sql` | Recent-N inline + history collection; each claim is a push-and-trim rewrite of the policy plus a history insert |
+| `02-converged.sql` | One claims table + descending composite index; recent-N via `FETCH FIRST`; policy document assembled on read |
 
 ## Validated
 
 Both scripts run clean on **Oracle AI Database 26ai Free (`23.26.3-faststart`)**. This
-pattern stays pure-SQL: a claims table has no natural single Mongo collection to read
-against, so there is no Mongo lane here.
+pattern stays on the SQL and SQL/JSON access surfaces: a claims table has no natural
+single collection to read through the MongoDB API, so there is no MongoDB API lane here.
 Run them with `../../run.sh 04-subset`.

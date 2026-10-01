@@ -2,9 +2,11 @@
 
 Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine:
 Converged Data Modeling."** Every document-modeling pattern in this repo is a
-runnable, side-by-side demonstration: the document-model starting point a developer
-would build, and the converged alternative that keeps the read win **without** paying
-the write-amplification the pattern was quietly charging you.
+runnable, side-by-side exploration of a tradeoff: the document-model design a developer
+would build, a converged alternative, and what each one costs on reads **and** on
+writes. Sometimes the converged alternative wins; sometimes the document shape should
+stay (see *Where document still wins*). The lab measures where the needle flips
+instead of assuming it.
 
 Runs on **Oracle AI Database 26ai Free**: one container, one command. Two lanes:
 the same data through **SQL** (`sqlplus`) and through the **Oracle API for MongoDB**
@@ -27,26 +29,49 @@ takes write amplification on every change. Reference and you get small writes, b
 now you need a join the engine may not love.
 
 Convergence adds a **third resolution the catalog never had: _project it._** Model
-the domain once, in canonical form: its entities, properties and relationships. Store
-it once, as rows; duality views and property graphs are further projections of those
-same rows. Each consumer's query, run through SQL, SQL/JSON, SQL/PGQ or the MongoDB
-API, reads the shape it wants (document, graph, time-series, relational) at read time,
-in the same transaction. **Duality does not change the physics knobs. It changes how the knobs
-get set.**
+the domain once, as its **canonical form**: the entities, properties and relationships
+that are the primary truth. Store that truth as one or more **projections**, chosen per
+access pattern: rows on tables, embedded documents, or graph nodes and edges. Each
+consumer's query, processed by an **access surface** (SQL, SQL/JSON, SQL/PGQ or the
+MongoDB API), creates the **projected shape** it needs (document, graph, time-series,
+relational) at read time, in the same transaction. Relational is one projection among
+several, not the center: **the workload picks the shape**.
+
+The vocabulary used throughout (Unified Model Theory, or UMT):
+
+| Term | Meaning |
+|---|---|
+| **Canonical form** | the primary truth: the logical model of entities, properties and relationships, each fact stated once. Not "the tables" |
+| **Projection** | the stored form of that truth: rows on tables, embedded documents (JSON collections, duality views), graph nodes and edges |
+| **Access surface** | the interface a query is processed by: SQL, SQL/JSON, SQL/PGQ, the MongoDB API |
+| **Projected shape** | what a query creates when an access surface processes it: a document, a graph, a rowset, a time series |
+| **Access dimension** | the kind of question the query asks: point read, range, aggregate, traverse |
+
+It is the query, not the storage, that makes the shape.
+
+No projection is free. Rendering a document from rows costs more on the read than
+reading a stored document, and in exchange it ends write amplification; storing the
+document makes the read cheaper and the writes heavier. Every pattern below explores
+where that trade flips. **Duality does not change the physics knobs. It changes how the
+knobs get set.**
 
 The three knobs, on every design:
 
 1. **Diversity of access patterns**: how many consumers want a *different shape* of
-   the same truth? (Diversity pushes toward relational + projection.)
+   the same truth? (High diversity wants projections: one stored shape can't serve
+   every consumer. One dominant shape favors storing that shape.)
 2. **Read/write ratio**: *where* compute should happen, write-time or read-time.
 3. **Update %, and where the update lands**: the knob that quietly kills more designs
    than the other two combined. A high-velocity field buried in a large document is
    write amplification waiting to happen.
 
+Knob 3 can veto the other two: a read-heavy, high-diversity workload still can't embed
+a field that is hot and mutable.
+
 The breakpoint to keep in your head: **maintain a precomputed structure only if
 `read-freq × read-cost > write-freq × maintenance-cost`.** Writes get heavy or reads
-get rare, and it flips. A real cost-based optimizer moves that breakpoint by
-making read-time compute cheap.
+get rare, and it flips. Read-time compute is never free, but a real cost-based
+optimizer lowers its cost, and that moves the breakpoint.
 
 ---
 
@@ -72,6 +97,7 @@ command you can run here, live, on a laptop. It serves two audiences:
 | **The pattern walk**: six patterns, six industries | `patterns/01…06`, **1:1 with the slides**: same patterns, same industries, same hard edges |
 | **Bucket's `$sql`-in-pipeline value-add**: parallel analytics, no pipeline caps | `patterns/03-bucket/02-sql-in-pipeline.js`: full SQL over the Mongo wire, runnable |
 | **"One truth, many shapes": proven, not asserted** | The four cross-API parity scripts (`0{1,2,6}/03-parity.js`, `03/03-parity.js`): SQL result and MongoDB result asserted equal |
+| **The rest of the catalog**: optional vs. obsolete | *The rest of the catalog* (below) |
 | **The honesty anchor**: where document still wins | *Where document still wins* (below): the single-collection guidance, in words and as a rule |
 | **Measure, don't guess**: the bake-off | *Measure it, don't guess it* (below) + the reason-then-measure modeling skill |
 | **The anonymized proof numbers** (60s→500ms, 29s→sub-400ms, 9–15×) | Cited in the per-pattern READMEs, tagged as anonymized field results |
@@ -81,7 +107,7 @@ command you can run here, live, on a laptop. It serves two audiences:
 ```bash
 ./run.sh 01-extended-reference   # ⭐ flagship: the SAME document, SQL == MongoDB, byte-for-byte
 ./run.sh 03-bucket               # the $sql-in-pipeline showcase + rollup parity
-./run.sh                         # the whole walk, both lanes → 18 passed, 0 failed
+./run.sh                         # the whole walk, both lanes → 19 passed, 0 failed
 ```
 
 Run any of these live: each `[PASS]` line is a slide's claim, executed.
@@ -308,17 +334,51 @@ adjacency/graph traversal).
 
 ---
 
+## The rest of the catalog
+
+The six patterns above are the ones where the tradeoff is closest. The rest of the
+document pattern catalog splits into two piles on a converged engine:
+
+- **Still useful, now optional**: *Polymorphic* (differently shaped documents in one
+  collection, spanned by a multivalue index), *Attribute* (key/value pairs get a real
+  index instead of a scan), *Schema Versioning* (an `IS JSON` check plus a
+  discriminator, with a view presenting one shape), *Document Versioning* (temporal
+  validity and Flashback give the history without a second collection of copies).
+- **Obsolete**: *Approximation* (native `APPROX_COUNT_DISTINCT` and the other
+  approximate aggregates answer directly), *Pre-Allocation* (padding documents so they
+  would not move on disk was an artifact of one early storage engine; when the engine
+  changed, the pattern vanished).
+
+Patterns are bets against an engine's limits, not laws of modeling.
+
+---
+
 ## Where document still wins (the honesty anchor)
 
 This is not "relational beats document." It is *shape per access pattern, on one
 engine.* The document model is the right tool for most reads, and for a real class of
-writes. The white-hot case (a shopping cart or event stream taking tens of millions
-of tiny add/remove operations a day and read constantly) belongs in a **single
-collection** (one small document per line item, keyed `cart#sku`), **not** a duality
-view. A duality view is a read-time join; do not put one in front of a write-storm.
-**A single collection is not a duality view**: a duality view assembles a document by
-joining normalized tables; a single collection gathers documents on an index. Both
-are first-class here.
+writes. The white-hot case (a shopping cart taking tens of millions of tiny add/remove
+operations a day and read constantly) belongs in a **single collection**: on 26ai, a
+JSON collection table (`CREATE JSON COLLECTION TABLE carts`) holding each cart as one
+self-contained document, written through the MongoDB API and readable with SQL/JSON.
+Same table, two access surfaces, one engine.
+
+Its knobs say embed. **Diversity** is low (one owner, one screen); **reads and writes**
+are both hot, so there is nothing to precompute; **update locality** is private (an
+update touches one cart, never a shared fact). Nothing is shared and nothing is
+copied, so embedding costs nothing extra. Same three knobs as Extended Reference,
+different settings, opposite answer.
+
+**Joins are never free.** One indexed read of a self-contained document is one B-tree
+probe plus one fetch, O(log n). A duality view assembles the same shape from k tables:
+roughly O(k · log n), and nested arrays cost more again. For the advisor card in
+pattern 01 that premium buys atomic reorgs; for the cart it buys nothing, because
+there is no shared fact to protect. **A single collection is not a duality view**: a
+duality view assembles a document from tables; a single collection stores the document.
+Both are first-class here.
+
+The rule: reach for a projection when a fact is **shared, queried many ways, or changes
+under you**. Leave it embedded when it is **private, uniform and self-contained**.
 
 The other half of the 90/10: entitlement / array-containment workloads have run
 **~9–15× faster in the document shape** than a 27-table normalized schema, on the

@@ -4,17 +4,20 @@
 --
 -- The advisor is stored ONCE, in its own table. Each client references it by FK.
 -- A JSON Relational Duality View projects the SAME client document the document
--- developer wanted (advisor block inline), but the advisor block is a live
--- projection through the FK, not a stored copy.
+-- developer wanted (advisor block inline), but the advisor block is assembled
+-- through the FK at read time, not stored as a copy.
 --
--- The needle-flip, resolved: an advisor moving offices is now ONE row. Every
--- client document that projects that advisor reflects the change in the same
--- transaction, with zero fan-out and zero possibility of a stale copy. The read
--- shape is identical; the write cost collapsed from O(clients) to O(1).
+-- THE TRADEOFF: every read pays a primary-key join (about 15% more read work in
+-- the deck's model); in exchange an advisor moving offices is ONE row, and every
+-- client document that projects that advisor reflects it at the same commit, with
+-- no fan-out and no stale copy. The read shape is identical; the write cost goes
+-- from O(documents embedding the advisor) to O(1). On a normal day (~300 edits)
+-- embedding is still cheaper; break-even is ~930 edits a day, and a reorg day
+-- (8,000) is where projecting wins on cost and on correctness.
 --
--- Rule of thumb this encodes: snapshot the IMMUTABLE (a trade's execution price
--- is transaction truth: freeze it in the doc), project the MUTABLE (an advisor's
--- CURRENT office is reference data: never freeze it, project it live).
+-- When the document shape stays: snapshot the IMMUTABLE (a trade's execution
+-- price, the advisor of record on a signed statement: freeze it in the doc),
+-- project the MUTABLE (an advisor's CURRENT office is reference data: project it).
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 
@@ -49,9 +52,10 @@ INSERT INTO xr_clients VALUES ('C-002','Ben Client','MASS','A-001');
 INSERT INTO xr_clients VALUES ('C-003','Cara Client','HNW','A-002');
 COMMIT;
 
--- The document the document dev wanted: assembled at read time over the truth.
+-- The document the document dev wanted: assembled at read time from the rows.
 -- Advisor block is WITH NOUPDATE: it is a PROJECTION of reference data, not a
--- copy this view is allowed to overwrite (per-field governance, engine-enforced).
+-- copy this view is allowed to overwrite (per-field governance, engine-enforced:
+-- writing advisor.office through the view fails with ORA-40940).
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW xr_client_dv AS
 SELECT JSON {
   '_id'      : c.client_id,
@@ -77,8 +81,9 @@ FROM   xr_client_dv;
 
 -- ---------------------------------------------------------------------------
 -- THE NEEDLE-FLIP, RESOLVED. Advisor A-001 moves offices: ONE row. Every client
--- document that projects A-001 is instantly, transactionally correct. No
--- fan-out. No stale copy. No CDC job to reconcile the portal with the copilot.
+-- document that projects A-001 is correct at the same commit. No fan-out, no
+-- stale copy, no CDC job to reconcile the portal with the copilot. The price was
+-- paid on the read side, as a join on every document read.
 -- ---------------------------------------------------------------------------
 -- @step Move advisor A-001 to a new office
 -- @note One row: every client document that projects A-001 is correct in the same transaction, no fan-out, no stale copy.

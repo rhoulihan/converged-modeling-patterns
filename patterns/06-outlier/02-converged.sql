@@ -2,16 +2,23 @@
 -- Pattern 06 · Outlier (whale documents) · THE CONVERGED ALTERNATIVE
 -- "The outlier is just more rows, and the optimizer plans for it."
 --
--- Clients are rows in one table, referenced by advisor. There is no special
--- document shape, no hasExtras flag, no overflow collection, no branch in the
--- reader. The typical advisor's book is projected as a document by a duality
--- view; the institutional whale is the SAME query -- it just returns more rows,
--- and you page them with FETCH FIRST / OFFSET. One table, one access path, one
--- optimizer that already knows how to range-scan a big child set.
+-- In the canonical form a client is its own entity, related to one advisor.
+-- Here it is stored in the relational projection: rows in one table, keyed by
+-- advisor_id. There is no special document shape, no hasExtras flag, no overflow
+-- collection, no branch in the reader. Where a consumer wants the book as a
+-- document, a duality view produces it from the rows; the institutional whale
+-- is the SAME query -- it just returns more rows, and you page them with
+-- FETCH FIRST / OFFSET. One table, one index, one query for every advisor.
 --
--- The needle-flip, resolved: the 16 MB document ceiling never enters the picture,
--- because the book was never one physical document. The fat tail stops being an
--- application special case and becomes ordinary pagination over ordinary rows.
+-- The 16 MB document ceiling never enters the picture, because the book was
+-- never one physical document. The fat tail stops being an application special
+-- case and becomes ordinary pagination over ordinary rows.
+--
+-- THE TRADEOFF: reads are not free. Every book read is an index descent plus
+-- assembled rows, about 3x the work of one stored document at the 180-client
+-- median in the deck's model. That read cost buys one code path for all
+-- advisors and writes that do not grow with the book. If a list has a hard
+-- upper bound (five beneficiaries, ten watchlists), embedding is still right.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 
@@ -42,7 +49,7 @@ INSERT INTO ol_advisors VALUES ('A-900','Institutional Desk');
 INSERT INTO ol_clients VALUES ('C-001','A-001',250000);
 INSERT INTO ol_clients VALUES ('C-002','A-001',180000);
 INSERT INTO ol_clients VALUES ('C-003','A-001',420000);
--- The "whale" -- stands in for a 100K-client institutional book: the same 800
+-- The "whale" -- stands in for a 148K-client institutional book: the same 800
 -- clients the document model embeds, generated, not pasted. Just more rows.
 INSERT INTO ol_clients (client_id, advisor_id, aum)
 SELECT 'C-' || TO_CHAR(900000 + LEVEL), 'A-900', 9000000 - (LEVEL - 1) * 10000
@@ -68,7 +75,8 @@ SELECT 'C-900803', 'A-900', 980000 FROM dual;
 COMMIT;
 
 -- The typical advisor as a document -- assembled by the duality view over the
--- SAME rows. No special case, no flag. (For a bounded book this is the whole doc.)
+-- SAME rows on every read. No special case, no flag. (For a bounded book this is
+-- the whole doc.)
 CREATE OR REPLACE JSON RELATIONAL DUALITY VIEW ol_advisor_dv AS
 SELECT JSON {
   '_id'  : a.advisor_id,

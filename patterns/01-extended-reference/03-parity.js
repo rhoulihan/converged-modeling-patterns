@@ -1,6 +1,7 @@
 // ============================================================================
 // Pattern 01 · Extended Reference · CROSS-API PARITY (mongosh): the flagship proof
-// "One truth, many shapes." The SAME projected client document, read TWO ways:
+// One projection, two access surfaces, one projected shape. The SAME client
+// document from the duality view, read TWO ways:
 //   * SQL lane: SELECT ... FROM xr_client_dv (injected as $SQL_RESULT by run.sh)
 //   * Mongo lane: db.xr_client_dv.findOne({_id:"C-001"}) over the Mongo wire
 // Asserts the documents are byte-equal after canonicalizing JSON and ignoring the

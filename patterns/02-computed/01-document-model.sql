@@ -5,18 +5,24 @@
 -- talkers for the ops dashboard.
 --
 -- The document move: bake the rollup onto the subscriber doc. Compute once on
--- write, read a thousand times for free. Mongo's own math: 1M reads/hr vs 1K
--- writes/hr => "compute on write divides work by 1000."
+-- write, then serve every read from the stored answer instead of re-aggregating.
+-- The pattern's own math: 1M reads/hr vs 1K writes/hr => "compute on write
+-- divides work by 1000." The read side of this bet is right.
 --
 -- THE WRITE-AMPLIFICATION COST: usage is not written once. Every Call Detail
 -- Record (CDR) appends a line item to the subscriber's usage[] and re-ticks the
 -- rollup, and each one is a read-modify-write of the WHOLE subscriber document.
 -- The document grows with every call, so the redo per CDR grows with it: here
--- S-001 already carries 1,000 CDR line items this cycle. The pattern's own escape
--- hatch for a hot subscriber -- counter-sharding (split into N docs, fan the read
--- back in) -- leaves the write amp exactly where it was. And the Top-N dashboard
--- has no rollup to lean on across subscribers: it must SUM -> SORT -> LIMIT over
--- the collection every load.
+-- S-001 already carries 1,000 CDR line items this cycle. The pattern's escape
+-- hatch for a hot subscriber, counter sharding (split the counter into N shard
+-- docs), spreads the write contention, but every balance check then reads N
+-- docs and sums them: a write problem traded for a read problem. And the Top-N
+-- dashboard has no rollup to lean on across subscribers: it must
+-- SUM -> SORT -> LIMIT over the collection every load.
+--
+-- Where this shape still wins: a rarely written total. In the deck's
+-- illustrative model, embedding is cheaper below about 4.4 CDRs a subscriber a
+-- day (light users, IoT SIMs, a closed cycle's final bill).
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 
@@ -82,7 +88,7 @@ WHERE JSON_VALUE(data,'$._id') = 'S-001';
 COMMIT;
 -- ^ every CDR => a rewrite of the whole, growing S-001 document. That is the write amplification.
 
--- The account page read the pattern optimizes for (cheap):
+-- The account page read the pattern optimizes for (one document, already summed):
 -- @step Read the account page (rollup already there)
 -- @note One document, one lookup: the CDR's cost already landed on the write. Shows the line-item count, not the usage[] array itself.
 -- @why Read/write is where the pattern earns its keep: 30 balance checks a subscriber a day read a precomputed rollup from one document.
