@@ -24,7 +24,8 @@ prepare. This runbook is for running the console with a room full of attendees.
    needs them published. Opening them to the room would hand attendees the database
    itself: LAB_ADMIN (which creates and drops users) and SYS, with credentials that are
    in this repo.
-2. Start: `docker compose up -d` (Podman: `podman-compose up -d`). First start builds images.
+2. Start: `docker compose up -d`, or `./lab.sh up` where there is no compose provider
+   (Podman, see the README's *Podman* section). Both read `.env`. First start builds images.
 3. Wait until `curl -fsS http://localhost:3100/api/config` shows `"mode":"event"`.
 4. Open `http://<your-host>:3100/admin.html`, sign in with `ADMIN_PASSWORD`, and
    **pre-warm** about as many workspaces as you expect attendees (each takes a few
@@ -58,7 +59,7 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
 
 - **Do not run `./run.sh` during an event.** Its last stage runs the console's
   integration tests against the same database (it skips them while the console is in
-  event mode, but its first stage still runs `docker compose up -d`).
+  event mode, but its first stage still runs `docker compose up -d` or `./lab.sh up`).
 - **Pause execution** (admin page) while you talk through a slide. While paused, every
   new run *and every run already waiting in the queue* is refused with "paused by
   instructor"; a run already executing finishes. Nothing resumes on its own: after you
@@ -91,7 +92,7 @@ LAB_URL=http://localhost:3100 EVENT_CODE='<your event code>' ADMIN_PASSWORD='<yo
   idle sessions open past client disconnect) and drops it on the retry. The admin page
   (or `GET /api/admin/status`, field `pending`) shows the count still being dropped; it
   falls to `0` within a few minutes.
-- Then `docker compose down`. Adding `-v` **deletes the database volume** (all lab data). Only do that when you mean to start from scratch.
+- Then `docker compose down` (or `./lab.sh down`). Adding `-v` **deletes the database volume** (all lab data). Only do that when you mean to start from scratch.
 
 ## Limits to know
 

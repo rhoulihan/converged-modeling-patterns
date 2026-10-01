@@ -26,7 +26,6 @@ cd "$(dirname "$0")"
 
 ORACLE_PASSWORD="${ORACLE_PASSWORD:-Sandbox2026}"
 CMP_PASSWORD="${CMP_PASSWORD:-CmpUser2026}"
-SVC=oracle
 ADMIN="system/${ORACLE_PASSWORD}@localhost:1521/FREEPDB1"
 APP="cmp_user/${CMP_PASSWORD}@localhost:1521/FREEPDB1"
 # $external must reach mongosh literally, so it is escaped for the host shell here
@@ -34,18 +33,31 @@ APP="cmp_user/${CMP_PASSWORD}@localhost:1521/FREEPDB1"
 MURI="mongodb://cmp_user:${CMP_PASSWORD}@localhost:27017/CMP_USER?authMechanism=PLAIN&authSource=\$external&retryWrites=false&loadBalanced=true"
 FILTER="${1:-}"
 
-dexec()  { docker compose exec -T "$SVC" bash -lc "$1"; }          # in-container bash
-sqlpipe(){ docker compose exec -T "$SVC" bash -lc "sqlplus -s -L $APP"; }  # stdin -> sqlplus
+# Container CLI for exec/inspect: docker, else podman (CONTAINER_ENGINE overrides).
+# The stack itself comes up through compose when a provider is available, otherwise
+# through ./lab.sh, which runs the same services with the plain CLI (Podman, no compose).
+CLI="${CONTAINER_ENGINE:-$(command -v docker >/dev/null && echo docker || echo podman)}"
+if   docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"
+elif podman compose version >/dev/null 2>&1; then COMPOSE="podman compose"
+else COMPOSE=""; fi
+
+dexec()  { "$CLI" exec -i cmp-oracle bash -lc "$1"; }                  # in-container bash
+sqlpipe(){ "$CLI" exec -i cmp-oracle bash -lc "sqlplus -s -L $APP"; }  # stdin -> sqlplus
 
 # Record the console's state BEFORE compose touches anything (stage 3 depends on it).
 ui_event() {  # true when cmp-lab-ui is running with LAB_MODE=event
-  [ "$(docker inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ] &&
-    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' cmp-lab-ui 2>/dev/null | grep -qx 'LAB_MODE=event'
+  [ "$("$CLI" inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ] &&
+    "$CLI" inspect -f '{{range .Config.Env}}{{println .}}{{end}}' cmp-lab-ui 2>/dev/null | grep -qx 'LAB_MODE=event'
 }
 ui_event_at_start=0; ui_event && ui_event_at_start=1
 
-echo "==> Bringing up the stack (docker compose up -d) ..."
-ORACLE_PASSWORD="$ORACLE_PASSWORD" CMP_PASSWORD="$CMP_PASSWORD" docker compose up -d
+if [ -n "$COMPOSE" ]; then
+  echo "==> Bringing up the stack ($COMPOSE up -d) ..."
+  ORACLE_PASSWORD="$ORACLE_PASSWORD" CMP_PASSWORD="$CMP_PASSWORD" $COMPOSE up -d
+else
+  echo "==> Bringing up the stack (./lab.sh up: no compose provider, plain $CLI) ..."
+  ORACLE_PASSWORD="$ORACLE_PASSWORD" CMP_PASSWORD="$CMP_PASSWORD" ./lab.sh up || exit 1
+fi
 
 echo -n "==> Waiting for the database "
 until dexec "echo 'select 1 from dual;' | sqlplus -s -L $ADMIN" 2>/dev/null | grep -q '^[[:space:]]*1'; do
@@ -64,7 +76,7 @@ SQL
 echo -n "==> Waiting for the MongoDB API (ORDS) "
 mongo_ok=0
 for i in $(seq 1 60); do
-  if docker compose exec -T -e MURI="$MURI" "$SVC" bash -lc \
+  if "$CLI" exec -i -e MURI="$MURI" cmp-oracle bash -lc \
        'echo "quit(0)" | mongosh "$MURI" --quiet --file /dev/stdin' >/dev/null 2>&1; then
     mongo_ok=1; break
   fi
@@ -90,7 +102,7 @@ run_js() {   # $1 = file, $2 = pattern dir
     sqlr=$(cat "$dir/_capture.sql" | sqlpipe 2>/dev/null | sed '/^[[:space:]]*$/d' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     if [ -z "$sqlr" ]; then echo "     [FAIL] $js (SQL capture empty)"; fail=$((fail+1)); failed="$failed $js"; return; fi
   fi
-  docker compose exec -T -e MURI="$MURI" -e SQL_RESULT="$sqlr" "$SVC" \
+  "$CLI" exec -i -e MURI="$MURI" -e SQL_RESULT="$sqlr" cmp-oracle \
     bash -lc 'mongosh "$MURI" --quiet --file /dev/stdin' < "$js"
   if [ "$?" -eq 0 ]; then echo "     [PASS] $js"; pass=$((pass+1));
   else echo "     [FAIL] $js"; fail=$((fail+1)); failed="$failed $js"; fi
@@ -119,14 +131,19 @@ if [ -z "$FILTER" ]; then
     echo "            share its database; run them after the event (see docs/instructor-runbook.md)."
   else
     # --no-deps: stage 1 already brought the database up; never recreate it from here.
-    if docker compose --profile test build lab-ui-test && docker compose --profile test run --rm --no-deps lab-ui-test; then
+    if [ -n "$COMPOSE" ]; then
+      lab_tests() { $COMPOSE --profile test build lab-ui-test && $COMPOSE --profile test run --rm --no-deps lab-ui-test; }
+    else
+      lab_tests() { ORACLE_PASSWORD="$ORACLE_PASSWORD" CMP_PASSWORD="$CMP_PASSWORD" ./lab.sh test; }
+    fi
+    if lab_tests; then
       echo "     [PASS] lab-ui tests"; pass=$((pass+1))
     else
       echo "     [FAIL] lab-ui tests"; fail=$((fail+1)); failed="$failed lab-ui-tests"
     fi
-    if [ "$(docker inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ]; then
+    if [ "$("$CLI" inspect -f '{{.State.Running}}' cmp-lab-ui 2>/dev/null)" = true ]; then
       echo "==> Restarting lab-ui so it reloads its dirty/built flags and cache ..."
-      docker compose restart lab-ui >/dev/null
+      "$CLI" restart cmp-lab-ui >/dev/null
     fi
   fi
 fi
