@@ -37,7 +37,9 @@ measure:
 # Pattern 01: Extended Reference ⭐
 
 **Wealth management.** Open any client or account and show the servicing advisor's
-name, office, and desk line. No join needed.
+name, office, and desk line. The deck's book: 2,400 advisors, 1.9 million clients,
+4.6 million accounts, and four consumers (client portal, advisor CRM, nightly
+statement run, AI copilot) that all render the client with the advisor card.
 
 > Project, don't copy.
 
@@ -45,45 +47,77 @@ name, office, and desk line. No join needed.
 
 The Extended Reference pattern copies the most-read fields of a referenced entity
 *into* the referencing document, so the read never has to look them up. The advice
-is disciplined: "only copy fields that rarely change." Embed the advisor block on
-every client and account, and the account page renders with zero joins.
+is disciplined: "only copy fields that rarely change." Embed the advisor card on
+every client and every account (statements render per account), and each screen is
+a single document read with no lookup.
+
+On two of the three knobs this is the right bet. **Diversity** is high: four
+consumers want the card inline. **Read / write** is extreme: about 50 million
+client-360 reads a day (600 a second on average, 12,000 at the open) against roughly
+300 advisor edits. Nothing about the choice is a mistake.
 
 ## Where the needle flips
 
-The advisor is now stored **N times**, once per client. Nothing enforces that the
-copies agree. The moment a copied value changes (an advisor moves offices, changes
-a desk line) you have to find and rewrite **every embedded copy**. On a book of
-100,000 clients that is a 100,000-document fan-out for one logical change, and each
-document you miss is now serving a stale office to the client portal *and* to the
-copilot reading that same document as context.
+The third knob, **update locality**, is where it turns. The advisor is now stored
+once per document that embeds it, and nothing enforces that the copies agree. When a
+copied value changes (an advisor moves offices, changes a desk line) every embedded
+copy has to be found and rewritten. In the deck's book each advisor appears in about
+**2,700 documents** (790 client documents plus 1,920 account documents), so one
+office move is about 2,700 rewrites, each one re-serializing the whole document.
+Twice a year a regional reorg makes about 8,000 such changes in a day: roughly
+**22 million document rewrites**.
 
-That is the pattern's whole trade in one line: **write amplification in, update
-anomaly out.** It is a workaround for a missing capability (the engine's
-reluctance to join), not a law of physics.
+Those rewrites are not one transaction. Until the last one lands, the portal can show
+the old office while the copilot, reading another document as context, shows the new
+one. Nothing crashes; the answers just disagree.
 
-## The converged softening
+That is the pattern's trade in one line: **write amplification in, update anomaly
+out.** The illustrative cost model on deck slide 16 puts a number on it: embedding
+costs one document read per screen plus 2,700 rewrites per change; projecting the
+card costs about **15% more per read** plus one row per change. On a normal day (300
+changes) **embedding is cheaper**. Break-even is about **930 changes a day**. On reorg
+day the day's total work roughly doubles, and correctness is the bigger cost. The
+needle flips on the worst day, not the average one, so model for the reorg.
 
-Store the advisor **once**. Reference it by foreign key. Then let a **JSON
-Relational Duality View** project the exact client document you wanted (advisor
-block inline), where the advisor block is a *live projection through the FK*, not a
-stored copy. The read shape is identical. An advisor moving offices is now **one
-row**, and every document that projects that advisor is correct in the same
-transaction. Fan-out: gone. Stale copy: impossible.
+Both sides of that curve run on Oracle (the document side here is a JSON collection
+table on the same engine), so the comparison is about shape, not vendor.
 
-The rule this encodes:
+## The converged alternative
 
-- **Snapshot the immutable.** A trade's execution price is transaction truth:
-  freeze it in the document; a later price change must never rewrite history.
-- **Project the mutable.** An advisor's *current* office is reference data: never
-  freeze it, project it live.
+Store the advisor **once**, as one row in the relational projection, and have each
+client reference it by foreign key. A **JSON Relational Duality View** then projects
+the exact client document the document developer wanted, advisor block inline. The
+advisor block is assembled through the foreign key when the document is read, not
+stored as a copy.
+
+What that costs: every read pays for a primary-key join, about 15% more read work in
+the deck's model. Joins are never free. What it buys: an advisor moving offices is
+**one row**, and every document that projects that advisor shows the change at the
+same commit. No fan-out, no stale copy, no sync job between the portal and the
+copilot.
+
+The view also decides what a write through it can touch. `fullName` and `segment` are
+`WITH UPDATE`; the advisor subquery is `WITH NOUPDATE`, so an attempt to change
+`advisor.office` through the view is rejected (ORA-40940) and the office changes only
+in its own row. That is per-field governance enforced by the engine.
+
+## When the document shape stays
+
+- **Snapshot the immutable.** A trade's execution price, or the advisor of record on
+  a signed statement, is history: freeze it in the document. A later change must
+  never rewrite it. That is Extended Reference used exactly as intended.
+- **Project the mutable.** An advisor's *current* office is reference data that
+  changes: project it rather than copy it.
+- If edits stay well below the break-even and there is no reorg-style burst, the
+  embedded card is cheaper to read and the extra rewrites are a fair price.
 
 ## In this folder
 
 | File | What it shows |
 |---|---|
-| `01-document-model.sql` | Advisor embedded on every client doc; an office change fans out across all copies |
-| `02-converged.sql` | Advisor normalized once; duality view projects it live; the office change is one row |
-| `03-parity.js` ⭐ | Reads `xr_client_dv` via the **MongoDB API** and asserts it is byte-equal to the same view read via **SQL**: "one truth, many shapes" |
+| `01-document-model.sql` | Advisor card embedded in every client document; an office change fans out across every copy |
+| `02-converged.sql` | Advisor stored once as a row; a duality view projects it into the client document; the office change is one row |
+| `03-parity.js` ⭐ | Reads `xr_client_dv` through the **MongoDB API** and asserts it is byte-equal to the same view read through **SQL**: one projection, two access surfaces, the same projected shape |
 | `_capture.sql` | Helper: emits the SQL-lane document that `03-parity.js` compares against |
 
 ## Validated

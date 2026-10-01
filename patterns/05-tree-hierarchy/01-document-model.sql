@@ -6,14 +6,17 @@
 -- The document move: store each component with a MATERIALIZED PATH -- the chain
 -- of ancestors as a string ("/P-1000/P-1100/P-1110"). A subtree read becomes a
 -- left-anchored prefix scan (LIKE '/P-1000/P-1100%'): an index range scan,
--- O(log n). Cheap subtree reads, and that is real.
+-- O(log n). The cheapest explosion there is, and that is real: for a tree that
+-- rarely moves and is read one way (a catalogue, an org chart snapshot), or
+-- moves well under ~1,000 parts, this is still the right shape.
 --
 -- THE WRITE-AMPLIFICATION COST: the path encodes position, so moving one
 -- subassembly rewrites the path of EVERY descendant. Re-parent a wheelset and
 -- you rewrite the wheelset, the wheel, the spoke, every node beneath it -- write
 -- amplification proportional to the size of the subtree, for a single logical
 -- move. And a genuine graph question -- "which assemblies use this spoke?"
--- (upward, multi-parent, N hops) -- a downward prefix string simply cannot express.
+-- (upward, multi-parent, N hops) -- a downward prefix string simply cannot express,
+-- so teams bolt on a usedIn parent list the app must keep in sync by hand.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 

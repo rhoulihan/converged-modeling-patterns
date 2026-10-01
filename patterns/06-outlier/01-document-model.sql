@@ -1,16 +1,18 @@
 -- ============================================================================
 -- Pattern 06 · Outlier (whale documents) · THE DOCUMENT MODEL (the starting point)
--- Industry: financial / wealth management. Access pattern: open an advisor and
--- read their book of clients as one document.
+-- Industry: financial services (brokerage). Access pattern: open an advisor and
+-- read their book of clients, top 100 by AUM, as one document.
 --
--- The document move: embed the client book on the advisor doc. This is fine for
--- the TYPICAL advisor -- a few dozen to a few hundred clients fits comfortably.
+-- The document move: embed the client book on the advisor doc. This is right for
+-- the TYPICAL advisor: the median book is 180 clients, 99% are under 500, and
+-- one document read is about 3x cheaper than a range scan at the median (the
+-- deck's illustrative model; break-even is near 3,200 clients).
 --
--- THE OUTLIER PROBLEM: a handful of institutional advisors carry 100,000-client
--- books. Their document blows past the 16 MB ceiling, so the pattern adds a
--- `hasExtras` flag, spills the tail into an OVERFLOW collection, and every reader
--- must now branch: "if hasExtras, go fetch the overflow and stitch it back."
--- That is the 16 MB storage-engine limit LEAKING INTO YOUR APPLICATION CODE. The
+-- THE OUTLIER PROBLEM: about 120 institutional and team advisors carry books of
+-- 20,000 to 150,000 clients. Their document blows past the 16 MB ceiling, so the
+-- pattern adds a `hasExtras` flag, spills the tail into OVERFLOW documents, and
+-- every reader must now branch: "if hasExtras, go fetch the overflow and stitch
+-- it back." That is the 16 MB document limit LEAKING INTO YOUR APPLICATION CODE. The
 -- pattern does not solve the outlier -- it ADMITS the model breaks for the fat
 -- tail and pushes the special case up into every consumer.
 --
@@ -39,7 +41,7 @@ INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-001","name":"Grace Advisor","
              {"clientId":"C-002","aum":180000},
              {"clientId":"C-003","aum":420000}]}'));
 
--- Whale advisor: stands in for a 100K-client institutional book. 800 clients are
+-- Whale advisor: stands in for a 148K-client institutional book. 800 clients are
 -- already embedded (the x800 skew over the typical book; ~30 KB of JSON),
 -- generated, not pasted. It has not spilled yet: hasExtras=false.
 INSERT INTO ol_advisor_doc
@@ -62,7 +64,7 @@ SET    data = JSON_TRANSFORM(data, APPEND '$.clients' = JSON_OBJECT('clientId' V
 WHERE  JSON_VALUE(data,'$._id') = 'A-900';
 COMMIT;
 
--- Once the book outgrows the document (the real whale's 100K clients cannot fit
+-- Once the book outgrows the document (the real whale's 148K clients cannot fit
 -- under 16 MB; this 800-client book stands in for it), the tail spills into an
 -- overflow document.
 -- @step Spill the next clients to an overflow document

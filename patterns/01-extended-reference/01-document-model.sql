@@ -6,15 +6,20 @@
 -- The document move: copy the most-read advisor fields INTO every client doc so
 -- the read never has to look them up. "Only copy fields that rarely change."
 --
+-- On a read-heavy workload this is a correct bet: about 50M client-360 reads a
+-- day against ~300 advisor edits, and four consumers want the card inline.
+--
 -- THE WRITE-AMPLIFICATION COST (made explicit below): the advisor is now stored
--- N times, once per client. The moment a copied value changes (advisor moves
--- offices, changes desk line) you must find and rewrite EVERY embedded copy.
--- On a book of 100K clients that is a 100K-document fan-out update, and every
--- doc you miss is now stale... and it feeds both the client portal AND the LLM.
+-- once per document that embeds it. The moment a copied value changes (advisor
+-- moves offices, changes desk line) you must find and rewrite EVERY embedded copy.
+-- In the deck's book that is ~2,700 documents per advisor (790 client docs plus
+-- 1,920 account docs), not one transaction, and until the last rewrite lands the
+-- client portal and the AI copilot can read different offices.
 -- "Write amplification in, update anomaly out."
 --
--- Runs SQL-native (JSON Collection Table) so it validates in one lane; the same
--- shape is what a MongoDB-API developer would model as a collection.
+-- Runs SQL-native (JSON Collection Table) on the same 26ai engine, so the
+-- comparison is about shape, not vendor; the same shape is what a MongoDB-API
+-- developer would model as a collection.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 
@@ -54,7 +59,8 @@ FROM   xr_client_doc;
 -- advisor record to update: the advisor only exists as copies. So the write
 -- fans out across EVERY client doc that embeds A-001, and each JSON_TRANSFORM
 -- re-serializes the whole document into a new block (WiredTiger copy-on-write;
--- OSON re-encode on Oracle). 3 rows here; 100,000 on a real book.
+-- OSON re-encode on Oracle). 2 rows here; ~2,700 documents per advisor on the
+-- deck's book, and ~22M rewrites on a reorg day of 8,000 changes.
 -- ---------------------------------------------------------------------------
 -- @step Move advisor A-001 to a new office
 -- @note Every client document that embeds A-001 gets rewritten: one logical change fans out to every embedded copy, not to one row.

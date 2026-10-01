@@ -8,14 +8,17 @@
 -- single small row: no array to grow, no bucket document to rewrite, no 16 MB
 -- ceiling. The per-hour summary is a GROUP BY over a partition range (the
 -- optimizer prunes to just the hours asked for). Want it precomputed? A
--- materialized view rolls it up; want it through the Mongo lane? $sql-in-pipeline
--- runs the same GROUP BY with parallel execution and NO 100 MB stage / 16 MB
--- output caps (see README). Field result for exactly this reshape: a 29s bucket
--- rollup fell to sub-400ms, and the read win was kept without maintaining a bucket.
+-- materialized view rolls it up; want it through the MongoDB API? A $sql stage
+-- (Oracle's addition to the aggregation pipeline) runs the same GROUP BY with
+-- parallel execution and NO 100 MB stage / 16 MB output caps (see README).
 --
 -- The needle-flip, resolved: each reading is a constant-cost single-row insert
 -- instead of an ever-growing document rewrite, and there is no document ceiling
--- to march toward.
+-- to march toward. The price: the last-hour dashboard scans rows instead of
+-- fetching one document, about 2x the read bytes in the deck's model. An
+-- anonymized field result for exactly this reshape: a 29s bucket rollup fell to
+-- under 400ms, paid for with that heavier last-hour read. Slow sensors (below
+-- ~900 readings a bucket) are still better served by the bucket.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 

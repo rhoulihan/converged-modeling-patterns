@@ -1,6 +1,9 @@
 -- ============================================================================
 -- Pattern 05 · Tree / Hierarchy · THE CONVERGED ALTERNATIVE
 -- Split the two questions the materialized path was trying to answer at once.
+-- In the canonical form (the logical model) each parent -> child link is one
+-- relationship; this relational projection stores it as one edge row, and
+-- position is derived by walking the edges.
 --
 --   TREE structure lives in ADJACENCY EDGES (parent_id -> child_id). Re-parenting
 --   is a SINGLE edge update -- the subtree follows automatically because position
@@ -10,7 +13,8 @@
 --   SUBTREE / EXPLOSION reads use native recursion -- CONNECT BY streams the
 --   frontier in one pass (emit CONNECT BY or GRAPH_TABLE for hierarchy, never a
 --   recursive CTE, which dams each level into an intermediate relation the CBO
---   can barely optimize).
+--   can barely optimize). The walk is not free: it costs about 30% more per
+--   explosion than a prefix scan in the deck's illustrative model.
 --
 --   GENUINE GRAPH questions -- "which assemblies use this wheel?", multi-parent,
 --   N hops, the DAG a downward prefix string cannot express -- use SQL/PGQ
@@ -19,6 +23,10 @@
 -- The needle-flip, resolved: the write that the path made expensive (reorg)
 -- becomes one row, and the read the path could not do at all (where-used across
 -- shared components) becomes one graph match.
+--
+-- THE TRADEOFF: break-even sits near 1,000 parts per move. Below that, or for a
+-- static tree read one way, the path's prefix scan is cheaper; a 10,000-part
+-- move makes the path's day ~3x the edge model's, ~10x at 40,000.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 

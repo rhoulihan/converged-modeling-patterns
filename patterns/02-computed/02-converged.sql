@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Pattern 02 · Computed · THE CONVERGED ALTERNATIVE
--- Two moves, both keeping the read win without paying whole-document write amp.
+-- Two moves, both keeping the precomputed read without paying whole-document write amp.
 --
 -- 1) CDRs are APPEND-ONLY relational rows: one small insert per CDR, no parent
 --    document to rewrite. A maintained summary carries the rollup and is kept
@@ -15,10 +15,15 @@
 --    no SUM, no SORT, no full-collection scan. This is the field pattern behind
 --    the 60s -> 500ms dashboard result (a real landing page, anonymized).
 --
--- The needle-flip, resolved: the read stays cheap; the write drops from a
--- rewrite of the whole, growing document to one small row plus a single-row
--- counter update, flat however many CDRs the cycle holds; the ranking stops being a
--- scan. The CBO plans all of it, ACID, one transaction.
+-- The needle-flip, resolved: the read is still one precomputed rollup, now
+-- joined by primary key (about 30% more read work in the deck's model, paid on
+-- every balance check); the write drops from a rewrite of the whole, growing
+-- document to one small row plus a single-row counter update, flat however many
+-- CDRs the cycle holds; the ranking stops being a scan. The CBO plans all of it,
+-- ACID, one transaction.
+--
+-- When to flip back: a rarely written total (light subscribers below about 4.4
+-- CDRs a day, a closed cycle's final bill) can live on the document.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 

@@ -1,6 +1,6 @@
 // ============================================================================
 // Pattern 06 · Outlier · CROSS-API PARITY (mongosh)
-// The SAME typical-advisor document (with its embedded client array projected from
+// The SAME typical-advisor document (its client array assembled from ol_clients
 // rows) read through the SQL duality view (ol_advisor_dv, injected as $SQL_RESULT)
 // and through the MongoDB API. Byte-equal after canonicalizing JSON and ignoring
 // _metadata. Non-zero exit on mismatch.
