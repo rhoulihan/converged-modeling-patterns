@@ -31,7 +31,8 @@ function cardButtonsHelp() {
   return items.length ? { title: 'The card buttons', items } : null;
 }
 
-function card(title, notes, code, lane, patternId, measureTag, help) {
+// equivalent: the same step in the other language; Load puts it in the other console tab.
+function card(title, notes, code, lane, patternId, measureTag, help, equivalent = null) {
   const c = h('div', 'card');
   if (measureTag) c.append(h('span', 'badge hot', `measured: ${measureTag}`));
   const t = h('h3', null, title);
@@ -49,7 +50,7 @@ function card(title, notes, code, lane, patternId, measureTag, help) {
     out.replaceChildren(r.ok ? renderRun(r.run) : h('div', 'result error', r.message));
   });
   const actions = h('div', 'actions');
-  actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code)), runBtn);
+  actions.append(copyBtn, btn('Load into console', () => cons.load(lane, code, equivalent)), runBtn);
   const actionsHelp = helpTrigger(cardButtonsHelp(), { label: 'card buttons' });
   if (actionsHelp) actions.append(actionsHelp);
   c.append(actions, out);
@@ -108,9 +109,9 @@ function patternPage(id) {
   head.append(status);
 
   const tabs = [
-    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
-    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help))],
-    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help))]] : []),
+    ['Document model', () => p.cards.document.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help, c.mongo))],
+    ['Converged', () => p.cards.converged.map((c) => card(c.title, c.notes, c.sql, 'sql', id, c.measure, c.help, c.mongo))],
+    ...(p.cards.mongo.length ? [['MongoDB API', () => p.cards.mongo.map((c) => card(c.title, c.notes, c.command, 'mongo', id, null, c.help, c.sql))]] : []),
     ['Measure it', () => p.measures.map((m) => measureCard(p, m))],
   ];
   const TABKEY = { 'Document model': 'document', 'Converged': 'converged', 'MongoDB API': 'mongo', 'Measure it': 'measure' };

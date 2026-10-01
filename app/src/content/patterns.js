@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import YAML from 'yaml';
 import { parseSqlFile, isSetup } from './sqlParser.js';
 import { parseMongoScript } from './mongoScript.js';
+import { parseMongoCommand } from './mongoCommand.js';
 
 function frontMatter(file) {
   const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
@@ -78,6 +79,16 @@ function loadOne(root, id) {
   }
 
   const lanes = { document: doc.filter((s) => s.title), converged: conv.filter((s) => s.title), mongo };
+  // Every card carries its equivalent in the other language, so Load can fill both console tabs.
+  for (const [file, cards] of [[docFile, lanes.document], [convFile, lanes.converged]]) {
+    for (const s of cards) {
+      if (!s.mongo) throw new Error(`${file}: card "${s.title}" needs a -- @mongo equivalent`);
+      try { parseMongoCommand(s.mongo); } catch (e) { throw new Error(`${file}: card "${s.title}" @mongo: ${e.message}`); }
+    }
+  }
+  for (const st of mongo) {
+    if (!st.sql || !parseSqlFile(st.sql).length) throw new Error(`${dir}: card "${st.title}" needs a // @sql equivalent`);
+  }
   if (!lanes.document.length || !lanes.converged.length) throw new Error(`${dir}: needs at least one @step in each .sql file`);
   if (!measures.length) throw new Error(`${dir}: needs at least one @measure pair`);
 

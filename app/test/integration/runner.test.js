@@ -11,7 +11,8 @@ import { Workspaces } from '../../src/services/workspaces.js';
 import { Runner } from '../../src/services/runner.js';
 
 const cfg = testConfig();
-const patterns = loadPatterns(path.resolve(import.meta.dirname, '../../../patterns'));
+// PATTERNS_DIR (the app's own setting) narrows a run to a subset of patterns.
+const patterns = loadPatterns(process.env.PATTERNS_DIR ?? path.resolve(import.meta.dirname, '../../../patterns'));
 let pools; let mongo; let workspaces; let runner; let user;
 
 async function makeRunner() {
@@ -48,6 +49,43 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
       const out = await runner.runMongoText({ user, patternId: id, text: card.command });
       expect(out.results[0].kind, card.title).not.toBe('error');
       if (out.results[0].kind === 'docs') expect(out.results[0].docs.length, card.title).toBeGreaterThan(0);
+    }
+  }, 120000);
+
+  // Load fills both console tabs, so each card's equivalent must run where the card runs, in
+  // the cards' order (writes change what later cards read). A read card's equivalent must
+  // return the same number of rows as the SQL itself.
+  const isRead = (sql) => /^\s*(SELECT|WITH)\b/i.test(sql);
+  const lastRows = (out) => out.results.filter((x) => x.kind === 'rows').pop();
+  const docCount = (r) => (r.kind === 'docs' || r.kind === 'count' ? r.count : null);
+
+  it('every SQL card\'s MongoDB equivalent runs in order, with matching row counts for reads', async () => {
+    await runner.reset({ user, patternId: id });
+    for (const lane of ['document', 'converged']) {
+      for (const st of p.lanes[lane]) {
+        const where = `${lane} "${st.title}"`;
+        let expected = null;
+        if (isRead(st.sql)) {
+          const sql = await runner.runSql({ user, patternId: id, text: st.sql });
+          expected = lastRows(sql)?.rowCount ?? null;
+        }
+        const out = await runner.runMongoText({ user, patternId: id, text: st.mongo });
+        const r = out.results[0];
+        expect(r.kind, `${where}: ${r.error ?? ''}`).not.toBe('error');
+        if (expected !== null) expect(docCount(r), `${where}: rows via SQL vs MongoDB`).toBe(expected);
+      }
+    }
+  }, 180000);
+
+  it('every MongoDB card\'s SQL equivalent runs, with matching row counts', async () => {
+    await runner.reset({ user, patternId: id });
+    for (const card of p.lanes.mongo) {
+      const m = (await runner.runMongoText({ user, patternId: id, text: card.command })).results[0];
+      const out = await runner.runSql({ user, patternId: id, text: card.sql });
+      const errs = out.results.filter((x) => x.kind === 'error');
+      expect(errs, `MongoDB card "${card.title}" @sql`).toEqual([]);
+      const rows = lastRows(out);
+      if (rows && docCount(m) !== null) expect(rows.rowCount, `"${card.title}": rows via MongoDB vs SQL`).toBe(docCount(m));
     }
   }, 120000);
 

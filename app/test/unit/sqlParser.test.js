@@ -4,6 +4,19 @@ import path from 'node:path';
 import { parseSqlFile, isSetup, splitConsoleSql } from '../../src/content/sqlParser.js';
 
 describe('parseSqlFile', () => {
+  it('collects -- @mongo lines into the statement\'s MongoDB equivalent, keeping indentation', () => {
+    const s = parseSqlFile([
+      '-- @step Read it',
+      '-- @mongo db.t.find(',
+      '-- @mongo   { a: 1 }',
+      '-- @mongo )',
+      'SELECT a FROM t;',
+      'SELECT 2 FROM dual;',
+    ].join('\n'));
+    expect(s[0].mongo).toBe('db.t.find(\n  { a: 1 }\n)');
+    expect(s[1].mongo).toBeNull();
+  });
+
   it('attaches @step/@note/@measure to the next statement and keeps setup untagged', () => {
     const s = parseSqlFile([
       '-- plain comment',
