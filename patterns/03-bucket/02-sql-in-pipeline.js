@@ -13,6 +13,14 @@
 // @why Diversity: the anomaly scan keeps its pipeline over the MongoDB API, and the $sql stage hands the rollup to the optimizer with parallel execution and none of the pipeline's stage memory or output caps.
 // @look One document per machine and hour with n, avg and max, the same values the SQL GROUP BY returns.
 // @figure flow.svg Partitioned readings feed a pruned GROUP BY and a summary view, serving dashboards over SQL and the anomaly job through a $sql stage
+// @sql SELECT machine_id, metric,
+// @sql        TO_CHAR(TRUNC(reading_ts,'HH24'),'YYYY-MM-DD"T"HH24') AS hour_start,
+// @sql        COUNT(*)                   AS n,
+// @sql        ROUND(AVG(reading_val), 3) AS avg_val,
+// @sql        MAX(reading_val)           AS max_val
+// @sql FROM   bk_sensor_readings
+// @sql GROUP  BY machine_id, metric, TRUNC(reading_ts,'HH24')
+// @sql ORDER  BY machine_id, metric, TRUNC(reading_ts,'HH24')
 const rows = db.aggregate([{ $sql: `
   select json {
            'machineId' : machine_id,

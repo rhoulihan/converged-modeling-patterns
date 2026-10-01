@@ -59,6 +59,9 @@ INSERT INTO sb_claims VALUES ('CL-1003','P-001',2300, TIMESTAMP '2026-05-30 09:0
 -- @look Rows affected is 1; Measure it shows redo near 1 KB whatever the size of the inline list.
 -- @figure erd.svg Policy, claim and claim event in canonical form, beside how one claim event lands in the subset model
 -- @measure claim-event
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   INSERT INTO sb_claims VALUES ('CL-1004','P-001',4200, TIMESTAMP '2026-08-01 09:00:00')
+-- @mongo ` }])
 INSERT INTO sb_claims VALUES ('CL-1004','P-001',4200, TIMESTAMP '2026-08-01 09:00:00');
 COMMIT;
 
@@ -69,6 +72,13 @@ COMMIT;
 -- @note CL-1004 is already the top row: nothing was maintained to make this fast, the index just stops after 3.
 -- @why Read/write, priced honestly: the recent list is an index range scan that stops after 3 rows, more work than one document fetch, about 25% more per summary read in the deck's model.
 -- @look The 3 newest claims in claim_ts order, with nothing stored to keep them current.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT claim_id, amount, claim_ts
+-- @mongo   FROM   sb_claims
+-- @mongo   WHERE  policy_id = 'P-001'
+-- @mongo   ORDER  BY claim_ts DESC
+-- @mongo   FETCH  FIRST 3 ROWS ONLY
+-- @mongo ` }])
 SELECT claim_id, amount, claim_ts
 FROM   sb_claims
 WHERE  policy_id = 'P-001'
@@ -81,6 +91,23 @@ FETCH  FIRST 3 ROWS ONLY;
 -- @note Header plus recent claims, reunited by the query: no inline subset stored, no history collection to keep in step.
 -- @why Diversity: agents get the policy document they had, assembled by SQL/JSON, and adjusters get the full history from the same rows by dropping FETCH FIRST.
 -- @look policy_document shows the header with recentClaims newest first, built by the query rather than stored.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT JSON_OBJECT(
+-- @mongo            'policyId' VALUE p.policy_id,
+-- @mongo            'holder'   VALUE p.holder,
+-- @mongo            'product'  VALUE p.product,
+-- @mongo            'recentClaims' VALUE (
+-- @mongo               SELECT JSON_ARRAYAGG(
+-- @mongo                        JSON_OBJECT('claimId' VALUE claim_id, 'amount' VALUE amount,
+-- @mongo                                    'ts' VALUE TO_CHAR(claim_ts,'YYYY-MM-DD'))
+-- @mongo                        ORDER BY claim_ts DESC RETURNING CLOB)
+-- @mongo               FROM ( SELECT claim_id, amount, claim_ts FROM sb_claims
+-- @mongo                      WHERE policy_id = p.policy_id
+-- @mongo                      ORDER BY claim_ts DESC FETCH FIRST 3 ROWS ONLY ))
+-- @mongo            RETURNING CLOB) AS policy_document
+-- @mongo   FROM   sb_policies p
+-- @mongo   WHERE  p.policy_id = 'P-001'
+-- @mongo ` }])
 SELECT JSON_OBJECT(
          'policyId' VALUE p.policy_id,
          'holder'   VALUE p.holder,

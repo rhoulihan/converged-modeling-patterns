@@ -41,6 +41,15 @@ COMMIT;
 -- @why Update locality is the hot knob: every reading lands on the same bucket, so each append is a read-modify-write of every reading already in it. Bytes moved per hour grow with the square of the readings.
 -- @look The PL/SQL block completes with no row count; Measure it shows what its 3 whole-bucket rewrites cost next to 3 row inserts.
 -- @figure doc-shape.svg The sensor-hour bucket as built: counters and an array that every reading rewrites
+-- @mongo db.bk_sensor_doc.updateOne(
+-- @mongo   { _id: "M-100|TEMP|2026-08-01T10" },
+-- @mongo   { $push: { readings: { $each: [
+-- @mongo       { ts: "2026-08-01T10:00:05Z", val: 88.4 },
+-- @mongo       { ts: "2026-08-01T10:00:10Z", val: 89.1 },
+-- @mongo       { ts: "2026-08-01T10:00:15Z", val: 91.7 } ] } },
+-- @mongo     $inc:  { count: 3, sum: 269.2 },
+-- @mongo     $max:  { max: 91.7 } }
+-- @mongo )
 -- @measure ingest-reading
 BEGIN
   FOR v IN (SELECT * FROM (
@@ -66,6 +75,12 @@ COMMIT;
 -- @note One document, running counters already maintained: cheap, until the bucket has to grow again.
 -- @why Read/write is the bucket's case: a dashboard that reads the hour 360 times gets one contiguous document with the counters already computed. Below about 900 readings a bucket, that read win beats the rewrites.
 -- @look n, avg_temp and max_temp come straight off the counters, with no pass over the readings array.
+-- @mongo db.bk_sensor_doc.aggregate([
+-- @mongo   { $match: { _id: "M-100|TEMP|2026-08-01T10" } },
+-- @mongo   { $project: { _id: 0, machine: "$machineId", n: "$count",
+-- @mongo                 avg_temp: { $round: [ { $divide: [ "$sum", "$count" ] }, 3 ] },
+-- @mongo                 max_temp: "$max" } }
+-- @mongo ])
 SELECT JSON_VALUE(data,'$.machineId') AS machine,
        JSON_VALUE(data,'$.count' RETURNING NUMBER) AS n,
        ROUND(JSON_VALUE(data,'$.sum' RETURNING NUMBER)

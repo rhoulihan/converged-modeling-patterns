@@ -61,6 +61,9 @@ COMMIT;
 -- @look Rows affected is 1; Measure it shows redo near 1.2 KB at any book size.
 -- @figure erd.svg Desk, advisor and client in canonical form, beside the typical one-document book and the institutional book split into overflow documents
 -- @measure add-client
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   INSERT INTO ol_clients VALUES ('C-900801','A-900',1000000)
+-- @mongo ` }])
 INSERT INTO ol_clients VALUES ('C-900801','A-900',1000000);
 COMMIT;
 
@@ -69,6 +72,11 @@ COMMIT;
 -- @note No spill: just two more rows.
 -- @why Update locality: where the document model spilled to a second collection, the book just gets two more rows.
 -- @look Rows affected is 2, with no flag and no overflow write.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   INSERT INTO ol_clients (client_id, advisor_id, aum)
+-- @mongo   SELECT 'C-900802', 'A-900', 990000 FROM dual UNION ALL
+-- @mongo   SELECT 'C-900803', 'A-900', 980000 FROM dual
+-- @mongo ` }])
 INSERT INTO ol_clients (client_id, advisor_id, aum)
 SELECT 'C-900802', 'A-900', 990000 FROM dual UNION ALL
 SELECT 'C-900803', 'A-900', 980000 FROM dual;
@@ -91,6 +99,7 @@ SELECT JSON {
 -- @note Same shape the document model served: no flag, no branch.
 -- @why Diversity: the duality view projects the same advisor document from rows, assembling the client array on read rather than storing it.
 -- @look typical_advisor_document shows A-001's clients array, with no hasExtras field.
+-- @mongo db.ol_advisor_dv.find({ _id: "A-001" })
 SELECT JSON_SERIALIZE(data PRETTY) AS typical_advisor_document
 FROM   ol_advisor_dv WHERE JSON_VALUE(data,'$._id') = 'A-001';
 
@@ -100,6 +109,10 @@ FROM   ol_advisor_dv WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- @note Exact same table, exact same optimizer: no overflow collection to stitch back in.
 -- @why Read/write, priced honestly: a top-N range scan on (advisor_id, aum DESC) reads index entries and assembles rows on every read, but the same amount at 180 clients or 148,000.
 -- @look The 3 largest holdings by aum, from ol_clients with no overflow to stitch.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT client_id, aum FROM ol_clients WHERE advisor_id = 'A-900'
+-- @mongo   ORDER BY aum DESC FETCH FIRST 3 ROWS ONLY
+-- @mongo ` }])
 SELECT client_id, aum
 FROM   ol_clients
 WHERE  advisor_id = 'A-900'
@@ -112,6 +125,10 @@ FETCH  FIRST 3 ROWS ONLY;
 -- @note OFFSET, same index range scan: ordinary pagination, not a special document shape.
 -- @why Update locality's skew becomes a statistic, not a code path: the next page is the same query with OFFSET.
 -- @look Holdings 4 to 6 by aum, from the same index range.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT client_id, aum FROM ol_clients WHERE advisor_id = 'A-900'
+-- @mongo   ORDER BY aum DESC OFFSET 3 ROWS FETCH NEXT 3 ROWS ONLY
+-- @mongo ` }])
 SELECT client_id, aum
 FROM   ol_clients
 WHERE  advisor_id = 'A-900'

@@ -28,6 +28,9 @@ if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 // @why Diversity: the CRM keeps find() over the MongoDB API while the book screen runs its top-N query in SQL over the same client rows, so there is one book and no branch.
 // @look The A-001 document's clients array matches the SQL projection, with no hasExtras flag.
 // @figure flow.svg Advisor and client tables feed a duality view for document consumers and one top-N query for the book screen
+// @sql SELECT JSON_SERIALIZE(data) AS advisor_document
+// @sql FROM   ol_advisor_dv
+// @sql WHERE  JSON_VALUE(data,'$._id') = 'A-001'
 const viaMongo = db.ol_advisor_dv.findOne({ _id: "A-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for A-001"); quit(1); }
 
