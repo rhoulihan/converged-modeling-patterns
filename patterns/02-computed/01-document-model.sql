@@ -20,9 +20,11 @@
 -- dashboard has no rollup to lean on across subscribers: it must
 -- SUM -> SORT -> LIMIT over the collection every load.
 --
--- Where this shape still wins: a rarely written total. In the deck's
--- illustrative model, embedding is cheaper below about 4.4 CDRs a subscriber a
--- day (light users, IoT SIMs, a closed cycle's final bill).
+-- Where a document still works: a rollup-only document (the counters alone,
+-- line items elsewhere) measured within 1.4x of a summary row, and a closed
+-- cycle's final bill. This shape, counters inside the growing document, pays a
+-- whole-document rewrite per CDR: redo grows with the document's size from the
+-- first byte (measured on 26ai: ~6 KB per CDR at ~3.5 KB of JSON).
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @01-document-model.sql
 -- ============================================================================
 
