@@ -117,6 +117,7 @@ is not a win.* Measure your own (see below).
 converged-modeling-patterns/
 ├── run.sh               # one command: build, wait, grant, run every pattern × both lanes, graded
 ├── compose.yml          # the 26ai + ORDS + Mongo-API service (non-default host ports)
+├── lab.sh               # the same stack with the plain podman/docker CLI, for hosts with no compose
 ├── docker/              # the image, built from scratch: DB + ORDS + mongosh, no ONNX/vector layer
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
@@ -157,7 +158,8 @@ is the cross-API assertion; `_capture.sql` feeds the SQL side of that assertion 
 ./run.sh 03-bucket       # run just one pattern (both lanes)
 ```
 
-`run.sh` builds and starts the container via `docker compose`, waits for the database
+`run.sh` builds and starts the container via compose (or `./lab.sh` when no compose
+provider is installed: see *Podman* below), waits for the database
 **and** the MongoDB API, grants the schema privileges the patterns use, and then, per
 pattern, runs the **SQL lane** (`sqlplus`) followed by the **MongoDB lane** (`mongosh`,
 in-container). Every script is graded: any ORA-/PLS- error or any parity mismatch is a
@@ -198,9 +200,28 @@ docker exec -i -e MURI="$MURI" cmp-oracle bash -lc 'mongosh "$MURI" --quiet --fi
 Login: `cmp_user / CmpUser2026`, service `FREEPDB1`, schema ORDS-enabled as `CMP_USER`.
 Override `ORACLE_PASSWORD` / `CMP_PASSWORD` as you like.
 
+### Podman
+
+Podman works with or without a compose provider. With `podman compose` (or
+`docker-compose` installed as its provider) everything above works as written. Without
+one, use `lab.sh`, which runs the same two services with the plain `podman` CLI:
+
+```bash
+./lab.sh up          # build images if missing (--build to force), start the database, then the console
+./lab.sh status      # containers, health, console URL
+./lab.sh logs oracle # or: lab-ui
+./lab.sh down        # remove the containers; -v also deletes the database volume
+```
+
+`lab.sh` reads `.env` like compose does (a variable set in the shell wins) and mirrors
+`compose.yml`'s images, container names, ports and volume, so the database survives a
+switch between the two. `run.sh` picks compose when a provider answers and falls back
+to `lab.sh` otherwise, so `./run.sh` works unchanged. The image builds on x86_64 and on
+Apple silicon (arm64). `docker exec` in the commands above becomes `podman exec`.
+
 ## Hands-on console
 
-`docker compose up -d` also starts **`lab-ui`** (a browser console for this repo) at
+`docker compose up -d` (or `./lab.sh up`) also starts **`lab-ui`** (a browser console for this repo) at
 **http://localhost:3100**. Every query in the six patterns, and in the lecture, can be
 read, copied, edited and run from there, against the same 26ai container `run.sh` uses:
 

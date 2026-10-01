@@ -18,7 +18,8 @@ RUN chown -R oracle:oinstall /etc/ords
 
 # --- mongosh (current MongoDB 8.0 repo) --------------------------------------
 # The Mongo lane of run.sh drives *.js scripts through mongosh, in-container.
-RUN printf '[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/8.0/x86_64/\ngpgcheck=1\nenabled=1\ngpgkey=https://pgp.mongodb.com/server-8.0.asc\n' > /etc/yum.repos.d/mongodb-org-8.0.repo \
+# $basearch lets dnf pick x86_64 or aarch64, so the image also builds on Apple silicon.
+RUN printf '[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/8.0/$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://pgp.mongodb.com/server-8.0.asc\n' > /etc/yum.repos.d/mongodb-org-8.0.repo \
  && microdnf install -y mongodb-mongosh \
  && microdnf clean all
 
