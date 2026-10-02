@@ -5,6 +5,7 @@ const DECK = 'converged-data-modeling-workshop1.html';
 
 const SIGN_IN = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Instructor deck</title>
+<link rel="icon" href="/brand/favicon-32.png" type="image/png">
 <link rel="stylesheet" href="/css/lab.css"></head><body><main style="padding:24px">
 <h2>The instructor deck needs the instructor sign-in</h2>
 <p><a href="/admin.html">Sign in on the admin page</a>, then open the deck from there.</p>
