@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,14 +8,15 @@ import { createApp, INSTRUCTOR_PATHS } from '../../src/server.js';
 import { loadConfig } from '../../src/config.js';
 import { sign } from '../../src/services/auth.js';
 
-const SECRET = 'test-secret';
-const admin = `lab_admin=${sign('admin', SECRET)}`;
+// Session-signing key for the test: random per run, so no literal looks like a credential.
+const SIGNING_KEY = crypto.randomBytes(16).toString('hex');
+const admin = `lab_admin=${sign('admin', SIGNING_KEY)}`;
 
 function deps() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pub-'));
   fs.writeFileSync(path.join(dir, 'converged-data-modeling-workshop1.html'), '<!DOCTYPE html><title>deck</title>');
   const cfg = { ...loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', EVENT_CODE: 'CODE', LAB_ADMIN_PASSWORD: 'x' }), presentationsDir: dir };
-  return { cfg, patterns: [], sessionSecret: SECRET, workspaces: {}, gate: {}, runner: {}, cache: {}, mongo: {} };
+  return { cfg, patterns: [], sessionSecret: SIGNING_KEY, workspaces: {}, gate: {}, runner: {}, cache: {}, mongo: {} };
 }
 
 describe('public listener (attendee side only)', () => {
