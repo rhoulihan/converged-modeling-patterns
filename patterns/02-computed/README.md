@@ -35,6 +35,8 @@ measure:
     - { x: 6, ratio: 8.29 }   # doc 12800 B, conv 1544 B
     - { x: 7, ratio: 9.47 }   # doc 14620 B, conv 1544 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 02: Computed
 
 **Telecom.** Show a subscriber's current-cycle usage instantly on the account page,

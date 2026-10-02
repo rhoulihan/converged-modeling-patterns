@@ -34,6 +34,8 @@ measure:
     - { x: 1000, ratio: 38.65 }   # doc 109616 B, conv 2836 B
     - { x: 3600, ratio: 165.94 }   # doc 470596 B, conv 2836 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 03: Bucket (time-series)
 
 **Manufacturing / IoT.** Ingest millions of tiny sensor readings; read them back as

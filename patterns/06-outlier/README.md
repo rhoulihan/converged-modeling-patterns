@@ -34,6 +34,8 @@ measure:
     - { x: 800, ratio: 16.96 }   # doc 20760 B, conv 1224 B
     - { x: 2000, ratio: 43.39 }   # doc 48768 B, conv 1124 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 06: Outlier (whale documents)
 
 **Financial services (brokerage).** Open an advisor and read their book of clients,

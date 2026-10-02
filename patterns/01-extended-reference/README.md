@@ -34,6 +34,8 @@ measure:
     - { x: 100, ratio: 303.83 }   # doc 144624 B, conv 476 B
     - { x: 1000, ratio: 3036.59 }   # doc 1445416 B, conv 476 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 01: Extended Reference ⭐
 
 **Wealth management.** Open any client or account and show the servicing advisor's

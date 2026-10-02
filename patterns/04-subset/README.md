@@ -30,6 +30,8 @@ measure:
     - { x: 100, ratio: 6.12 }   # doc 6336 B, conv 1036 B
     - { x: 1000, ratio: 26.26 }   # doc 26576 B, conv 1012 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 04: Subset (hot inline / vertical partition)
 
 **Insurance.** The policy summary page shows the most recent claim events instantly
