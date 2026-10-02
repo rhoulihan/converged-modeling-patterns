@@ -1,0 +1,38 @@
+<!-- ============ 14. COMPUTED ============ -->
+  <section class="slide" aria-label="Computed pattern in telecom">
+    <div class="eyebrow"><span>Act 3 · Pattern 2 — Computed</span><span class="clock">0:40 – 0:45</span></div>
+    <h2>Telecom: the cycle-usage counter on a hot document</h2>
+    <p class="lede">Each subscriber doc carries a running <strong>cycle-usage rollup</strong> so the app never re-aggregates. But every call detail record now re-writes the parent document — a write storm on the hottest docs you own.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — counter-sharding to survive the write storm</p>
+<pre class="code hot-edge"><span class="c">// every CDR rewrites the subscriber doc;</span>
+<span class="c">// to spread the heat you split the counter</span>
+<span class="c">// into N shard-docs, then fan-in on read:</span>
+db.usage_shards.aggregate([
+  { $match: { sub: <span class="s">"S-9"</span> } },
+  { $group: { _id: <span class="s">"$sub"</span>,
+              bytes: { $sum: <span class="s">"$bytes"</span> } } }
+])  <span class="c">// wrote once, now read N docs to total it</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — the rollup with staleness = 0</p>
+<pre class="code cool-edge"><span class="k">CREATE MATERIALIZED VIEW</span> mv_cycle_usage
+  <span class="k">REFRESH FAST ON COMMIT AS</span>          <span class="c">-- engine maintains it</span>
+<span class="k">SELECT</span> subscriber_id,
+       <span class="k">SUM</span>(bytes) <span class="k">AS</span> cycle_bytes,
+       <span class="k">COUNT</span>(*)    <span class="k">AS</span> cdr_count
+<span class="k">FROM</span>   cdr
+<span class="k">GROUP BY</span> subscriber_id;
+<span class="c">-- "Computed", but transactional and current.</span></pre>
+        </div>
+      </div>
+      <div class="card cool-edge" style="max-width:1060px;">
+        <p style="font-size:13.5px;"><b>Value-add — the hot Top-N:</b> "top 20 subscribers by usage this cycle" is agony in a document engine (re-sort millions, or maintain a leaderboard doc). Converged: a composite index on <code style="font-family:'IBM Plex Mono';font-size:12px;">(cycle_bytes DESC, subscriber_id)</code> makes it an <b>index-only scan</b> — <b class="cool">60s&nbsp;→&nbsp;500ms</b>, fully ACID, nothing to maintain.</p>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips when write frequency on the parent exceeds the reads the rollup saves. <strong>Move the aggregation into an engine-maintained projection and the write storm disappears — the counter is current without touching a hot document.</strong></p>
+    <aside class="notes" hidden><strong>Pattern 2, Computed — the hot-document write storm, and the index-only Top-N is the crowd-pleaser here.</strong><br><br>▸ <strong>The setup:</strong> each subscriber doc carries a running cycle-usage rollup so the app never re-aggregates. But every CDR now rewrites the parent — a write storm on your hottest documents.<br>▸ <strong>The document coping strategy (hot SQL):</strong> counter-sharding — split the counter into N shard-docs to spread the heat, then fan-in on read. You traded a write problem for a read problem.<br>▸ <strong>The softening (cool SQL):</strong> a materialized view REFRESH FAST ON COMMIT — 'Computed', but transactional and current, maintained by the engine, not the app.<br>▸ <strong>The value-add (bottom card) — say the number:</strong> 'top 20 subscribers by usage' is agony in a document engine. A composite index on (cycle_bytes DESC, subscriber_id) makes it an index-only scan: 60s → 500ms, ACID, nothing to maintain.<br><br><em>Land: move the aggregation into an engine-maintained projection and the write storm disappears — the counter is current without ever touching a hot document.</em></aside>
+  </section>
+

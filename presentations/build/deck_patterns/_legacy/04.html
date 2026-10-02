@@ -1,0 +1,36 @@
+<!-- ============ 16. SUBSET ============ -->
+  <section class="slide" aria-label="Subset pattern in insurance">
+    <div class="eyebrow"><span>Act 3 · Pattern 4 — Subset</span><span class="clock">0:50 – 0:55</span></div>
+    <h2>Insurance: the recent-claims subset nobody reads</h2>
+    <p class="lede">A policy document keeps the <strong>10 most recent claims inline</strong> for a fast summary; cold history lives elsewhere. Claims arrive constantly, so you push-and-trim on <em>every</em> write — to serve a full read that happens rarely.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — maintain the subset on every write</p>
+<pre class="code hot-edge">db.policies.updateOne(
+  { _id: <span class="s">"P-42"</span> },
+  { $push: { recentClaims: {
+      $each:  [ newClaim ],
+      $sort:  { ts: -1 },
+      $slice: 10 } } }   <span class="c">// trim to 10</span>
+)
+<span class="c">// write amplification on the write path to</span>
+<span class="c">// optimize a read path that's mostly idle.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — stop maintaining it; query it</p>
+<pre class="code cool-edge"><span class="c">-- composite index: (policy_id, event_ts DESC)</span>
+<span class="k">SELECT</span> claim_id, amount, event_ts
+<span class="k">FROM</span>   claims
+<span class="k">WHERE</span>  policy_id = :id
+<span class="k">ORDER BY</span> event_ts <span class="k">DESC</span>
+<span class="k">FETCH FIRST</span> 10 <span class="k">ROWS ONLY</span>;
+<span class="c">-- index-only, O(log n) seek + 10-row scan.</span>
+<span class="c">-- a duality view reunites hot + cold on read.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">Subset is a bet that reads dwarf writes. When they don't, you're <strong>paying the write side to optimize a read that hardly fires</strong>. A pre-sorted composite index gives the same instant Top-N with zero write-path cost.</p>
+    <aside class="notes" hidden><strong>Pattern 4, Subset — the sharpest 'you're paying the wrong side' story. Keep it tight.</strong><br><br>▸ <strong>The setup:</strong> a policy doc keeps the 10 most recent claims inline for a fast summary; cold history lives elsewhere. Claims arrive constantly.<br>▸ <strong>The hard edge (hot SQL):</strong> $push with $sort + $slice:10 on EVERY write — write amplification on the write path to optimize a read path that's mostly idle.<br>▸ <strong>The softening (cool SQL):</strong> stop maintaining it. A composite index (policy_id, event_ts DESC) makes ORDER BY event_ts DESC FETCH FIRST 10 an index-only seek + 10-row scan. A duality view reunites hot + cold at read time.<br><br><em>Land: Subset is a bet that reads dwarf writes. When they don't — and here they don't — you're paying the write side to optimize a read that hardly fires. The pre-sorted index gives the same instant Top-N at zero write cost.</em></aside>
+  </section>
+
