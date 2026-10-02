@@ -25,6 +25,16 @@ function login(msg = '') {
   view.replaceChildren(f);
 }
 
+// The instructor deck, served by this lab host at /deck/ behind the same sign-in as this page.
+function deckCard() {
+  const c = h('div', 'card');
+  const a = h('a', 'btn primary', 'Open the instructor deck');
+  a.href = '/deck/'; a.target = '_blank'; a.rel = 'noopener';
+  const row = h('div', 'actions'); row.append(a);
+  c.append(h('h3', null, 'Presentation'), h('p', 'note', 'Workshop 1: Model the domain, not the engine. Opens in a new tab; press N for the speaker notes, arrow keys to move.'), row);
+  return c;
+}
+
 async function render() {
   clearTimeout(timer);
   let r;
@@ -98,7 +108,7 @@ async function render() {
     t.append(tr);
   });
   const list = h('div', 'card'); list.append(h('h3', null, `Attendees (${attendees.length})`), t);
-  view.replaceChildren(top, list);
+  view.replaceChildren(deckCard(), top, list);
   timer = setTimeout(render, 2000);
 }
 

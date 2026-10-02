@@ -6,4 +6,5 @@ app/node_modules
 app/public/vendor
 app/test/artifacts
 docs
+presentations/build
 node_modules

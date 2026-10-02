@@ -44,8 +44,8 @@ h1 { font-size: 30px; font-weight: 800; }
 .card.measure { border-left: 3px solid var(--flow); }
 pre.code { font: 12.5px/1.5 var(--mono); background: var(--chip); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 0 0 8px; white-space: pre; }
 .actions { display: flex; gap: 8px; align-items: center; }
-button.btn { font: 600 13px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 12px; cursor: pointer; }
-button.btn:hover { border-color: var(--muted); } button.btn.primary { background: var(--cool); color: #fff; border-color: var(--cool); }
+button.btn, a.btn { display: inline-block; text-decoration: none; font: 600 13px var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 12px; cursor: pointer; }
+button.btn:hover, a.btn:hover { border-color: var(--muted); } button.btn.primary, a.btn.primary { background: var(--cool); color: #fff; border-color: var(--cool); }
 button.btn:disabled { opacity: .5; cursor: default; }
 .badge { font: 600 11px var(--mono); border-radius: 12px; padding: 2px 9px; display: inline-block; margin-bottom: 6px; }
 .badge.cool { background: var(--cool-soft); color: var(--cool); } .badge.hot { background: var(--hot-soft); color: var(--hot); }

@@ -31,7 +31,11 @@ prepare. This runbook is for running the console with a room full of attendees.
    **pre-warm** about as many workspaces as you expect attendees (each takes a few
    seconds; attendees who arrive early simply get a fresh one; you can pre-warm more
    than once if the room grows).
-5. Put the console URL and the event code on a slide. Attendees sign in with their name,
+5. **Present from the same box.** The admin page's **Open the instructor deck** button opens
+   the Workshop 1 deck at `http://<your-host>:3100/deck/` (served by the console, no internet
+   needed; press `N` for the speaker notes). It needs the instructor sign-in, so attendees
+   can't open it.
+6. Put the console URL and the event code on a slide. Attendees sign in with their name,
    email and that code; each gets their own database schema.
 
 ## Capacity
