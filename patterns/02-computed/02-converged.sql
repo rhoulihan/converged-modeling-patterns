@@ -1,33 +1,31 @@
 -- ============================================================================
 -- Pattern 02 · Computed · THE CONVERGED ALTERNATIVE
--- Two moves, both keeping the precomputed read without paying whole-document write amp.
+-- Same facts, same precomputed summary; the summary just lives in a narrow row.
 --
--- 1) CDRs are APPEND-ONLY relational rows: one small insert per CDR, no parent
---    document to rewrite. A maintained summary carries the rollup and is kept
---    current IN THE SAME TRANSACTION by a row trigger. Both models serialize per
---    subscriber (the summary row locks, just as the document does); the
---    converged write is ~1.5 KB instead of the whole document:
---    "Computed, with a staleness window of zero." (Declarative equivalent:
---    a materialized view WITH REFRESH FAST ON COMMIT over a CDR mview log.)
+-- 1) CDRs are APPEND-ONLY relational rows: one small insert per CDR (the same
+--    half of the write the document design pays). A maintained summary row
+--    carries the cycle totals and is kept current IN THE SAME TRANSACTION by a
+--    row trigger: "Computed, with a staleness window of zero." (Declarative
+--    equivalent: a materialized view WITH REFRESH FAST ON COMMIT over a CDR log.)
+--    The subscriber's profile lives in cp_subscribers and is never touched by a CDR.
 --
 -- 2) Hot Top-N becomes an INDEX RANGE SCAN. A descending index on the summary's
 --    usage column turns "top talkers" into an O(log n) seek + FETCH FIRST N,
---    no SUM, no SORT, no full-collection scan. This is the field pattern behind
---    the 60s -> 500ms dashboard result (a real landing page, anonymized).
+--    no SORT, no full-collection scan. This is the field pattern behind the
+--    60s -> 500ms dashboard result (a real landing page, anonymized).
 --
--- The needle-flip, resolved: the rollup is still precomputed. Rate checks read
--- the narrow summary row by primary key (measured on 26ai: 4.0 us against 9.5 us
--- to pull a counter from a ~3.4 KB document); only the account page joins it
--- through the duality view (about 30% more read work). The write drops from a rewrite of the whole, growing
--- document to one small row plus a single-row counter update, flat however many
--- CDRs the cycle holds; the ranking stops being a scan. The CBO plans all of it,
--- ACID, one transaction.
+-- The needle-flip, resolved: the summary update stops rewriting the subscriber.
+-- Measured on 26ai Free, the summary row update logs ~1.0 KB of redo; the same
+-- three counters inside a ~3.5 KB subscriber document log ~8.3 KB. The CDR write
+-- stays flat however large the profile is. Rate checks read the narrow row by
+-- primary key (4.0 us against 9.5 us to pull a counter from a ~3.4 KB document);
+-- only the account page joins it through the duality view (about 30% more read
+-- work), a couple of times a day. The CBO plans all of it, ACID, one transaction.
 --
--- When to flip back: a rollup-only document (counters, line items stored
--- elsewhere) measured within 1.4x of the summary row; a closed cycle's final bill
--- can live on a document. Counters inside the growing document lose at every
--- volume: the 8 KB block is not a floor, redo and undo grow with the bytes
--- rewritten (5,996 B per CDR at ~3.5 KB vs 1,776 B here).
+-- When to flip back: a rollup-only document (the counters alone, the profile
+-- elsewhere) measured within 1.5x of the summary row; a closed cycle's final bill
+-- can live on a document. The 8 KB block is not a floor: redo and undo grow with
+-- the bytes rewritten, so the summary inside the full profile loses on every CDR.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 
@@ -43,7 +41,8 @@ END;
 CREATE TABLE cp_subscribers (
   subscriber_id VARCHAR2(12)  PRIMARY KEY,
   msisdn        VARCHAR2(24)  NOT NULL,
-  plan          VARCHAR2(16)  NOT NULL
+  plan          VARCHAR2(16)  NOT NULL,
+  profile       JSON          NOT NULL   -- the same ~6 KB profile the document carries; CDRs never touch it
 );
 
 -- Append-only fact: one small row per CDR. No document to rewrite.
@@ -83,9 +82,72 @@ BEGIN
 END;
 /
 
-INSERT INTO cp_subscribers VALUES ('S-001','+1-202-555-0111','UNLIMITED');
-INSERT INTO cp_subscribers VALUES ('S-002','+1-202-555-0122','METERED');
-INSERT INTO cp_subscribers VALUES ('S-003','+1-202-555-0133','UNLIMITED');
+INSERT INTO cp_subscribers
+SELECT 'S-001', '+1-202-555-0111', 'UNLIMITED',
+       JSON_OBJECT(
+         'name' VALUE 'Avery Quinn', 'email' VALUE 'avery.quinn@example.net', 'since' VALUE '2019-04-12',
+         'billingAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'serviceAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'devices' VALUE JSON_ARRAY(
+           JSON_OBJECT('imei' VALUE '356938035643809', 'model' VALUE 'Pixel 9', 'sim' VALUE '8901410321111851072', 'activatedOn' VALUE '2024-10-03'),
+           JSON_OBJECT('imei' VALUE '354812090211457', 'model' VALUE 'Galaxy Watch 7', 'sim' VALUE '8901410321111851099', 'activatedOn' VALUE '2025-02-18')),
+         'addOns' VALUE JSON_ARRAY('INTL_ROAM', 'HOTSPOT_50GB', 'DEVICE_PROTECT'),
+         'preferences' VALUE JSON_OBJECT('paperless' VALUE 'yes', 'language' VALUE 'en-US', 'alerts' VALUE JSON_ARRAY('usage-80', 'usage-100', 'bill-ready')),
+         'consents' VALUE JSON_ARRAY('marketing-email:2024-01-05', 'cpni-share:none', 'analytics:2023-11-30'),
+         'accountHistory' VALUE (
+           SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                    'ts' VALUE TO_CHAR(DATE '2025-01-01' + k * 7, 'YYYY-MM-DD'),
+                    'type' VALUE DECODE(MOD(k, 4), 0, 'payment', 1, 'plan-change', 2, 'support-case', 'device-update'),
+                    'channel' VALUE DECODE(MOD(k, 3), 0, 'app', 1, 'store', 'call-center'),
+                    'note' VALUE 'Entry ' || k || ': reviewed with the customer and recorded by the agent for the account file')
+                  ORDER BY k RETURNING JSON)
+           FROM (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= 35))
+         RETURNING JSON)
+FROM   dual;
+INSERT INTO cp_subscribers
+SELECT 'S-002', '+1-202-555-0122', 'METERED',
+       JSON_OBJECT(
+         'name' VALUE 'Jordan Ellis', 'email' VALUE 'jordan.ellis@example.net', 'since' VALUE '2019-04-12',
+         'billingAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'serviceAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'devices' VALUE JSON_ARRAY(
+           JSON_OBJECT('imei' VALUE '356938035643809', 'model' VALUE 'Pixel 9', 'sim' VALUE '8901410321111851072', 'activatedOn' VALUE '2024-10-03'),
+           JSON_OBJECT('imei' VALUE '354812090211457', 'model' VALUE 'Galaxy Watch 7', 'sim' VALUE '8901410321111851099', 'activatedOn' VALUE '2025-02-18')),
+         'addOns' VALUE JSON_ARRAY('INTL_ROAM', 'HOTSPOT_50GB', 'DEVICE_PROTECT'),
+         'preferences' VALUE JSON_OBJECT('paperless' VALUE 'yes', 'language' VALUE 'en-US', 'alerts' VALUE JSON_ARRAY('usage-80', 'usage-100', 'bill-ready')),
+         'consents' VALUE JSON_ARRAY('marketing-email:2024-01-05', 'cpni-share:none', 'analytics:2023-11-30'),
+         'accountHistory' VALUE (
+           SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                    'ts' VALUE TO_CHAR(DATE '2025-01-01' + k * 7, 'YYYY-MM-DD'),
+                    'type' VALUE DECODE(MOD(k, 4), 0, 'payment', 1, 'plan-change', 2, 'support-case', 'device-update'),
+                    'channel' VALUE DECODE(MOD(k, 3), 0, 'app', 1, 'store', 'call-center'),
+                    'note' VALUE 'Entry ' || k || ': reviewed with the customer and recorded by the agent for the account file')
+                  ORDER BY k RETURNING JSON)
+           FROM (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= 6))
+         RETURNING JSON)
+FROM   dual;
+INSERT INTO cp_subscribers
+SELECT 'S-003', '+1-202-555-0133', 'UNLIMITED',
+       JSON_OBJECT(
+         'name' VALUE 'Riley Moreno', 'email' VALUE 'riley.moreno@example.net', 'since' VALUE '2019-04-12',
+         'billingAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'serviceAddress' VALUE JSON_OBJECT('line1' VALUE '1450 Harbor Way', 'city' VALUE 'Alexandria', 'region' VALUE 'VA', 'postal' VALUE '22314'),
+         'devices' VALUE JSON_ARRAY(
+           JSON_OBJECT('imei' VALUE '356938035643809', 'model' VALUE 'Pixel 9', 'sim' VALUE '8901410321111851072', 'activatedOn' VALUE '2024-10-03'),
+           JSON_OBJECT('imei' VALUE '354812090211457', 'model' VALUE 'Galaxy Watch 7', 'sim' VALUE '8901410321111851099', 'activatedOn' VALUE '2025-02-18')),
+         'addOns' VALUE JSON_ARRAY('INTL_ROAM', 'HOTSPOT_50GB', 'DEVICE_PROTECT'),
+         'preferences' VALUE JSON_OBJECT('paperless' VALUE 'yes', 'language' VALUE 'en-US', 'alerts' VALUE JSON_ARRAY('usage-80', 'usage-100', 'bill-ready')),
+         'consents' VALUE JSON_ARRAY('marketing-email:2024-01-05', 'cpni-share:none', 'analytics:2023-11-30'),
+         'accountHistory' VALUE (
+           SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                    'ts' VALUE TO_CHAR(DATE '2025-01-01' + k * 7, 'YYYY-MM-DD'),
+                    'type' VALUE DECODE(MOD(k, 4), 0, 'payment', 1, 'plan-change', 2, 'support-case', 'device-update'),
+                    'channel' VALUE DECODE(MOD(k, 3), 0, 'app', 1, 'store', 'call-center'),
+                    'note' VALUE 'Entry ' || k || ': reviewed with the customer and recorded by the agent for the account file')
+                  ORDER BY k RETURNING JSON)
+           FROM (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= 12))
+         RETURNING JSON)
+FROM   dual;
 
 -- The same mid-cycle state as the document model: 1,000 prior CDRs for S-001
 -- (the trigger builds the matching summary row), one each for S-002 and S-003.
@@ -101,11 +163,11 @@ INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost, cdr_ts) VALUES ('S-003',90
 COMMIT;
 
 -- CDRs stream in as tiny appends; the summary tracks them in the same commit.
--- @step Post one Call Detail Record for S-001
--- @note One small row; the trigger maintains the summary in the same transaction. Both models serialize per subscriber; the converged write is ~1.5 KB instead of the whole document.
--- @why Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; here each serialized write is about 1.5 KB instead of the whole document.
--- @look Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
--- @figure erd.svg Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
+-- @step Record one CDR for S-001 (the trigger bumps the summary row)
+-- @note One small row; the trigger bumps the narrow summary row in the same transaction. The subscriber's profile is not touched.
+-- @why Update locality still lands on one subscriber, but the summary is a narrow row: three counters change and three counters are written, not the whole subscriber profile.
+-- @look Rows affected is 1; Measure it shows redo near 1.8 KB however large the subscriber's profile is.
+-- @figure erd.svg Subscriber, CDR and usage summary in canonical form, beside the subscriber document whose whole profile every summary update rewrites
 -- @measure record-cdr
 -- @mongo db.aggregate([{ $sql: `
 -- @mongo   INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',120,12,0.36)
@@ -147,6 +209,7 @@ SELECT JSON {
   '_id'    : s.subscriber_id,
   'msisdn' : s.msisdn WITH UPDATE,
   'plan'   : s.plan   WITH UPDATE,
+  'profile': s.profile WITH UPDATE,
   'cycleUsage' : ( SELECT JSON { 'totalMB' : u.total_mb,
                                  'totalMin': u.total_min,
                                  'cost'    : u.cost }
@@ -159,5 +222,5 @@ SELECT JSON {
 -- @why Diversity without a second copy: the duality view projects the subscriber document with cycleUsage inline and read-only, joined by primary key on each read.
 -- @look subscriber_document shows cycleUsage with the same totals as the account-page read.
 -- @mongo db.cp_subscriber_dv.find({ _id: "S-001" })
-SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document
+SELECT JSON_SERIALIZE(data RETURNING CLOB PRETTY) AS subscriber_document
 FROM   cp_subscriber_dv WHERE JSON_VALUE(data,'$._id') = 'S-001';

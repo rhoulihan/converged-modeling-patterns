@@ -71,8 +71,9 @@ a field that is hot and mutable.
 **Blocks are the unit of I/O, not a floor on cost.** It's tempting to assume a small
 row and a small document cost the same because both fit in one 8 KB block. Measured
 on 26ai, they don't: redo and undo grow with the bytes rewritten, and a document
-update rewrites the whole document even when it changes one field. A ~3.5 KB
-document logs 3.4× the redo of a narrow row update, and repeated rewrites of a 6.2 KB
+update rewrites the whole document even when it changes one field. Three counters in
+a narrow summary row log about 1.0 KB of redo per update; the same three counters
+inside a ~3.5 KB subscriber document log 8.3 KB, and repeated rewrites of a 6.2 KB
 document wrote 15× the blocks (pattern 02 has the numbers). Count bytes rewritten,
 not blocks touched.
 

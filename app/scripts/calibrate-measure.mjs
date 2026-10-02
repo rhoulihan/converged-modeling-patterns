@@ -14,7 +14,7 @@ import { readStats } from '../src/db/oracle.js';
 const ROOT = path.resolve(import.meta.dirname, '../../patterns');
 const SIZES = {
   '01-extended-reference': [1, 10, 100, 1000],
-  '02-computed': [10, 100, 1000, 5000],
+  '02-computed': [1, 2, 4, 6, 7],   // subscriber document size, KB
   '03-bucket': [3, 100, 1000, 3600],
   '04-subset': [3, 10, 100, 1000],
   '05-tree-hierarchy': [3, 30, 300, 3000],
