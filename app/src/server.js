@@ -14,12 +14,19 @@ import { adminRouter } from './routes/admin.js';
 import { figuresRouter } from './routes/figures.js';
 import { deckRouter } from './routes/deck.js';
 
-export function createApp(deps) {
+// The instructor side: the admin page and its script, the admin API and the deck.
+export const INSTRUCTOR_PATHS = ['/admin.html', '/js/admin.js', '/api/admin', '/deck'];
+
+// publicMode builds the app for the public listener: the instructor side does not exist there
+// (404, as if never deployed), so a tunnel to it exposes only what attendees use. The LAN
+// listener keeps everything, and the instructor runs the event from the LAN.
+export function createApp(deps, { publicMode = false } = {}) {
   const app = express();
   app.disable('x-powered-by');
+  if (publicMode) app.use(INSTRUCTOR_PATHS, (req, res) => res.status(404).end());
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/admin', adminRouter(deps));
-  app.use('/api', apiRouter(deps));
+  app.use('/api', apiRouter({ ...deps, publicMode }));
   app.use('/figures', figuresRouter(deps));
   app.use('/deck', deckRouter(deps));
   app.use(express.static(path.resolve(import.meta.dirname, '../public'), { maxAge: '1h' }));
@@ -67,8 +74,11 @@ export async function main() {
   }
   const runner = new Runner({ cfg, gate, cache, pools, mongo, workspaces, patterns });
   const sessionSecret = await workspaces.sessionSecret();
-  const app = createApp({ cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret });
-  app.listen(cfg.port, () => console.log(`[lab-ui] ${cfg.mode} mode on :${cfg.port} · ${patterns.length} patterns`));
+  const deps = { cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret };
+  createApp(deps).listen(cfg.port, () => console.log(`[lab-ui] ${cfg.mode} mode on :${cfg.port} · ${patterns.length} patterns`));
+  if (cfg.publicPort) {
+    createApp(deps, { publicMode: true }).listen(cfg.publicPort, () => console.log(`[lab-ui] public listener (attendee side only) on :${cfg.publicPort}`));
+  }
 }
 
 if (process.argv[1] === import.meta.filename) {

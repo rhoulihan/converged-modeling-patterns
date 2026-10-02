@@ -47,8 +47,10 @@ services:
         condition: service_healthy
     ports:
       - '${CMP_UI_BIND:-127.0.0.1}:${CMP_UI_PORT:-3100}:3000'  # hands-on console; event mode: CMP_UI_BIND=0.0.0.0
+      - '127.0.0.1:${CMP_PUBLIC_PORT:-3101}:3001'  # attendee side only, for a public tunnel (docs/remote-access.md); localhost only
     environment:
       LAB_MODE: '${LAB_MODE:-solo}'           # solo | event
+      PUBLIC_PORT: '3001'
       ADMIN_PASSWORD: '${ADMIN_PASSWORD:-}'   # required when LAB_MODE=event
       EVENT_CODE: '${EVENT_CODE:-}'
       ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'

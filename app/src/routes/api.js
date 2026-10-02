@@ -13,7 +13,7 @@ export function wrap(fn) {
   });
 }
 
-export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret }) {
+export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, publicMode = false }) {
   const r = express.Router();
   const publicPaths = new Set(['/config', '/signin', '/admin/login']);
 
@@ -31,7 +31,7 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     return next();
   }));
 
-  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(cfg.event.code) }));
+  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(cfg.event.code), instructor: !publicMode }));
 
   r.post('/signin', wrap(async (req, res) => {
     if (cfg.mode !== 'event') return res.status(404).json({ error: 'not in event mode' });

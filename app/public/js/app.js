@@ -148,8 +148,8 @@ function signin() {
   const flash = h('div', 'flash');
   const submit = h('button', 'btn primary', 'Sign in'); submit.type = 'submit';
   f.append(submit, flash);
-  // The instructor console only exists in event mode.
-  if (config.mode === 'event') {
+  // The instructor console only exists in event mode, and never on the public listener.
+  if (config.mode === 'event' && config.instructor !== false) {
     const alt = h('p', 'signin-alt', 'Running the event? ');
     const a = h('a', null, 'Instructor sign-in'); a.href = '/admin.html';
     alt.append(a); f.append(alt);
