@@ -23,7 +23,13 @@ export const INSTRUCTOR_PATHS = ['/admin.html', '/js/admin.js', '/api/admin', '/
 export function createApp(deps, { publicMode = false } = {}) {
   const app = express();
   app.disable('x-powered-by');
-  if (publicMode) app.use(INSTRUCTOR_PATHS, (req, res) => res.status(404).end());
+  if (publicMode) {
+    // Only the tunnel can reach the public listener (it is bound to localhost), so trust exactly
+    // one proxy hop: req.ip becomes the client address the tunnel appended to X-Forwarded-For,
+    // and a client cannot pick its own by sending the header. The LAN app trusts no proxy.
+    app.set('trust proxy', 1);
+    app.use(INSTRUCTOR_PATHS, (req, res) => res.status(404).end());
+  }
   app.use(express.json({ limit: '64kb' }));
   app.use('/api/admin', adminRouter(deps));
   app.use('/api', apiRouter({ ...deps, publicMode }));

@@ -2,6 +2,7 @@
 import express from 'express';
 import { GateError } from '../gate.js';
 import { sign, verify, parseCookies, cookie } from '../services/auth.js';
+import { FailureLimit } from '../services/failureLimit.js';
 
 const DAY = 24 * 3600;
 
@@ -13,7 +14,7 @@ export function wrap(fn) {
   });
 }
 
-export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, publicMode = false }) {
+export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, publicMode = false, signinLimit = new FailureLimit() }) {
   const r = express.Router();
   const publicPaths = new Set(['/config', '/signin', '/admin/login']);
 
@@ -35,9 +36,22 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
 
   r.post('/signin', wrap(async (req, res) => {
     if (cfg.mode !== 'event') return res.status(404).json({ error: 'not in event mode' });
+    // req.ip: the socket address on the LAN; behind the public tunnel, the client address the
+    // tunnel appended to X-Forwarded-For (the public app trusts exactly that one hop).
+    const wait = signinLimit.retryAfter(req.ip);
+    if (wait) {
+      res.setHeader('Retry-After', String(wait));
+      return res.status(429).json({ error: `too many failed sign-ins: try again in ${Math.ceil(wait / 60)} minute(s)` });
+    }
     const { name, email, code } = req.body ?? {};
-    if (!name?.trim() || !/^[^@\s]+@[^@\s]+$/.test(email ?? '')) return res.status(400).json({ error: 'name and a valid email are required' });
-    if (cfg.event.code && code !== cfg.event.code) return res.status(403).json({ error: 'wrong event code' });
+    if (!name?.trim() || !/^[^@\s]+@[^@\s]+$/.test(email ?? '')) {
+      signinLimit.fail(req.ip);
+      return res.status(400).json({ error: 'name and a valid email are required' });
+    }
+    if (cfg.event.code && code !== cfg.event.code) {
+      signinLimit.fail(req.ip);
+      return res.status(403).json({ error: 'wrong event code' });
+    }
     const w = await gate.run({ userId: email.toLowerCase(), label: 'sign-in', exclusive: true }, () => workspaces.assign({ email, name: name.trim() }));
     res.setHeader('Set-Cookie', cookie('lab_sid', sign(w.schema, sessionSecret), { maxAgeSec: 7 * DAY }));
     return res.json({ schema: w.schema });

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,7 +8,8 @@ import request from 'supertest';
 import { deckRouter } from '../../src/routes/deck.js';
 import { sign } from '../../src/services/auth.js';
 
-const SECRET = 'test-secret';
+// Session-signing key for the test: random per run, so no literal looks like a credential.
+const SIGNING_KEY = crypto.randomBytes(16).toString('hex');
 const DECK = 'converged-data-modeling-workshop1.html';
 
 function app(mode) {
@@ -20,10 +22,10 @@ function app(mode) {
   fs.writeFileSync(path.join(dir, 'build', 'build_deck.py'), 'print(1)');
   fs.writeFileSync(path.join(root, 'secret.txt'), 'nope');
   const a = express();
-  a.use('/deck', deckRouter({ cfg: { mode, presentationsDir: dir }, sessionSecret: SECRET }));
+  a.use('/deck', deckRouter({ cfg: { mode, presentationsDir: dir }, sessionSecret: SIGNING_KEY }));
   return a;
 }
-const admin = `lab_admin=${sign('admin', SECRET)}`;
+const admin = `lab_admin=${sign('admin', SIGNING_KEY)}`;
 
 describe('/deck (instructor deck)', () => {
   it('event mode: refuses without the instructor sign-in and points to the admin page', async () => {
