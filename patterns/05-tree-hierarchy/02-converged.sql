@@ -81,6 +81,13 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
 -- @why Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
 -- @look Each component with its qty and depth, indented under its parent.
 -- @figure erd.svg Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
+-- @mongo   FROM   tr_bom_edges
+-- @mongo   START WITH parent_id = 'P-1000'
+-- @mongo   CONNECT BY PRIOR child_id = parent_id
+-- @mongo   ORDER SIBLINGS BY child_id
+-- @mongo ` }])
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'
@@ -93,6 +100,13 @@ ORDER SIBLINGS BY child_id;
 -- @note Multi-parent, N-hop, upward traversal: a downward prefix string simply cannot express this.
 -- @why Diversity: where-used runs upward across shared parts, which a downward path cannot express. A SQL/PGQ graph over the same two tables answers it with no second structure to maintain.
 -- @look P-1300, the trailer that shares the wheel, appears alongside the bicycle's assemblies.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT assembly
+-- @mongo   FROM   GRAPH_TABLE (tr_bom_graph
+-- @mongo            MATCH (a IS part)-[IS contains]->{1,4}(p IS part)
+-- @mongo            WHERE p.part_id = 'P-1110'
+-- @mongo            COLUMNS (a.part_id AS assembly))
+-- @mongo ` }])
 SELECT assembly
 FROM   GRAPH_TABLE (tr_bom_graph
          MATCH (a IS part)-[IS contains]->{1,4}(p IS part)
@@ -107,6 +121,10 @@ FROM   GRAPH_TABLE (tr_bom_graph
 -- @why Update locality collapses: position is derived from the edges, so the move is one edge row however many parts hang beneath it.
 -- @look Rows affected is 1; Measure it shows redo near 1 KB for a subtree of any size.
 -- @measure reparent
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   UPDATE tr_bom_edges SET parent_id = 'P-1200'
+-- @mongo   WHERE  parent_id = 'P-1000' AND child_id = 'P-1100'
+-- @mongo ` }])
 UPDATE tr_bom_edges SET parent_id = 'P-1200'
 WHERE  parent_id = 'P-1000' AND child_id = 'P-1100';
 COMMIT;
@@ -117,6 +135,13 @@ COMMIT;
 -- @note The wheelset (and everything under it) now hangs off the frame, from that single edge change.
 -- @why Update locality, resolved: the next explosion walks the edges as they are now, so the whole subtree moved with that one row.
 -- @look P-1100 and its children now appear under P-1200.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, LEVEL AS depth
+-- @mongo   FROM   tr_bom_edges
+-- @mongo   START WITH parent_id = 'P-1000'
+-- @mongo   CONNECT BY PRIOR child_id = parent_id
+-- @mongo   ORDER SIBLINGS BY child_id
+-- @mongo ` }])
 SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, LEVEL AS depth
 FROM   tr_bom_edges
 START WITH parent_id = 'P-1000'

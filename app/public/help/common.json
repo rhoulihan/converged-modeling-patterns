@@ -1,6 +1,6 @@
 {
   "copy": { "what": "Copies the statement to your clipboard.", "why": "Paste it into your own tools or the console below and change it. The lab data is yours to modify." },
-  "load": { "what": "Opens the statement in the console at the bottom of the page.", "why": "Edit it before running: change a value, add a predicate, compare plans.", "look": "The console slides up; Ctrl/⌘+Enter runs it." },
+  "load": { "what": "Opens the statement in the console at the bottom of the page, and puts the same step in the other language in the other tab: the MongoDB API version of a SQL card, or the SQL version of a MongoDB card.", "why": "Compare the two access surfaces side by side, then edit either one before running: change a value, add a predicate, compare plans. Where a step has no native MongoDB form, the MongoDB tab runs the same SQL through Oracle's $sql stage.", "look": "The console slides up on the card's own tab; switch tabs to see the equivalent. Ctrl/⌘+Enter runs the tab you're on." },
   "run": { "what": "Runs the statement in your workspace and shows the result under the card.", "why": "Every run goes through a shared queue so one attendee cannot starve the others; a run has a 10 s budget by default.", "look": "Elapsed time and rows under the result; 'served from cache' means this exact card already ran (by you or a classmate)." },
   "reset": { "what": "Rebuilds this pattern's tables in your workspace to the starting data.", "why": "Use it after you've changed data and want the card results (and Measure it) to match the lab again." }
 }

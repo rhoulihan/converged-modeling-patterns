@@ -2,7 +2,9 @@ import * as acorn from 'acorn';
 import { parseMongoCommand } from './mongoCommand.js';
 import { addHelp } from './sqlParser.js';
 
-const ANNOT = /^\s*@(step|note|why|look|figure)\b\s*(.*)$/i;
+const ANNOT = /^\s*@(step|note|why|look|figure|sql)\b\s*(.*)$/i;
+// // @sql lines carry the card's SQL equivalent; indentation after "@sql " is kept.
+const SQL = /^\s*@sql\b ?(.*)$/i;
 
 export function parseMongoScript(text, file = 'script') {
   const comments = [];
@@ -42,6 +44,7 @@ export function parseMongoScript(text, file = 'script') {
       title: stepAnno.m[2].trim(),
       notes: mine.filter((x) => x.m[1].toLowerCase() === 'note').map((x) => x.m[2].trim()),
       help,
+      sql: mine.filter((x) => x.m[1].toLowerCase() === 'sql').map((x) => x.c.value.match(SQL)[1].trimEnd()).join('\n') || null,
       command,
       line: st.loc.start.line,
     });

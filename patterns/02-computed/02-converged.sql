@@ -103,6 +103,9 @@ COMMIT;
 -- @look Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
 -- @figure erd.svg Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
 -- @measure record-cdr
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',120,12,0.36)
+-- @mongo ` }])
 INSERT INTO cp_cdr (subscriber_id, mb, minutes, cost) VALUES ('S-001',120,12,0.36);
 COMMIT;
 
@@ -111,6 +114,9 @@ COMMIT;
 -- @note Staleness = 0: the trigger kept this current in the same transaction as the CDR insert.
 -- @why Read/write: the balance check still reads a precomputed rollup, now from a narrow summary row the trigger keeps current in the CDR's own transaction.
 -- @look total_mb and cost come from one primary-key lookup on cp_subscriber_usage, with no aggregation over cp_cdr.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_id = 'S-001'
+-- @mongo ` }])
 SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_id = 'S-001';
 
 -- Hot Top-N: an index range scan on cp_ix_usage_topn + FETCH FIRST N.
@@ -120,6 +126,12 @@ SELECT subscriber_id, total_mb, cost FROM cp_subscriber_usage WHERE subscriber_i
 -- @note Field result for this change (anonymized): the dashboard's hot Top-N went from 60 s to 500 ms.
 -- @why Diversity: the ops dashboard gets its own access path, a descending index on total_mb, so Top-N stops after 5 index entries instead of sorting every subscriber.
 -- @look Up to 5 rows in total_mb order, the same ranking as the document model's sort, read from the head of the index.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT subscriber_id, total_mb, cost
+-- @mongo   FROM   cp_subscriber_usage
+-- @mongo   ORDER  BY total_mb DESC
+-- @mongo   FETCH  FIRST 5 ROWS ONLY
+-- @mongo ` }])
 SELECT subscriber_id, total_mb, cost
 FROM   cp_subscriber_usage
 ORDER  BY total_mb DESC
@@ -142,5 +154,6 @@ SELECT JSON {
 -- @note The duality view includes the live rollup: no separate document to maintain for the API shape.
 -- @why Diversity without a second copy: the duality view projects the subscriber document with cycleUsage inline and read-only, joined by primary key on each read.
 -- @look subscriber_document shows cycleUsage with the same totals as the account-page read.
+-- @mongo db.cp_subscriber_dv.find({ _id: "S-001" })
 SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document
 FROM   cp_subscriber_dv WHERE JSON_VALUE(data,'$._id') = 'S-001';

@@ -254,7 +254,10 @@ read, copied, edited and run from there, against the same 26ai container `run.sh
 - one page per pattern: the problem, the three knob settings, and query cards for the
   document model, the converged model and (where it exists) the MongoDB API;
 - **Copy**, **Load into console**, **Run** on every card, plus a console pane with its
-  own **SQL** and **MongoDB** tabs for ad hoc statements;
+  own **SQL** and **MongoDB** tabs for ad hoc statements. **Load into console** fills both
+  tabs: the card in its own tab and the same step in the other language in the other
+  (native MongoDB operations on the JSON collections and duality views; otherwise the same
+  SQL through Oracle's `$sql` stage);
 - **Measure it** runs the document-model write and its converged counterpart back to
   back in one exclusive slot. Each side runs once unmeasured as a warm-up (parse and
   first-touch effects stay out of the numbers), then once measured: it reads the

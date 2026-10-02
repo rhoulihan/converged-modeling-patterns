@@ -50,6 +50,10 @@ COMMIT;
 -- @why Read/write is why teams embed: at 50 million client-360 reads a day against about 300 advisor edits, a read with no lookup is the right thing to optimize.
 -- @look Every client row returns its own advisor_office, and the statement touches one table.
 -- @figure doc-shape.svg The client document as built: the advisor card copied into every client and account
+-- @mongo db.xr_client_doc.find(
+-- @mongo   {},
+-- @mongo   { _id: 0, fullName: 1, "advisor.office": 1 }
+-- @mongo )
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_doc;
@@ -67,6 +71,10 @@ FROM   xr_client_doc;
 -- @why Update locality is the hot knob: the advisor exists only as copies, so one office change is a read-modify-write of every document that embeds A-001. At 2,700 embedding documents per advisor, that is 2,700 rewrites per edit.
 -- @look Rows affected is 2 here, one per embedded copy; Measure it shows the redo those copies cost.
 -- @measure advisor-move
+-- @mongo db.xr_client_doc.updateMany(
+-- @mongo   { "advisor.advisorId": "A-001" },
+-- @mongo   { $set: { "advisor.office": "NYC-09", "advisor.desk": "+1-212-555-0999" } }
+-- @mongo )
 UPDATE xr_client_doc c
 SET    data = JSON_TRANSFORM(data,
                 SET '$.advisor.office' = 'NYC-09',
@@ -80,6 +88,10 @@ COMMIT;
 -- @note Count of client docs now showing the new office: one logical change touched every embedded copy.
 -- @why Update locality again: the count is how far one logical change had to travel. At 2,700 copies per advisor that fan-out is a job, not one transaction, and until it finishes the portal and the copilot can read different offices.
 -- @look The write_amplification line reports 2 client docs, the number that becomes 2,700 at production scale.
+-- @mongo db.xr_client_doc.aggregate([
+-- @mongo   { $match: { "advisor.office": "NYC-09" } },
+-- @mongo   { $count: "clientDocs" }
+-- @mongo ])
 SELECT 'document model: advisor change fanned out to ' ||
        COUNT(*) || ' client docs' AS write_amplification
 FROM   xr_client_doc

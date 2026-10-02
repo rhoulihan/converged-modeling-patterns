@@ -58,8 +58,10 @@ export class Console {
     this.editors[lane].focus();
   }
 
-  load(lane, text) {
+  // Loads a card into its lane's editor and, when given, its equivalent into the other lane's.
+  load(lane, text, equivalent = null) {
     this.dock?.open('load');
+    if (equivalent) this.editors[lane === 'sql' ? 'mongo' : 'sql'].set(equivalent);
     this.show(lane);
     this.editors[lane].set(text);
     this.editors[lane].focus();

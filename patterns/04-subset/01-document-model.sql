@@ -48,6 +48,12 @@ COMMIT;
 -- @look Rows affected is 1; Measure it shows the redo of rewriting the policy next to one claim insert.
 -- @figure doc-shape.svg The policy document as built: recent claim events inline, every event also written to a history collection
 -- @measure claim-event
+-- @mongo db.sb_policy_doc.updateOne(
+-- @mongo   { _id: "P-001" },
+-- @mongo   [ { $set: { recentClaims: { $slice: [
+-- @mongo       { $concatArrays: [ "$recentClaims", [ { claimId: "CL-1004", amount: 4200 } ] ] },
+-- @mongo       -3 ] } } } ]
+-- @mongo )
 UPDATE sb_policy_doc
 SET data = JSON_TRANSFORM(data,
              APPEND '$.recentClaims' = JSON_OBJECT('claimId' VALUE 'CL-1004', 'amount' VALUE 4200),
@@ -58,6 +64,9 @@ WHERE JSON_VALUE(data,'$._id') = 'P-001';
 -- @note The second write for the same claim: the history collection must be kept in step with the inline subset by hand.
 -- @why Update locality again: the same fact lands in a second place, and if this write fails after the first, the summary and the history disagree.
 -- @look Rows affected is 1, the second write for a single claim.
+-- @mongo db.sb_claim_history.insertOne(
+-- @mongo   { _id: "CL-1004", policyId: "P-001", amount: 4200 }
+-- @mongo )
 INSERT INTO sb_claim_history VALUES (JSON('{"_id":"CL-1004","policyId":"P-001","amount":4200}'));
 COMMIT;
 
@@ -66,6 +75,10 @@ COMMIT;
 -- @note recentClaims now shows CL-1004 in, CL-1001 trimmed out: two writes paid so this read is one document fetch.
 -- @why Read/write is the subset's case: at about 67 summary reads per claim event, the policy page reads one document with the list already built.
 -- @look recent_claims_inline holds 3 claims, the list every event paid to keep sorted and trimmed.
+-- @mongo db.sb_policy_doc.find(
+-- @mongo   { _id: "P-001" },
+-- @mongo   { _id: 1, recentClaims: 1 }
+-- @mongo )
 SELECT JSON_VALUE(data,'$._id') AS policy,
        JSON_QUERY(data,'$.recentClaims') AS recent_claims_inline
 FROM   sb_policy_doc WHERE JSON_VALUE(data,'$._id') = 'P-001';

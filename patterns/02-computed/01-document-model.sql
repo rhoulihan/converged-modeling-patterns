@@ -77,6 +77,11 @@ COMMIT;
 -- @look Rows affected is 1, but Measure it shows how many bytes that one row cost.
 -- @figure doc-shape.svg The subscriber document as built: a running cycle-usage rollup that every CDR rewrites
 -- @measure record-cdr
+-- @mongo db.cp_subscriber_doc.updateOne(
+-- @mongo   { _id: "S-001" },
+-- @mongo   { $push: { usage: { cdrId: 1001, ts: "2026-09-29T18:00:00", mb: 120, min: 12, cost: 0.36 } },
+-- @mongo     $inc:  { "cycleUsage.totalMB": 120, "cycleUsage.totalMin": 12, "cycleUsage.cost": 0.36 } }
+-- @mongo )
 UPDATE cp_subscriber_doc
 SET data = JSON_TRANSFORM(data,
              APPEND '$.usage' = JSON_OBJECT('cdrId' VALUE 1001, 'ts' VALUE TIMESTAMP '2026-09-29 18:00:00',
@@ -93,6 +98,10 @@ COMMIT;
 -- @note One document, one lookup: the CDR's cost already landed on the write. Shows the line-item count, not the usage[] array itself.
 -- @why Read/write is where the pattern earns its keep: 30 balance checks a subscriber a day read a precomputed rollup from one document.
 -- @look mb_this_cycle comes straight off the document, and cdrs_in_document shows the 1,000-plus line items riding along with it.
+-- @mongo db.cp_subscriber_doc.aggregate([
+-- @mongo   { $match: { _id: "S-001" } },
+-- @mongo   { $project: { mb_this_cycle: "$cycleUsage.totalMB", cdrs_in_document: { $size: "$usage" } } }
+-- @mongo ])
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle,
        JSON_VALUE(data,'$.usage.size()' RETURNING NUMBER) AS cdrs_in_document
@@ -104,6 +113,10 @@ WHERE  JSON_VALUE(data,'$._id') = 'S-001';
 -- @note No rollup to lean on across subscribers: SUM/SORT/LIMIT the whole collection, every load.
 -- @why Diversity bites here: the ops dashboard ranks usage across subscribers, and a rollup inside each document gives it nothing to seek on, so every load sorts the whole collection.
 -- @look Up to 5 subscribers ranked by mb_this_cycle, produced by sorting every document in the collection.
+-- @mongo db.cp_subscriber_doc.find(
+-- @mongo   {},
+-- @mongo   { _id: 1, "cycleUsage.totalMB": 1 }
+-- @mongo ).sort({ "cycleUsage.totalMB": -1 }).limit(5)
 SELECT JSON_VALUE(data,'$._id') AS subscriber,
        JSON_VALUE(data,'$.cycleUsage.totalMB' RETURNING NUMBER) AS mb_this_cycle
 FROM   cp_subscriber_doc

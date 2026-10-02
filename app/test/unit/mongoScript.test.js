@@ -4,6 +4,15 @@ import path from 'node:path';
 import { parseMongoScript } from '../../src/content/mongoScript.js';
 
 describe('parseMongoScript', () => {
+  it('collects // @sql lines into the step\'s SQL equivalent, keeping indentation', () => {
+    const [st] = parseMongoScript([
+      '// @step Read it',
+      '// @sql SELECT a',
+      '// @sql   FROM t',
+      'db.t.find({})',
+    ].join('\n'));
+    expect(st.sql).toBe('SELECT a\n  FROM t');
+  });
   it('binds @step/@note to the next top-level db.* statement', () => {
     const steps = parseMongoScript([
       'function canon(x) { return x; }',
@@ -20,8 +29,8 @@ describe('parseMongoScript', () => {
     ].join('\n'));
     const noHelp = { why: null, look: null, figure: null };
     expect(steps).toEqual([
-      { title: 'Read the projected document', notes: ['Same view, over the MongoDB API'], help: noHelp, command: 'db.xr_client_dv.findOne({_id: "C-001"})', line: 4 },
-      { title: 'Hourly rollup with $sql', notes: [], help: noHelp, command: 'db.aggregate([{ $sql: `select 1 from dual` }])', line: 7 },
+      { title: 'Read the projected document', notes: ['Same view, over the MongoDB API'], help: noHelp, sql: null, command: 'db.xr_client_dv.findOne({_id: "C-001"})', line: 4 },
+      { title: 'Hourly rollup with $sql', notes: [], help: noHelp, sql: null, command: 'db.aggregate([{ $sql: `select 1 from dual` }])', line: 7 },
     ]);
   });
   it('rejects @step on a statement that is not a db command', () => {

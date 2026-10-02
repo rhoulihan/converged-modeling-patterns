@@ -59,6 +59,10 @@ COMMIT;
 -- @look Rows affected is 1; Measure it shows the redo of rewriting the whole book next to one client row.
 -- @figure doc-shape.svg The advisor document as built: the client book embedded as an array, with a hasExtras flag for books that overflow
 -- @measure add-client
+-- @mongo db.ol_advisor_doc.updateOne(
+-- @mongo   { _id: "A-900" },
+-- @mongo   { $push: { clients: { clientId: "C-900801", aum: 1000000 } } }
+-- @mongo )
 UPDATE ol_advisor_doc
 SET    data = JSON_TRANSFORM(data, APPEND '$.clients' = JSON_OBJECT('clientId' VALUE 'C-900801', 'aum' VALUE 1000000))
 WHERE  JSON_VALUE(data,'$._id') = 'A-900';
@@ -71,6 +75,11 @@ COMMIT;
 -- @note Spilling to overflow is itself cheap: the outlier pattern costs you the growth rewrite of the document before the spill, plus a branch in every reader.
 -- @why Update locality: the spill write itself is small. What the pattern costs is the growth rewrite before it and the branch every reader gains after it.
 -- @look Rows affected is 1, a new overflow document holding 2 clients.
+-- @mongo db.ol_advisor_overflow.insertOne({
+-- @mongo   _id: "A-900#part-2", advisorId: "A-900",
+-- @mongo   clients: [ { clientId: "C-900802", aum: 990000 },
+-- @mongo              { clientId: "C-900803", aum: 980000 } ]
+-- @mongo })
 INSERT INTO ol_advisor_overflow VALUES (JSON('{"_id":"A-900#part-2","advisorId":"A-900",
   "clients":[{"clientId":"C-900802","aum":990000},
              {"clientId":"C-900803","aum":980000}]}'));
@@ -80,6 +89,10 @@ COMMIT;
 -- @note From here on, every reader has to check this flag and go fetch the overflow.
 -- @why Diversity is low, yet every consumer of the book still has to learn this flag: the portal, the batch and the AI assistant's context builder.
 -- @look Rows affected is 1, and has_extras on the whale read now shows true.
+-- @mongo db.ol_advisor_doc.updateOne(
+-- @mongo   { _id: "A-900" },
+-- @mongo   { $set: { hasExtras: true } }
+-- @mongo )
 UPDATE ol_advisor_doc
 SET    data = JSON_TRANSFORM(data, SET '$.hasExtras' = TRUE)
 WHERE  JSON_VALUE(data,'$._id') = 'A-900';
@@ -90,6 +103,10 @@ COMMIT;
 -- @note The ordinary case: one document, done. No branch needed.
 -- @why Read/write is the pattern's case: for the 180-client median, one document read is about 3× cheaper than a query in the deck's model.
 -- @look has_extras is false and clients_inline holds A-001's whole book.
+-- @mongo db.ol_advisor_doc.find(
+-- @mongo   { _id: "A-001" },
+-- @mongo   { _id: 1, hasExtras: 1, clients: 1 }
+-- @mongo )
 SELECT JSON_VALUE(data,'$._id') AS advisor,
        JSON_VALUE(data,'$.hasExtras') AS has_extras,
        JSON_QUERY(data,'$.clients' RETURNING CLOB) AS clients_inline
@@ -102,6 +119,17 @@ FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- @note Every reader must notice hasExtras and go stitch the overflow back in: the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
 -- @why Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
 -- @look clients_embedded is 801 and clients_in_overflow is 2 if you ran the two cards above (800 and 0 on fresh data): one advisor, read from two collections and stitched together.
+-- @mongo db.ol_advisor_doc.aggregate([
+-- @mongo   { $match: { _id: "A-900" } },
+-- @mongo   { $lookup: { from: "ol_advisor_overflow", localField: "_id",
+-- @mongo                foreignField: "advisorId", as: "overflow" } },
+-- @mongo   { $unwind: { path: "$overflow", preserveNullAndEmptyArrays: true } },
+-- @mongo   { $project: { _id: 1, hasExtras: 1,
+-- @mongo                 clientsEmbedded: { $size: "$clients" },
+-- @mongo                 clientsEmbeddedFirst5: { $slice: [ "$clients", 5 ] },
+-- @mongo                 clientsInOverflow: { $size: { $ifNull: [ "$overflow.clients", [] ] } },
+-- @mongo                 clientsOverflow: "$overflow.clients" } }
+-- @mongo ])
 SELECT JSON_VALUE(d.data,'$._id')  AS advisor,
        JSON_VALUE(d.data,'$.hasExtras') AS has_extras,
        JSON_VALUE(d.data,'$.clients.size()' RETURNING NUMBER) AS clients_embedded,

@@ -25,10 +25,32 @@ function fixture(files) {
   return root;
 }
 
-const DOC = 'CREATE TABLE d (a NUMBER);\n-- @step Read\nSELECT a FROM d;\n-- @measure m\nUPDATE d SET a = 1;\n';
-const CONV = 'CREATE TABLE c (a NUMBER);\n-- @step Read\nSELECT a FROM c;\n-- @measure m\nUPDATE c SET a = 1;\n';
+const DOC = 'CREATE TABLE d (a NUMBER);\n-- @step Read\n-- @mongo db.d.find({})\nSELECT a FROM d;\n-- @measure m\nUPDATE d SET a = 1;\n';
+const CONV = 'CREATE TABLE c (a NUMBER);\n-- @step Read\n-- @mongo db.aggregate([{ $sql: \'SELECT a FROM c\' }])\nSELECT a FROM c;\n-- @measure m\nUPDATE c SET a = 1;\n';
 
 describe('loadPatterns (fixtures)', () => {
+  it('carries each card\'s equivalent in the other language', () => {
+    const [p] = loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV,
+      '03-demo.js': '// @step Read\n// @sql SELECT a FROM d\ndb.d.find({})\n' }));
+    expect(p.lanes.document[0].mongo).toBe('db.d.find({})');
+    expect(p.lanes.converged[0].mongo).toContain('$sql');
+    expect(p.lanes.mongo[0].sql).toBe('SELECT a FROM d');
+  });
+  it('rejects a SQL card without a MongoDB equivalent', () => {
+    const doc = DOC.replace('-- @mongo db.d.find({})\n', '');
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': doc, '02-converged.sql': CONV })))
+      .toThrow(/"Read" needs a -- @mongo equivalent/);
+  });
+  it('rejects a MongoDB equivalent the console cannot parse', () => {
+    const doc = DOC.replace('db.d.find({})', 'db.d.explode({})');
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': doc, '02-converged.sql': CONV })))
+      .toThrow(/"Read".*@mongo/);
+  });
+  it('rejects a MongoDB card without a SQL equivalent', () => {
+    expect(() => loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV,
+      '03-demo.js': '// @step Read\ndb.d.find({})\n' }))).toThrow(/"Read" needs a \/\/ @sql equivalent/);
+  });
+
   it('builds cards, setup, measure pairs and a version', () => {
     const [p] = loadPatterns(fixture({ 'README.md': FM, '01-document-model.sql': DOC, '02-converged.sql': CONV }));
     expect(p.id).toBe('09-demo');

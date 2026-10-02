@@ -28,6 +28,9 @@ if (!viaSql) { print("[FAIL] SQL_RESULT not provided by run.sh"); quit(1); }
 // @why Diversity without copies: the self-care app keeps find() over the MongoDB API while charging reads the same rows as SQL/JSON, so there is one rollup and no document to keep in step.
 // @look cycleUsage.totalMB in the returned document matches the SQL projection.
 // @figure flow.svg Append-only CDRs maintain a usage row by trigger; one duality view serves the app over the MongoDB API and charging over SQL/JSON
+// @sql SELECT JSON_SERIALIZE(data PRETTY) AS subscriber_document
+// @sql FROM   cp_subscriber_dv
+// @sql WHERE  JSON_VALUE(data,'$._id') = 'S-001';
 const viaMongo = db.cp_subscriber_dv.findOne({ _id: "S-001" });
 if (!viaMongo) { print("[FAIL] MongoDB API returned no document for S-001"); quit(1); }
 

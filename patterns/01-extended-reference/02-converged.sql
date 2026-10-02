@@ -75,6 +75,10 @@ SELECT JSON {
 -- @why Diversity is served without copies: the duality view assembles the advisor block through the foreign key on every read. That primary-key join is real read work, about 15% more per read in the deck's model.
 -- @look The same client and advisor_office columns as the document model's read, now from xr_client_dv.
 -- @figure erd.svg Advisor, client, account and trade in canonical form, each fact once, beside the fan-out one advisor change causes in the embedded model
+-- @mongo db.xr_client_dv.find(
+-- @mongo   {},
+-- @mongo   { _id: 0, fullName: 1, "advisor.office": 1 }
+-- @mongo )
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_dv;
@@ -90,6 +94,10 @@ FROM   xr_client_dv;
 -- @why Update locality collapses: the advisor is one row, so an office change is one small row write however many clients project it.
 -- @look Rows affected is 1; compare its redo with the document model's in Measure it.
 -- @measure advisor-move
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   UPDATE xr_advisors SET office = 'NYC-09', desk = '+1-212-555-0999'
+-- @mongo   WHERE  advisor_id = 'A-001'
+-- @mongo ` }])
 UPDATE xr_advisors SET office = 'NYC-09', desk = '+1-212-555-0999'
 WHERE  advisor_id = 'A-001';
 COMMIT;
@@ -98,6 +106,10 @@ COMMIT;
 -- @note Both C-001 and C-002 now read NYC-09: from one write to one row.
 -- @why Update locality, resolved: both clients project the advisor row live, so they changed at the same commit with nothing to reconcile.
 -- @look C-001 and C-002 both show NYC-09 in advisor_office_now.
+-- @mongo db.xr_client_dv.find(
+-- @mongo   {},
+-- @mongo   { _id: 1, "advisor.office": 1 }
+-- @mongo ).sort({ _id: 1 })
 SELECT JSON_VALUE(data, '$._id') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office_now
 FROM   xr_client_dv

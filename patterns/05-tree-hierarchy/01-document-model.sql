@@ -44,6 +44,10 @@ COMMIT;
 -- @why Read/write is the path's case: two million explosions a day each become one left-anchored prefix scan, the cheapest hierarchy read there is.
 -- @look Wheelset, wheel and spoke come back in path order from one LIKE prefix predicate.
 -- @figure doc-shape.svg One part document as built: a materialized path encodes its position
+-- @mongo db.tr_bom_doc.find(
+-- @mongo   { path: /^\/P-1000\/P-1100/ },
+-- @mongo   { _id: 1, name: 1 }
+-- @mongo ).sort({ path: 1 })
 SELECT JSON_VALUE(data,'$._id') AS part, JSON_VALUE(data,'$.name') AS name
 FROM   tr_bom_doc
 WHERE  JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1100%'
@@ -59,6 +63,13 @@ ORDER  BY JSON_VALUE(data,'$.path');
 -- @why Update locality is the hot knob: the path stores position, so one move is a read-modify-write of every part document beneath the moved node. A 40,000-part module move is 40,000 rewrites.
 -- @look Rows affected is 3, one per part in the wheelset's subtree; Measure it shows the redo those rewrites cost.
 -- @measure reparent
+-- @mongo db.tr_bom_doc.updateMany(
+-- @mongo   { path: /^\/P-1000\/P-1100/ },
+-- @mongo   [{ $set: { path: { $concat: [
+-- @mongo     "/P-1000/P-1200",
+-- @mongo     { $substrCP: ["$path", 7, { $strLenCP: "$path" }] }
+-- @mongo   ] } } }]
+-- @mongo )
 UPDATE tr_bom_doc
 SET data = JSON_TRANSFORM(data,
              SET '$.path' = REPLACE(JSON_VALUE(data,'$.path'),
@@ -70,6 +81,10 @@ COMMIT;
 -- @note Count of docs now carrying the new path prefix: one logical move, one rewrite per descendant.
 -- @why Update locality again: the count is how many documents one engineering change touched. At production scale those rewrites run as a batch, not one atomic change.
 -- @look The write_amplification line reports 3 descendant docs rewritten.
+-- @mongo db.tr_bom_doc.aggregate([
+-- @mongo   { $match: { path: /^\/P-1000\/P-1200\/P-1100/ } },
+-- @mongo   { $count: "descendant_docs_rewritten" }
+-- @mongo ])
 SELECT 'reparent rewrote ' || COUNT(*) || ' descendant docs' AS write_amplification
 FROM   tr_bom_doc
 WHERE  JSON_VALUE(data,'$.path') LIKE '/P-1000/P-1200/P-1100%';

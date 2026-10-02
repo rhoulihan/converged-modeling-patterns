@@ -49,9 +49,9 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     id: p.id,
     meta: p.meta,
     cards: {
-      document: p.lanes.document.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
-      converged: p.lanes.converged.map(({ title, notes, sql, measure, help }) => ({ title, notes, sql, measure, help })),
-      mongo: p.lanes.mongo.map(({ title, notes, command, help }) => ({ title, notes, command, help })),
+      document: p.lanes.document.map(({ title, notes, sql, mongo, measure, help }) => ({ title, notes, sql, mongo, measure, help })),
+      converged: p.lanes.converged.map(({ title, notes, sql, mongo, measure, help }) => ({ title, notes, sql, mongo, measure, help })),
+      mongo: p.lanes.mongo.map(({ title, notes, command, sql, help }) => ({ title, notes, command, sql, help })),
     },
     measures: p.measures.map((m) => ({ tag: m.tag, documentSql: m.document.sql, convergedSql: m.converged.sql,
       help: { document: m.document.help, converged: m.converged.help } })),
