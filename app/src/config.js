@@ -38,6 +38,7 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     mode,
     port: int(env, 'PORT', 3000),
     patternsDir: env.PATTERNS_DIR || path.resolve(here, '../../patterns'),
+    presentationsDir: env.PRESENTATIONS_DIR || path.resolve(here, '../../presentations'),
     db: {
       host: env.DB_HOST || 'oracle',
       port: int(env, 'DB_PORT', 1521),

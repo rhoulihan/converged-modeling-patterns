@@ -20,7 +20,9 @@ COPY --from=deps /app/src ./src
 COPY --from=deps /app/sql ./sql
 COPY --from=deps /app/public ./public
 COPY patterns /patterns
-ENV PATTERNS_DIR=/patterns PORT=3000
+# The instructor deck (HTML, images, fonts) rides along so the lab host serves it at /deck/.
+COPY presentations /presentations
+ENV PATTERNS_DIR=/patterns PRESENTATIONS_DIR=/presentations PORT=3000
 EXPOSE 3000
 USER node
 CMD ["node", "src/server.js"]
