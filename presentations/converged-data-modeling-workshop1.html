@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Model the Domain, Not the Engine</title>
+<link rel="icon" href="images/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="images/favicon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="images/favicon-192.png">
 <link rel="stylesheet" href="fonts/fonts.css"><!-- fonts bundled with the repo so the deck works offline (SIL OFL 1.1, see fonts/LICENSE-*.txt) -->
 <style>
   :root {
@@ -1489,7 +1492,7 @@ db.parts.find({ _id: <span class="s">"P-88213"</span> }, { paths: 1 })
     const keys = stepKeys(slideEl), total = keys.length;
     const at = slideIndex === cur && step > 0 ? keys[step - 1] : 0;
     return '<!DOCTYPE html>' +
-      '<html><head><meta charset="UTF-8"><title>Speaker Notes</title>' +
+      '<html><head><meta charset="UTF-8"><title>Speaker Notes</title><link rel="icon" href="' + new URL('images/favicon-32.png', location.href).href + '" type="image/png">' +
       '<style>' +
       '* { margin: 0; padding: 0; box-sizing: border-box; }' +
       'body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: #131A22; color: #C9D4DE; padding: 30px; line-height: 1.7; }' +
