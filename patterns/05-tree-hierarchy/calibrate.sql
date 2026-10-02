@@ -3,7 +3,7 @@
 DELETE FROM tr_bom_doc WHERE JSON_VALUE(data, '$._id') LIKE 'P-S%';
 INSERT INTO tr_bom_doc (data)
 SELECT JSON_OBJECT('_id' VALUE 'P-S' || LPAD(k, 6, '0'), 'name' VALUE 'Spoke ' || k,
-         'path' VALUE '/P-1000/P-1100/P-1110/P-S' || LPAD(k, 6, '0') RETURNING JSON)
+         'paths' VALUE JSON_ARRAY('/P-1000/P-1100/P-1110/P-S' || LPAD(k, 6, '0')) RETURNING JSON)
 FROM  (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= :n)
 WHERE  k <= :n - 3;
 DELETE FROM tr_bom_edges WHERE child_id LIKE 'P-S%';

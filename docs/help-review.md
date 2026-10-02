@@ -69,47 +69,51 @@ Entries missing help: **0**
 
 ### Knobs
 - **Diversity** (Medium-high: 4 consumers): The self-care app, real-time charging, the ops dashboard and the bill run all read usage, each in a different shape.
-- **Read / write** (Write-heavy on the rollup): About 30 balance reads a subscriber a day against 11 CDRs on average and 400-plus for heavy users, so on average the rollup is written once for every three reads, and for heavy users it is written more often than it is read.
-- **Update locality** (Every write, one parent): Every CDR lands on the same subscriber document: break-even is about 4.4 CDRs a subscriber a day, and a 400-a-day heavy user costs about 2.5× the work embedded.
+- **Read / write** (Write-heavy on the summary): About 30 balance reads a subscriber a day, but 28 are rate checks that need three numbers; the account page that wants the document reads about twice. Against 11 CDRs on average and 400-plus for heavy users, the summary is written far more often than the document is read.
+- **Update locality** (Every write, one parent): Every CDR's summary update rewrites the whole ~6 KB subscriber document: 12.8 KB of redo per CDR against 1.5 KB for the summary row (8.3×, measured on 26ai). With rate checks on the row, the narrow row is cheaper at every volume: about 3.2× for a light subscriber, 8.2× for a 400-a-day heavy user.
 
 ### Tabs
 **document**
-- **Why:** The starting point: keep a running cycleUsage rollup on the subscriber document so the balance check reads one document. The read is right; the cost is that every CDR rewrites the whole, growing document.
-- **Look for:** cdrs_in_document on the account page: the line items that every new CDR has to rewrite.
+- **Why:** The starting point: keep the cycleUsage summary on the subscriber document so the account page reads one document. CDRs are stored separately; the cost is that every CDR's summary update rewrites the whole subscriber document, profile and all.
+- **Look for:** subscriber_doc_bytes on the account page: the ~6 KB every summary update rewrites to change three counters.
 
 **converged**
-- **Why:** CDRs become append-only rows and a trigger keeps a narrow usage row current in the same transaction. The balance read joins that row by primary key (about 30% more read work in the deck's model); each CDR is a small insert plus a one-row counter bump.
+- **Why:** CDRs are append-only rows and a trigger keeps a narrow summary row current in the same transaction; the profile stays in cp_subscribers, untouched by CDRs. Rate checks read the summary row directly; only the account page joins it through the duality view (about 30% more read work).
 - **Look for:** The CDR insert reports 1 row affected, and the account page reads total_mb from one summary row.
 
 **mongo**
-- **Why:** The subscriber document the app wanted, projected over the MongoDB API with the live rollup inline and read-only.
+- **Why:** The subscriber document the app wanted, profile included, projected over the MongoDB API with the live summary inline and read-only.
 - **Look for:** cycleUsage.totalMB in the returned document matches total_mb from the SQL reads.
 
 **measure**
-- **Why:** The ratio is the document model's redo for one CDR divided by the converged model's. The document side rewrites every line item already in the subscriber document, so the ratio climbs as the cycle fills; the converged insert stays near 1.6 KB.
-- **Look for:** Your dot at 1,000 line items, near the 33× reference point (about 52 KB of redo against 1.6 KB).
+- **Why:** The ratio is the document model's redo for one CDR (CDR insert plus summary update) divided by the converged model's (CDR insert plus trigger-maintained summary row). The summary update rewrites the whole subscriber document, so the ratio grows with the document's size; the converged write stays near 1.5 KB.
+- **Look for:** Your dot at the lab's ~6 KB subscriber document, near the 8.3× reference point (about 12.8 KB of redo against 1.5 KB).
 
 ### document cards
 
-**Post one Call Detail Record for S-001** · measured: record-cdr
-- **Why:** Update locality is the hot knob here: every call lands on the same parent, so each CDR pays for rewriting everything already in the document.
-- **Look for:** Rows affected is 1, but Measure it shows how many bytes that one row cost.
-- **Figure:** `doc-shape.svg`: The subscriber document as built: a running cycle-usage rollup that every CDR rewrites
+**Record one CDR for S-001**
+- **Why:** The fact is immutable: a CDR's megabytes, minutes and cost never change, so storing it is a plain append.
+- **Look for:** Rows affected is 1; the next card is where the cost is.
 
-**Read the account page (rollup already there)**
-- **Why:** Read/write is where the pattern earns its keep: 30 balance checks a subscriber a day read a precomputed rollup from one document.
-- **Look for:** mb_this_cycle comes straight off the document, and cdrs_in_document shows the 1,000-plus line items riding along with it.
+**Update the summary on the subscriber document**
+- **Why:** Update locality is the hot knob: every CDR updates the summary, and the summary lives inside the subscriber's full profile, so each update pays for every byte of it.
+- **Look for:** Rows affected is 1, but Measure it shows what that one row cost against a narrow summary row.
+- **Figure:** `doc-shape.svg`: The subscriber document as built: a full profile with the cycle-usage summary that every CDR updates
+
+**Read the account page (summary already there)**
+- **Why:** Read/write: this is the read the pattern pays for, and it happens a couple of times a day; the 28 daily rate checks need only the three counters.
+- **Look for:** mb_this_cycle comes straight off the document; subscriber_doc_bytes shows the ~6 KB that every summary update rewrites.
 
 **Rank the top talkers (full scan + sort)**
-- **Why:** Diversity bites here: the ops dashboard ranks usage across subscribers, and a rollup inside each document gives it nothing to seek on, so every load sorts the whole collection.
+- **Why:** Diversity bites here: the ops dashboard ranks usage across subscribers, and a summary inside each document gives it nothing to seek on, so every load sorts the whole collection.
 - **Look for:** Up to 5 subscribers ranked by mb_this_cycle, produced by sorting every document in the collection.
 
 ### converged cards
 
-**Post one Call Detail Record for S-001** · measured: record-cdr
-- **Why:** Update locality still lands on one subscriber, but the write is a small CDR insert plus a one-row counter bump, not a rewrite of every prior CDR. Both models serialize per subscriber; here each serialized write is about 1.5 KB instead of the whole document.
-- **Look for:** Rows affected is 1; Measure it shows redo that stays near 1.6 KB however many CDRs the cycle holds.
-- **Figure:** `erd.svg`: Subscriber, CDR and usage summary in canonical form, beside the embedded rollup that concentrates every CDR on one document
+**Record one CDR for S-001 (the trigger bumps the summary row)** · measured: record-cdr
+- **Why:** Update locality still lands on one subscriber, but the summary is a narrow row: three counters change and three counters are written, not the whole subscriber profile.
+- **Look for:** Rows affected is 1; Measure it shows redo near 1.8 KB however large the subscriber's profile is.
+- **Figure:** `erd.svg`: Subscriber, CDR and usage summary in canonical form, beside the subscriber document whose whole profile every summary update rewrites
 
 **Read the account page (rollup already there)**
 - **Why:** Read/write: the balance check still reads a precomputed rollup, now from a narrow summary row the trigger keeps current in the CDR's own transaction.
@@ -135,7 +139,7 @@ Entries missing help: **0**
 ### Knobs
 - **Diversity** (Medium: 4 read shapes): The live dashboard, the 8-hour shift rollup, the 7-day anomaly scan and ML feature pulls all read the same readings, each in a different shape.
 - **Read / write** (Write-heavy): About 34,000 readings a second, three billion a day, against a dashboard that re-reads each sensor-hour about 360 times.
-- **Update locality** (Every write, same document): Every reading lands on the same growing bucket: break-even is about 900 readings a bucket, a one-a-second sensor already costs about 2.7× the rows, and a ten-a-second spindle about 22×.
+- **Update locality** (Every write, same document): Every reading lands on the same growing bucket: break-even is about 900 readings a bucket, a one-a-second sensor already costs about 2.7× the rows, and a ten-a-second spindle about 22×, marching at the 16 MB cap. Against a running summary row, measured on 26ai, the converged write is cheaper at every bucket size, even 3 readings.
 
 ### Tabs
 **document**
@@ -143,16 +147,16 @@ Entries missing help: **0**
 - **Look for:** The bucket read's n and max_temp come off counters that every write maintains.
 
 **converged**
-- **Why:** Readings are small append-only rows in an hourly INTERVAL-partitioned table, and the rollup is a GROUP BY that prunes to the hours asked for. The last-hour dashboard now scans rows instead of fetching one document, about twice the read bytes in the deck's model.
-- **Look for:** The insert reports 3 rows affected, and the GROUP BY returns n, average and max per machine and hour.
+- **Why:** Readings are small append-only rows in an hourly INTERVAL-partitioned table, and a trigger keeps a running summary row per machine and hour (count, sum, max) in each reading's own transaction. The dashboard reads one row; GROUP BY stays available for anything the summary doesn't answer.
+- **Look for:** The insert reports 3 rows affected; the summary-row read and the GROUP BY return the same n, average and max per machine and hour.
 
 **mongo**
-- **Why:** The anomaly team keeps db.aggregate() over the MongoDB API and runs the rollup as one $sql stage over the same partitioned rows, planned by the optimizer.
+- **Why:** The anomaly team keeps db.aggregate() through the MongoDB API and runs the rollup as one $sql stage (Oracle's addition to the aggregation pipeline: a full SQL statement as one stage) over the same partitioned rows, planned by the optimizer.
 - **Look for:** One rollup document per machine and hour, with n, avg and max matching the SQL GROUP BY.
 
 **measure**
-- **Why:** The ratio is the bucket's redo for 3 appends divided by the redo for 3 row inserts. Each append rewrites the bucket as it stands, so the ratio grows with the readings in it; the inserts cost the same whether the hour holds 3 readings or 3,600.
-- **Look for:** Your dot at 3 readings, near 5×, on a reference line that reaches about 470× at 3,600 readings (one a second for an hour).
+- **Why:** The ratio is the bucket's redo for 3 appends divided by the redo for 3 row inserts plus their summary-row bumps. Each append rewrites the bucket as it stands, so the ratio grows with the readings in it; the inserts and bumps cost the same whether the hour holds 3 readings or 3,600.
+- **Look for:** Your dot at 33 readings (the lab bucket holds the hour's first 30, then the measured 3), near 3.9×. The reference line reaches about 166× at 3,600 readings (one a second for an hour).
 
 ### document cards
 
@@ -169,12 +173,16 @@ Entries missing help: **0**
 
 **Insert the three readings** · measured: ingest-reading
 - **Why:** Update locality stops compounding: each reading is its own small row in the hour's partition, so an insert costs the same at reading 3 or reading 36,000. There is no document to grow and no 16 MB cap to reach.
-- **Look for:** Rows affected is 3; Measure it shows redo that stays near 1 KB at any bucket size.
+- **Look for:** Rows affected is 3; Measure it shows about 2.8 KB of redo for the three inserts and their summary bumps, flat at any bucket size.
 - **Figure:** `erd.svg`: Plant, machine and append-only readings with a derived hourly rollup, beside one hot sensor-hour packed into a single bucket
 
 **Roll up the hour with GROUP BY**
 - **Why:** Read/write, priced honestly: the rollup is computed on read and pruned to the partitions asked for, but a range scan pays per row where the bucket was one fetch. Where reads repeat, the materialized view precomputes it.
 - **Look for:** One row per machine and hour with n, avg_val and max_val, computed from the rows rather than maintained on every write.
+
+**Read the hour from the summary row**
+- **Why:** Read/write without the bucket's bet: the trigger did the rollup incrementally as each reading landed, so the 360-a-day dashboard reads one narrow row however fast the sensor reports.
+- **Look for:** n, avg_val and max_val match the GROUP BY card exactly, read from one row per machine and hour.
 
 ### mongo cards
 
@@ -196,7 +204,7 @@ Entries missing help: **0**
 - **Look for:** recent_claims_inline holds exactly 3 claims, trimmed by hand on every write.
 
 **converged**
-- **Why:** One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; each claim is one insert.
+- **Why:** One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; what that buys is one insert per claim and nothing to keep in step.
 - **Look for:** The insert reports 1 row affected, and the recent-claims query returns the newest 3 with no stored subset.
 
 **measure**
@@ -210,7 +218,7 @@ Entries missing help: **0**
 - **Look for:** Rows affected is 1; Measure it shows the redo of rewriting the policy next to one claim insert.
 - **Figure:** `doc-shape.svg`: The policy document as built: recent claim events inline, every event also written to a history collection
 
-**Write the full claim to the overflow collection**
+**Write the full claim to the history collection**
 - **Why:** Update locality again: the same fact lands in a second place, and if this write fails after the first, the summary and the history disagree.
 - **Look for:** Rows affected is 1, the second write for a single claim.
 
@@ -236,51 +244,55 @@ Entries missing help: **0**
 ## 05-tree-hierarchy · Tree / Hierarchy
 
 ### Knobs
-- **Diversity** (High: 4 questions): Planning explodes an assembly, costing rolls it up, engineering asks where-used and quality asks recall impact: four questions over one structure, two of them upward.
-- **Read / write** (Read-heavy): About 2 million explosions a day against about 200 engineering change orders, so on this knob alone the path's prefix scan is the right read.
-- **Update locality** (Lands on every descendant): One re-parent rewrites the path of every part in the moved subtree, 10 to 40,000 parts: break-even is about 1,000 parts a move, and a 10,000-part move makes the path's day about 3× the edge model's.
+- **Diversity** (High: 4 questions): Planning explodes an assembly, costing rolls it up, engineering asks where-used and quality asks recall impact. The path answers all four: a prefix scan downward, and one part document (whose paths name every ancestor) upward.
+- **Read / write** (Read-heavy: decides it): About 2 million explosions a day against about 200 engineering change orders. Every explosion is cheaper on the path (measured on 26ai: 765 µs for a 1,092-part assembly, against 1,116 µs walking edges with CONNECT BY), so the read side of the day decides the pattern.
+- **Update locality** (Lands on every descendant): One re-parent rewrites every part in the moved subtree, one row each (about 1.7–2.5 KB of redo per part, measured). It is the cost the path pays, and at this workload the smaller bill: the edge model only catches up once a typical move passes about 88,000 parts.
 
 ### Tabs
 **document**
-- **Why:** The starting point: every part carries a materialized path, so exploding an assembly is one prefix range scan. Position is stored in every node, so moving a subassembly rewrites every descendant, and the path cannot answer where-used.
-- **Look for:** The re-parent's rows affected: one per part in the moved subtree.
+- **Why:** The answer for this workload: every part is one document carrying every path it sits on, under a multivalue index. Exploding an assembly is one prefix range scan, where-used is one document read, and a part shared by two assemblies is still one row. The cost lands on re-parenting, which rewrites every descendant.
+- **Look for:** The explosion's plan is one multivalue index range scan, and the re-parent's rows affected is one per part in the moved subtree.
 
 **converged**
-- **Why:** Structure lives in edge rows: CONNECT BY explodes an assembly, and a property graph over the same rows answers where-used. The recursive walk costs about 30% more per explosion than a prefix scan in the deck's model; a re-parent is one edge row.
-- **Look for:** The re-parent reports 1 row affected, and the re-explosion shows the wheelset under P-1200.
+- **Why:** The measured alternative: store the canonical edges and derive position by walking them. A re-parent becomes one edge row, but every explosion pays the walk (about 1.5x the path's prefix scan with CONNECT BY, 2.5x with GRAPH_TABLE), and at 2 million explosions a day that premium outweighs the path's rewrites.
+- **Look for:** The re-parent reports 1 row affected; compare the explosion steps with the path lane's single range scan.
 
 **measure**
-- **Why:** The ratio is the redo for rewriting every descendant's path divided by the redo for one edge update. It grows in step with the subtree, about 1.3 KB per moved part, while the edge update stays near 1 KB.
-- **Look for:** Your dot at 3 moved parts, near 4×, on a reference line that reaches about 4,000× at 3,000 parts.
+- **Why:** The ratio is the path's redo for one re-parent (every descendant rewritten) divided by the edge model's (one row). It grows with the subtree, about 1.7 KB per moved part, while the edge update stays under 1 KB. It is the cost the path pays 200 times a day; the deck's model sets it against the read premium the edges pay 2 million times.
+- **Look for:** Your dot at 3 moved parts, near 7×, on a reference line that reaches about 5,100× at 3,000 parts.
 
 ### document cards
 
-**Read a subtree with a prefix scan**
-- **Why:** Read/write is the path's case: two million explosions a day each become one left-anchored prefix scan, the cheapest hierarchy read there is.
-- **Look for:** Wheelset, wheel and spoke come back in path order from one LIKE prefix predicate.
-- **Figure:** `doc-shape.svg`: One part document as built: a materialized path encodes its position
+**Explode the wheelset with one prefix scan**
+- **Why:** Read/write decides this pattern: two million explosions a day each become one left-anchored prefix scan. Measured on 26ai, that is about 1.5x cheaper than walking edges with CONNECT BY and 2.5x cheaper than a GRAPH_TABLE match, on every explosion.
+- **Look for:** The wheel and the spoke come back from one starts-with predicate over the paths array.
+- **Figure:** `doc-shape.svg`: One part document as built: every path it sits on, in one array, under one multivalue index
+
+**Ask where the wheel is used**
+- **Why:** Diversity: where-used and recall impact run upward. Because the wheel is one document carrying every path it sits on, the answer is already stored: read it, and the ancestors are the path segments. No second structure, no traversal.
+- **Look for:** One row, two paths: one through the bicycle's wheelset, one through the trailer.
 
 **Re-parent the wheelset under the frame** · measured: reparent
-- **Why:** Update locality is the hot knob: the path stores position, so one move is a read-modify-write of every part document beneath the moved node. A 40,000-part module move is 40,000 rewrites.
+- **Why:** Update locality is where the path pays: position is stored, so a move rewrites every part beneath the moved node, one row each however many paths it carries. At 200 moves a day against 2 million explosions, that bill is the smaller one until a typical move passes about 80 times the size of a typical explosion. Here it is one statement in one transaction, so no explosion ever sees a half-moved subtree.
 - **Look for:** Rows affected is 3, one per part in the wheelset's subtree; Measure it shows the redo those rewrites cost.
 
-**Confirm every descendant moved**
-- **Why:** Update locality again: the count is how many documents one engineering change touched. At production scale those rewrites run as a batch, not one atomic change.
-- **Look for:** The write_amplification line reports 3 descendant docs rewritten.
+**Confirm the subtree moved, and the shared path did not**
+- **Why:** Update locality again: the count is how many documents one engineering change rewrote, and the wheel shows a shared part keeps its other paths.
+- **Look for:** Three parts under /P-1000/P-1200/P-1100, and the wheel still lists /P-1300/P-1110.
 
 ### converged cards
 
 **Explode the bicycle with CONNECT BY**
-- **Why:** Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
+- **Why:** Read/write is where this lane loses: the walk probes the edge index once per part and joins each part's row, so it costs about 1.5x the path's prefix scan on every explosion (measured on 26ai: 1,116 us against 765 us for a 1,092-part assembly), two million times a day.
 - **Look for:** Each component with its qty and depth, indented under its parent.
 - **Figure:** `erd.svg`: Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 
-**Ask a graph question: where is the wheel used?**
-- **Why:** Diversity: where-used runs upward across shared parts, which a downward path cannot express. A SQL/PGQ graph over the same two tables answers it with no second structure to maintain.
+**Walk upward with a graph match: where is the wheel used?**
+- **Why:** Diversity: where-used runs upward across shared parts. A SQL/PGQ graph over the same two tables answers it with nothing extra to maintain, but it walks to find what the path lane stores: measured, a GRAPH_TABLE where-used costs about 7x a CONNECT BY walk, and 1.6 to 10x the path on explosions. Graph matching pays off for genuinely graph-shaped questions, not for a fixed hierarchy.
 - **Look for:** P-1300, the trailer that shares the wheel, appears alongside the bicycle's assemblies.
 
 **Re-parent the wheelset under the frame** · measured: reparent
-- **Why:** Update locality collapses: position is derived from the edges, so the move is one edge row however many parts hang beneath it.
+- **Why:** Update locality is the edge's strength: position is derived, so the move is one edge row however many parts hang beneath it. It is the cheaper write by far, but writes are 200 a day here and reads 2 million; the saving only outweighs the read premium once a typical move passes about 88,000 parts.
 - **Look for:** Rows affected is 1; Measure it shows redo near 1 KB for a subtree of any size.
 
 **Re-explode: confirm the subtree moved with the edge**
