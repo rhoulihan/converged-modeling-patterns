@@ -39,7 +39,7 @@ describe('solo mode', () => {
   beforeAll(async () => { ({ app } = await build({})); });
 
   it('describes the lab', async () => {
-    expect((await request(app).get('/api/config')).body).toEqual({ mode: 'solo', eventCodeRequired: false });
+    expect((await request(app).get('/api/config')).body).toEqual({ mode: 'solo', eventCodeRequired: false, instructor: true });
     const r = await request(app).get('/api/patterns');
     expect(r.status).toBe(200);
     expect(r.body).toHaveLength(6);
