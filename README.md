@@ -157,6 +157,7 @@ converged-modeling-patterns/
 │   ├── Dockerfile
 │   ├── scripts/         #   install-ords.sh, entrypoint.sh (ORDS-enable CMP_USER + mongo.enabled)
 │   └── init/            #   01-grants.sql, 02-ords-enable.sql
+├── presentations/       # the Workshop 1 deck (HTML), its images and fonts, and build/ (the deck's generators)
 ├── app/                 # the hands-on console: Node 22 Express app, compose service `lab-ui` on :3100
 │   ├── src/             #   server, gate/cache, SQL+Mongo runners, content loader, HTTP + admin routes
 │   ├── public/          #   the browser UI (offline vendor bundle, no outbound requests)

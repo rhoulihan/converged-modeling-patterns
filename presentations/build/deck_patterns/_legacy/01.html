@@ -1,0 +1,38 @@
+<!-- ============ 13. EXTENDED REFERENCE ============ -->
+  <section class="slide" aria-label="Extended Reference pattern in wealth management">
+    <div class="eyebrow"><span>Act 3 · Pattern 1 — Extended Reference</span><span class="clock">0:35 – 0:40</span></div>
+    <h2>Wealth management: the advisor who moved offices</h2>
+    <p class="lede">To avoid a lookup, the advisor's contact card is <strong>embedded in every client and every account document</strong>. Reads are instant. Then the advisor changes offices.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — fan-out update across hundreds of thousands of copies</p>
+<pre class="code hot-edge">db.clients.updateMany(
+  { <span class="s">"advisor.id"</span>: <span class="s">"A-317"</span> },
+  { $set: { <span class="s">"advisor.office"</span>: <span class="s">"Leeds"</span> } }
+)
+<span class="c">// same again on accounts, statements,</span>
+<span class="c">// alerts ... every collection that</span>
+<span class="c">// embedded the card. Miss one =</span>
+<span class="c">// an update anomaly the LLM will read.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — project the mutable, copy only the immutable</p>
+<pre class="code cool-edge"><span class="k">CREATE JSON RELATIONAL DUALITY VIEW</span> client_dv <span class="k">AS</span>
+  Clients @insert @update @delete {
+    _id      : client_id
+    name     : name
+    advisor  : Advisors @noinsert @nodelete {   <span class="c">-- ref, live</span>
+                 id     : advisor_id
+                 office : office
+               }
+  };
+<span class="c">-- advisor moves once, in one row; every</span>
+<span class="c">-- projected client doc reflects it instantly.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips the moment the "reference" field can <strong>change</strong>. Snapshot the immutable (the trade price at execution); <strong>project the mutable</strong> (the advisor's current office). One fact, one place, zero fan-out.</p>
+    <aside class="notes" hidden><strong>Pattern 1, Extended Reference — the cleanest illustration of 'project the mutable, snapshot the immutable.'</strong><br><br>▸ <strong>The setup:</strong> to dodge a lookup, the advisor's contact card is embedded in every client and account doc. Reads fly. Then the advisor moves offices.<br>▸ <strong>The hard edge (hot SQL):</strong> now you updateMany across hundreds of thousands of copies, in every collection that embedded the card. Miss one and you've got an update anomaly — and the LLM will happily read the stale one.<br>▸ <strong>The softening (cool SQL):</strong> a JSON Relational Duality View. The advisor is normalized once; the nested advisor block is @noinsert/@nodelete — a live reference. Advisor moves in ONE row; every projected client doc reflects it instantly.<br>▸ <strong>The nuance:</strong> snapshot the immutable (trade price at execution — you WANT that frozen); project the mutable (current office).<br><br><em>Land: the needle flips the moment the 'reference' field can change. One fact, one place, zero fan-out.</em></aside>
+  </section>
+

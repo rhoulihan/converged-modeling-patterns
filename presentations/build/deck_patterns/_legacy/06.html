@@ -1,0 +1,36 @@
+<!-- ============ 18. OUTLIER ============ -->
+  <section class="slide" aria-label="Outlier pattern in financial services">
+    <div class="eyebrow"><span>Act 3 · Pattern 6 — Outlier</span><span class="clock">1:00 – 1:05</span></div>
+    <h2>Financial: the mega-advisor who breaks the model</h2>
+    <p class="lede">99% of advisors have a few hundred clients and embed fine. Then there's the institutional book with <strong>100,000 clients</strong>. The Outlier pattern adds a flag, an overflow collection, and an <code style="font-family:'IBM Plex Mono';font-size:12px;">if</code> in your application — <strong>the 16 MB limit leaking into your code</strong>.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — the model admits it breaks for the fat tail</p>
+<pre class="code hot-edge">const a = db.advisors.findOne({_id: id})
+let clients = a.clients
+<span class="k">if</span> (a.hasOverflow) {                 <span class="c">// the leak</span>
+  clients = clients.concat(
+    db.overflow.find({advisor: id})
+              .toArray())
+}
+<span class="c">// two code paths, two failure modes,</span>
+<span class="c">// forever — because one advisor is big.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — the outlier is just more rows</p>
+<pre class="code cool-edge"><span class="c">-- advisor_clients partitioned/indexed by advisor</span>
+<span class="k">SELECT</span> client_id, market_value
+<span class="k">FROM</span>   advisor_clients
+<span class="k">WHERE</span>  advisor_id = :whale
+<span class="k">ORDER BY</span> market_value <span class="k">DESC</span>
+<span class="k">FETCH FIRST</span> 100 <span class="k">ROWS ONLY</span>;
+<span class="c">-- CBO adapts the plan for the whale vs the</span>
+<span class="c">-- typical advisor. One query. No branch.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">There is no fat tail when the row is the unit, not the document. <strong>Embed the bounded common case, reference the overflow, and let a duality view re-join them</strong> — but on a relational base the outlier never needed special-casing at all. The optimizer plans for it.</p>
+    <aside class="notes" hidden><strong>Pattern 6, Outlier — the punchline is 'the 16 MB limit leaking into your application code.' That's the quotable line.</strong><br><br>▸ <strong>The setup:</strong> 99% of advisors embed fine; the institutional book has 100,000 clients and blows the document.<br>▸ <strong>The hard edge (hot JS):</strong> the Outlier pattern adds a hasOverflow flag, an overflow collection, and an if-branch in your app. Two code paths, two failure modes, forever — because one advisor is big. That's the doc-size limit leaking into code.<br>▸ <strong>The softening (cool SQL):</strong> on a relational base the outlier is just more rows. One query, ORDER BY market_value DESC FETCH FIRST 100, partitioned/indexed by advisor. The CBO adapts the plan for the whale vs the typical advisor — no branch.<br>▸ <strong>The hybrid option:</strong> embed the bounded common case, reference the overflow, let a duality view re-join — but note that on relational the outlier never needed special-casing.<br><br><em>Land: there is no fat tail when the row is the unit, not the document. The optimizer plans for it.</em></aside>
+  </section>
+

@@ -1,0 +1,38 @@
+<!-- ============ 15. BUCKET / TIME SERIES ============ -->
+  <section class="slide" aria-label="Bucket pattern in manufacturing IoT">
+    <div class="eyebrow"><span>Act 3 · Pattern 3 — Bucket</span><span class="clock">0:45 – 0:50</span></div>
+    <h2>Manufacturing IoT: the bucket that marches to 16 MB</h2>
+    <p class="lede">Sensor readings are bucketed <strong>per machine, per hour</strong> to keep document counts down. It's the canonical write-amplification pattern: every reading <code style="font-family:'IBM Plex Mono';font-size:12px;">$push</code>-es into the bucket and re-serializes it — and hot sensors march the bucket toward the hard cap.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — the bucket grows, the write cost grows with it</p>
+<pre class="code hot-edge">db.readings.updateOne(
+  { machine: <span class="s">"M-118"</span>, hr: <span class="s">"2026-09-25T14"</span> },
+  { $push: { pts: { t: ts, v: 71.4 } },
+    $inc:  { n: 1 } }
+)
+<span class="c">// each push re-serializes the whole bucket;</span>
+<span class="c">// a busy sensor hits the 16 MB doc cap and</span>
+<span class="c">// analytics can't scale past one bucket.</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — partitioned relational time-series</p>
+<pre class="code cool-edge"><span class="c">-- readings: RANGE-partitioned on ts, auto-interval</span>
+<span class="k">SELECT</span> <span class="c">/*+ PARALLEL(8) */</span> machine_id,
+       <span class="k">TRUNC</span>(ts,<span class="s">'HH'</span>) <span class="k">AS</span> hour,
+       <span class="k">AVG</span>(val), <span class="k">MAX</span>(val), <span class="k">COUNT</span>(*)
+<span class="k">FROM</span>   readings
+<span class="k">WHERE</span>  ts &gt;= SYSTIMESTAMP - <span class="k">INTERVAL</span> <span class="s">'7'</span> DAY
+<span class="k">GROUP BY</span> machine_id, <span class="k">TRUNC</span>(ts,<span class="s">'HH'</span>);
+<span class="c">-- append-only inserts; no cap, no re-serialize.</span></pre>
+        </div>
+      </div>
+      <div class="card cool-edge" style="max-width:1060px;">
+        <p style="font-size:13.5px;"><b>Value-add — <code style="font-family:'IBM Plex Mono';font-size:12px;">$sql</code> in the pipeline:</b> a document team keeps its aggregation pipeline and drops full SQL — parallel scan, window functions, joins — into one <code style="font-family:'IBM Plex Mono';font-size:12px;">$sql</code> stage. The heavy analytic that <b>timed out</b> as a pipeline runs to completion with no 16 MB / 100 MB pipeline caps. <b class="cool">Scale-out parallelism, mid-pipeline.</b></p>
+      </div>
+    </div>
+    <p class="takeaway">The needle flips on the <strong>hottest</strong> sensors — exactly the ones you care about. Append-only inserts have flat write cost; the rollup is a <code style="font-family:'IBM Plex Mono';font-size:12px;">GROUP BY</code> over a partition range, parallelized by the optimizer, not by you.</p>
+    <aside class="notes" hidden><strong>Pattern 3, Bucket — call it 'the canonical write-amplification pattern' explicitly; and $sql-in-pipeline is the value-add they haven't seen.</strong><br><br>▸ <strong>The setup:</strong> sensor readings bucketed per machine per hour to keep doc counts down. Every reading $push-es and re-serializes the bucket; hot sensors march it toward 16 MB.<br>▸ <strong>The hard edge (hot SQL):</strong> the push re-serializes the whole growing bucket, and analytics can't scale past a single bucket.<br>▸ <strong>The softening (cool SQL):</strong> a RANGE-partitioned relational time-series. Append-only inserts have FLAT write cost; the rollup is a GROUP BY over a partition range, parallelized by the optimizer with a hint, not by you. No cap.<br>▸ <strong>The value-add (bottom card):</strong> a document team keeps its aggregation pipeline and drops full SQL into one $sql stage — parallel scan, windows, joins. The heavy analytic that TIMED OUT as a pipeline now completes, no 16 MB/100 MB pipeline caps. This is Rick's headline capability — dwell on it.<br><br><em>Land: the needle flips on the hottest sensors — exactly the ones you care about. Append-only writes stay flat; the optimizer does the parallelism.</em></aside>
+  </section>
+

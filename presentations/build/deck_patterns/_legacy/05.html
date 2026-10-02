@@ -1,0 +1,38 @@
+<!-- ============ 17. TREE / HIERARCHY ============ -->
+  <section class="slide" aria-label="Tree and hierarchy pattern in manufacturing BOM">
+    <div class="eyebrow"><span>Act 3 · Pattern 5 — Tree / Hierarchy</span><span class="clock">0:55 – 1:00</span></div>
+    <h2>Manufacturing: the bill of materials you have to re-parent</h2>
+    <p class="lede">A BOM stored as a <strong>materialized path</strong> makes "everything under this assembly" a fast prefix scan. Then engineering re-parents a subassembly — and you rewrite the path of <em>every descendant</em>. And "which assemblies use part X?" a prefix can't answer at all.</p>
+    <div class="body">
+      <div class="sqlcols">
+        <div>
+          <p class="col-label hot">Document — re-parent rewrites the whole subtree</p>
+<pre class="code hot-edge"><span class="c">// move subassembly SA-7 under A-2:</span>
+db.bom.updateMany(
+  { path: /^root\.A-1\.SA-7/ },
+  [ { $set: { path: { $replaceOne: {
+        input: <span class="s">"$path"</span>,
+        find:  <span class="s">"root.A-1.SA-7"</span>,
+        replacement: <span class="s">"root.A-2.SA-7"</span> } } } } ]
+)  <span class="c">// write amp ∝ size of the subtree</span></pre>
+        </div>
+        <div>
+          <p class="col-label cool">Converged — trees stay cheap, graphs become possible</p>
+<pre class="code cool-edge"><span class="c">-- explosion: every descendant of an assembly</span>
+<span class="k">SELECT</span> part_id, <span class="k">LEVEL</span> depth <span class="k">FROM</span> bom
+<span class="k">START WITH</span> parent_id = :asm
+<span class="k">CONNECT BY PRIOR</span> part_id = parent_id;
+
+<span class="c">-- reverse, N-hops: which assemblies use a part?</span>
+<span class="k">SELECT</span> * <span class="k">FROM</span> <span class="k">GRAPH_TABLE</span> ( bom_graph
+  <span class="k">MATCH</span> (p) &lt;-[:USED_IN]-{1,} (a)
+  <span class="k">WHERE</span> p.part_id = :part
+  <span class="k">COLUMNS</span> (a.part_id) );
+<span class="c">-- re-parent = ONE edge update.</span></pre>
+        </div>
+      </div>
+    </div>
+    <p class="takeaway">A path encodes <em>one</em> traversal direction and pays to maintain it. <strong>Split the concern:</strong> let the tree be edges (re-parent is a single row), and let genuine graph questions be graph queries — the prefix trick never could express them.</p>
+    <aside class="notes" hidden><strong>Pattern 5, Tree — two failures in one: re-parent write amplification AND a question the model can't express. Make both.</strong><br><br>▸ <strong>The setup:</strong> a BOM as a materialized path makes 'everything under this assembly' a fast prefix scan.<br>▸ <strong>Hard edge #1 (hot SQL):</strong> re-parent a subassembly and you rewrite the path of EVERY descendant — write amp proportional to subtree size.<br>▸ <strong>Hard edge #2:</strong> 'which assemblies USE part X?' is the reverse direction, N hops — a prefix simply cannot express it. You'd denormalize a second structure.<br>▸ <strong>The softening (cool SQL):</strong> CONNECT BY for the explosion; GRAPH_TABLE with a {1,} quantified pattern for the reverse traversal. And re-parent becomes ONE edge update.<br><br><em>Land: a path encodes one traversal direction and pays to maintain it. Split the concern — tree as edges (re-parent = one row), genuine graph questions as graph queries. The prefix trick never could answer the second question at all.</em></aside>
+  </section>
+
