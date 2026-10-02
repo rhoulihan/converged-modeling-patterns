@@ -6,9 +6,11 @@
 -- Readings are tiny, append-only rows in an INTERVAL-partitioned table -- Oracle
 -- opens a new hourly partition automatically as time advances. Each reading is a
 -- single small row: no array to grow, no bucket document to rewrite, no 16 MB
--- ceiling. The per-hour summary is a GROUP BY over a partition range (the
--- optimizer prunes to just the hours asked for). Want it precomputed? A
--- materialized view rolls it up; want it through the MongoDB API? A $sql stage
+-- ceiling. The per-hour summary is kept current INCREMENTALLY: an AFTER INSERT
+-- trigger bumps one narrow row per machine-metric-hour (count, sum, max) in the
+-- reading's own transaction, so the dashboard reads one row and the rollup is
+-- never stale. GROUP BY over the partition range stays available for any
+-- question the summary doesn't answer. Want it through the MongoDB API? A $sql stage
 -- (Oracle's addition to the aggregation pipeline) runs the same GROUP BY with
 -- parallel execution and NO 100 MB stage / 16 MB output caps (see README).
 --
@@ -23,7 +25,10 @@
 -- ============================================================================
 
 BEGIN
-  FOR r IN (SELECT table_name FROM user_tables WHERE table_name = 'BK_SENSOR_READINGS') LOOP
+  FOR r IN (SELECT mview_name FROM user_mviews WHERE mview_name = 'BK_HOURLY_MV') LOOP
+    EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || r.mview_name;
+  END LOOP;
+  FOR r IN (SELECT table_name FROM user_tables WHERE table_name IN ('BK_SENSOR_READINGS', 'BK_SENSOR_HOURLY')) LOOP
     EXECUTE IMMEDIATE 'DROP TABLE ' || r.table_name || ' PURGE';
   END LOOP;
 END;
@@ -45,12 +50,52 @@ INTERVAL (INTERVAL '1' HOUR)
 
 CREATE INDEX bk_ix_readings ON bk_sensor_readings (machine_id, metric, reading_ts);
 
+-- The running rollup: one narrow row per machine, metric and hour, maintained
+-- incrementally as each reading lands. Rate no longer sizes anything: a reading
+-- costs one small insert plus one counter bump at any cadence.
+CREATE TABLE bk_sensor_hourly (
+  machine_id VARCHAR2(16) NOT NULL,
+  metric     VARCHAR2(24) NOT NULL,
+  hour_start DATE         NOT NULL,
+  n          NUMBER       NOT NULL,
+  sum_val    NUMBER       NOT NULL,
+  max_val    NUMBER       NOT NULL,
+  CONSTRAINT bk_pk_hourly PRIMARY KEY (machine_id, metric, hour_start)
+);
+
+-- Measured on 26ai Free (per reading, one reading per commit): this trigger adds
+-- ~375 B of redo and ~14 us to the insert. The declarative alternative, a
+-- materialized view REFRESH FAST ON COMMIT over a view log, adds ~7.4 KB and
+-- ~1.3 ms (the log alone costs more than this whole trigger; the commit-time
+-- refresh is most of the rest). Both are exact; the trigger is the cheap one.
+CREATE OR REPLACE TRIGGER bk_trg_hourly
+AFTER INSERT ON bk_sensor_readings
+FOR EACH ROW
+BEGIN
+  MERGE INTO bk_sensor_hourly h
+  USING (SELECT :NEW.machine_id AS m, :NEW.metric AS k, CAST(TRUNC(:NEW.reading_ts, 'HH24') AS DATE) AS hs FROM dual) x
+  ON (h.machine_id = x.m AND h.metric = x.k AND h.hour_start = x.hs)
+  WHEN MATCHED THEN UPDATE SET h.n = h.n + 1, h.sum_val = h.sum_val + :NEW.reading_val,
+                               h.max_val = GREATEST(h.max_val, :NEW.reading_val)
+  WHEN NOT MATCHED THEN INSERT (machine_id, metric, hour_start, n, sum_val, max_val)
+    VALUES (:NEW.machine_id, :NEW.metric, x.hs, 1, :NEW.reading_val, :NEW.reading_val);
+END;
+/
+
+-- The hour's first 30 readings (the same 30 the bucket already holds). The trigger
+-- creates the hour's summary row on the first of them, so the measured write below
+-- is a steady-state reading: insert + bump an existing summary row.
+INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts)
+SELECT 'M-100', 'TEMP', 80 + MOD(LEVEL * 7, 150) / 10, TIMESTAMP '2026-08-01 10:01:00' + NUMTODSINTERVAL(LEVEL, 'SECOND')
+FROM   dual CONNECT BY LEVEL <= 30;
+COMMIT;
+
 -- Every reading is one small row. No parent to rewrite; constant cost per reading.
 -- The same three readings the document model appends to its bucket, as three rows.
 -- @step Insert the three readings
 -- @note Three small rows: no bucket to grow, no parent document to rewrite.
 -- @why Update locality stops compounding: each reading is its own small row in the hour's partition, so an insert costs the same at reading 3 or reading 36,000. There is no document to grow and no 16 MB cap to reach.
--- @look Rows affected is 3; Measure it shows redo that stays near 1 KB at any bucket size.
+-- @look Rows affected is 3; Measure it shows about 2.8 KB of redo for the three inserts and their summary bumps, flat at any bucket size.
 -- @figure erd.svg Plant, machine and append-only readings with a derived hourly rollup, beside one hot sensor-hour packed into a single bucket
 -- @mongo db.aggregate([{ $sql: `
 -- @mongo   INSERT INTO bk_sensor_readings (machine_id, metric, reading_val, reading_ts)
@@ -91,22 +136,19 @@ FROM   bk_sensor_readings
 GROUP  BY machine_id, metric, TRUNC(reading_ts, 'HH24')
 ORDER  BY machine_id, metric, hour_start;
 
--- Precompute it if reads dwarf writes: a summary MV over the same rows. (Add
--- REFRESH FAST ON COMMIT + a materialized view log to make it staleness = 0.)
-BEGIN
-  FOR r IN (SELECT mview_name FROM user_mviews WHERE mview_name = 'BK_HOURLY_MV') LOOP
-    EXECUTE IMMEDIATE 'DROP MATERIALIZED VIEW ' || r.mview_name;
-  END LOOP;
-END;
-/
-CREATE MATERIALIZED VIEW bk_hourly_mv
-BUILD IMMEDIATE REFRESH COMPLETE ON DEMAND AS
-SELECT machine_id, metric, TRUNC(reading_ts, 'HH24') AS hour_start,
-       COUNT(*) AS n, SUM(reading_val) AS sum_val, MAX(reading_val) AS max_val
-FROM   bk_sensor_readings
-GROUP  BY machine_id, metric, TRUNC(reading_ts, 'HH24');
-
+-- The dashboard read: one row per machine-metric-hour, already summed by the
+-- trigger, staleness zero. This is the read the bucket was built to serve.
+-- @step Read the hour from the summary row
+-- @note One primary-key row per machine and hour: no scan, no bucket, current as of the last commit.
+-- @why Read/write without the bucket's bet: the trigger did the rollup incrementally as each reading landed, so the 360-a-day dashboard reads one narrow row however fast the sensor reports.
+-- @look n, avg_val and max_val match the GROUP BY card exactly, read from one row per machine and hour.
+-- @mongo db.aggregate([{ $sql: `
+-- @mongo   SELECT machine_id, metric, hour_start, n,
+-- @mongo          ROUND(sum_val / n, 3) AS avg_val, max_val
+-- @mongo   FROM   bk_sensor_hourly
+-- @mongo   ORDER  BY machine_id, metric, hour_start
+-- @mongo ` }])
 SELECT machine_id, metric, hour_start, n,
-       ROUND(sum_val/n, 3) AS avg_val, max_val
-FROM   bk_hourly_mv
+       ROUND(sum_val / n, 3) AS avg_val, max_val
+FROM   bk_sensor_hourly
 ORDER  BY machine_id, metric, hour_start;

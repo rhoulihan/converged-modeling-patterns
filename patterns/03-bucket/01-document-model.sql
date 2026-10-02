@@ -28,10 +28,19 @@ END;
 
 CREATE JSON COLLECTION TABLE bk_sensor_doc;
 
--- One bucket: machine M-100, metric TEMP, hour starting 10:00. Starts small.
-INSERT INTO bk_sensor_doc VALUES (JSON('{"_id":"M-100|TEMP|2026-08-01T10",
-  "machineId":"M-100","metric":"TEMP","hourStart":"2026-08-01T10:00:00Z",
-  "count":0,"sum":0,"max":null,"readings":[]}'));
+-- One bucket: machine M-100, metric TEMP, hour starting 10:00. It already holds
+-- the hour's first 30 readings (the same 30 the converged model stores as rows), so
+-- Measure it samples a bucket mid-hour rather than the hour's very first writes.
+INSERT INTO bk_sensor_doc
+SELECT JSON_OBJECT('_id' VALUE 'M-100|TEMP|2026-08-01T10', 'machineId' VALUE 'M-100', 'metric' VALUE 'TEMP',
+         'hourStart' VALUE '2026-08-01T10:00:00Z',
+         'count' VALUE cnt, 'sum' VALUE total, 'max' VALUE mx, 'readings' VALUE readings
+         RETURNING JSON)
+FROM  (SELECT COUNT(*) AS cnt, SUM(val) AS total, MAX(val) AS mx,
+              JSON_ARRAYAGG(JSON_OBJECT('ts' VALUE ts, 'val' VALUE val) ORDER BY k RETURNING JSON) AS readings
+       FROM  (SELECT LEVEL AS k, 80 + MOD(LEVEL * 7, 150) / 10 AS val,
+                     TO_CHAR(TIMESTAMP '2026-08-01 10:01:00' + NUMTODSINTERVAL(LEVEL, 'SECOND'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts
+              FROM   dual CONNECT BY LEVEL <= 30));
 COMMIT;
 
 -- Three readings arrive. Each one PUSHES to the array AND re-updates the
