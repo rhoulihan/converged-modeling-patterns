@@ -48,6 +48,27 @@ if (!eq(sqlResult, mongoResult)) {
 }
 print(`[PASS] rollup parity: SQL GROUP BY == Mongo $sql (${mongoResult.length} rows, COUNT/AVG/MAX equal)`);
 
+// The incrementally maintained summary (trigger, staleness 0) must equal the
+// GROUP BY computed from the raw rows, every machine and hour.
+const summary = db.aggregate([{ $sql: `
+  select json {
+           'machineId' : machine_id,
+           'metric'    : metric,
+           'hourStart' : to_char(hour_start,'YYYY-MM-DD"T"HH24'),
+           'n'         : n,
+           'avg'       : round(sum_val / n, 3),
+           'max'       : max_val
+         }
+  from   bk_sensor_hourly
+  order  by machine_id, metric, hour_start` }]).toArray();
+if (!eq(summary, mongoResult)) {
+  print("[FAIL] incremental summary != GROUP BY");
+  print("  summary : " + JSON.stringify(canon(summary)));
+  print("  GROUP BY: " + JSON.stringify(canon(mongoResult)));
+  quit(1);
+}
+print(`[PASS] trigger-maintained summary == GROUP BY (${summary.length} rows)`);
+
 // Extra signal: the converged rollup for M-100/hour-10 equals the hand-maintained
 // document-model bucket counters (from 01-document-model.js).
 const bucket = db.bk_bucket_js.findOne({ _id: "M-100|TEMP|2026-08-01T10" });

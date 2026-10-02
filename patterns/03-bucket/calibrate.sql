@@ -1,5 +1,5 @@
 -- Calibration resize for Measure it. x = readings in the M-100 / TEMP / 10:00 bucket AFTER
--- the measured write (the lab bucket starts empty and the measured write adds 3, so lab x = 3).
+-- the measured write (the lab bucket holds 30 seeded readings and the measured write adds 3, so lab x = 33).
 -- Both sides are pre-loaded with :n - 3 readings for that machine-hour (none when :n = 3).
 -- Document model: rebuild the bucket with :n - 3 readings and matching counters.
 DELETE FROM bk_sensor_doc WHERE JSON_VALUE(data, '$._id') = 'M-100|TEMP|2026-08-01T10';
@@ -15,7 +15,10 @@ FROM  (SELECT COUNT(*) AS cnt, SUM(val) AS total, MAX(val) AS mx,
                      TO_CHAR(TIMESTAMP '2026-08-01 10:00:00' + NUMTODSINTERVAL(k, 'SECOND'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ts
               FROM  (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= :n)
               WHERE  k <= :n - 3));
--- Converged: the same :n - 3 readings as rows in that hour's partition.
+-- Converged: the same :n - 3 readings as rows in that hour's partition. The summary
+-- row is cleared first; the trigger rebuilds it from the re-inserted readings.
+DELETE FROM bk_sensor_hourly
+WHERE  machine_id = 'M-100' AND metric = 'TEMP' AND hour_start = TIMESTAMP '2026-08-01 10:00:00';
 DELETE FROM bk_sensor_readings
 WHERE  machine_id = 'M-100' AND metric = 'TEMP'
 AND    reading_ts >= TIMESTAMP '2026-08-01 10:00:00' AND reading_ts < TIMESTAMP '2026-08-01 11:00:00';

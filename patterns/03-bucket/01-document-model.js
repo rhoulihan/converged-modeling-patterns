@@ -8,9 +8,16 @@
 const C = db.bk_bucket_js;
 C.drop();
 
-// One bucket per machine per hour; starts empty.
+// One bucket per machine per hour, already holding the hour's first 30 readings
+// (the same 30 the SQL lanes seed: 80 + ((k * 7) % 150) / 10, one a second from 10:01:00).
+const seed = Array.from({ length: 30 }, (_, i) => {
+  const k = i + 1;
+  return { ts: `2026-08-01T10:01:${String(k).padStart(2, "0")}Z`, val: 80 + ((k * 7) % 150) / 10 };
+});
 C.insertOne({ _id: "M-100|TEMP|2026-08-01T10", machineId: "M-100", metric: "TEMP",
-              hourStart: "2026-08-01T10:00:00Z", count: 0, sum: 0, max: null, readings: [] });
+              hourStart: "2026-08-01T10:00:00Z", count: seed.length,
+              sum: seed.reduce((a, r) => a + r.val, 0), max: Math.max(...seed.map((r) => r.val)),
+              readings: seed });
 
 // Readings arrive. Each one is a $push + counter update: one whole-document
 // rewrite per reading. On a hot sensor this bucket marches at the 16 MB ceiling.
@@ -30,10 +37,10 @@ const b = C.findOne({ _id: "M-100|TEMP|2026-08-01T10" });
 print(`bucket after ${b.count} appends: sum=${b.sum} max=${b.max} ` +
       `(each append rewrote the whole document)`);
 
-// Sanity: the maintained counters reflect the three readings.
-const okCount = b.count === 3;
-const okMax   = Math.abs(b.max - 91.7) < 1e-9;
-const okSum   = Math.abs(b.sum - 269.2) < 1e-6;
+// Sanity: the maintained counters reflect the 30 seeded readings plus the three appends.
+const okCount = b.count === 33;
+const okMax   = Math.abs(b.max - 94.7) < 1e-9;
+const okSum   = Math.abs(b.sum - 2859.7) < 1e-6;
 if (!(okCount && okMax && okSum)) {
   print(`[FAIL] bucket counters wrong: count=${b.count} sum=${b.sum} max=${b.max}`);
   quit(1);

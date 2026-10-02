@@ -6,7 +6,9 @@
 --    half of the write the document design pays). A maintained summary row
 --    carries the cycle totals and is kept current IN THE SAME TRANSACTION by a
 --    row trigger: "Computed, with a staleness window of zero." (Declarative
---    equivalent: a materialized view WITH REFRESH FAST ON COMMIT over a CDR log.)
+--    equivalent: a materialized view WITH REFRESH FAST ON COMMIT over a CDR log;
+--    exact, but measured on 26ai at ~8x the trigger's redo and ~40x its time per
+--    single-row commit. Pattern 03 has the breakdown.)
 --    The subscriber's profile lives in cp_subscribers and is never touched by a CDR.
 --
 -- 2) Hot Top-N becomes an INDEX RANGE SCAN. A descending index on the summary's
