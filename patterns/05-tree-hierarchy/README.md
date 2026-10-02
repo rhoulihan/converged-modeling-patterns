@@ -30,6 +30,8 @@ measure:
     - { x: 300, ratio: 409.29 }   # doc 394556 B, conv 964 B
     - { x: 3000, ratio: 3997.97 }   # doc 3949992 B, conv 988 B
 ---
+<img src="../../docs/assets/oracle-logo.svg" alt="Oracle" height="18">
+
 # Pattern 05: Tree / Hierarchy
 
 **Manufacturing.** Explode a bill of materials (read a whole subassembly's

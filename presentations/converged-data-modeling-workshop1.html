@@ -279,6 +279,15 @@
     z-index: 10;
   }
   .chrome .brand { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; color: var(--faint); }
+.chrome .oracle-chip { display: inline-flex; align-items: center; }
+.chrome .oracle-mark { display: block; height: 13px; width: auto; }
+.chrome .oracle-chip, .chrome .brand, .chrome .keyhint, .chrome .counter, .chrome .navbtns { flex: none; white-space: nowrap; }
+.chrome .dots { flex: 1 1 0; min-width: 240px; gap: 3px; }
+.chrome .dots button { width: 16px; height: 16px; }
+@media (max-width: 1400px) { .chrome .keyhint { display: none; } }
+@media (max-width: 1200px) { .chrome .brand { display: none; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chrome .oracle-chip { background: #fff; padding: 3px 6px; border-radius: 3px; } }
+:root[data-theme="dark"] .chrome .oracle-chip { background: #fff; padding: 3px 6px; border-radius: 3px; }
   .dots { display: flex; gap: 6px; margin: 0 auto; flex-wrap: wrap; justify-content: center; }
   .dots button {
     width: 20px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer;
@@ -1376,6 +1385,7 @@ db.aggregate([{ <mark class="hl">$sql</mark>: `
 
   <div class="progress" id="progress"></div>
   <div class="chrome">
+    <span class="oracle-chip"><img class="oracle-mark" src="images/oracle-logo.svg" alt="Oracle"></span>
     <span class="brand">CONVERGED DATA MODELING · WORKSHOP 1</span>
     <span class="keyhint">← → to navigate · Home/End to jump · N for notes</span>
     <nav class="dots" id="dots" aria-label="Slides"></nav>

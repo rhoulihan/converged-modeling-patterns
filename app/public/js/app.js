@@ -1,4 +1,5 @@
 // app/public/js/app.js
+import { landing } from './brand.js';
 import { getJSON, postJSON } from './api.js';
 import { Console, exec } from './console.js';
 import { Dock } from './dock.js';
@@ -84,8 +85,10 @@ function home() {
     a.append(h('div', 'kicker', `Pattern ${i + 1} · ${p.meta.industry}`), h('h3', null, p.meta.title), h('p', 'problem', p.meta.problem), h('div', 'rmeta', `Deck slides ${p.meta.deck}`));
     grid.append(a);
   });
-  view.replaceChildren(h('h1', null, 'Model the domain, not the engine'),
-    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below: SQL or the MongoDB API, same data.'), grid);
+  const hero = h('section', 'hero');
+  hero.append(h('h1', null, 'Model the domain, not the engine'),
+    h('p', 'problem', 'Six document-modeling patterns, each with the document-model starting point and the converged alternative. Copy a query, change it, run it in the console below: SQL or the MongoDB API, same data.'));
+  view.replaceChildren(hero, grid);
 }
 
 function patternPage(id) {
@@ -154,7 +157,11 @@ function signin() {
     if (r.status === 200) { flash.textContent = ''; boot(); } else flash.textContent = r.body?.error ?? MSG[r.status] ?? `error ${r.status}`;
   });
   document.getElementById('console').hidden = true;
-  view.replaceChildren(f);
+  view.replaceChildren(landing(f, {
+    title: 'Converged Data Modeling Lab',
+    lede: 'Model the domain, not the engine.',
+    note: 'Six document-modeling patterns, each run two ways against the same data: the document model a developer would build, and the converged alternative. Query them in SQL or through the MongoDB API, and measure what every write costs.',
+  }));
 }
 
 async function boot() {

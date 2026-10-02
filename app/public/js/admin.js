@@ -1,4 +1,5 @@
 // app/public/js/admin.js
+import { landing } from './brand.js';
 import { getJSON, postJSON } from './api.js';
 
 const view = document.getElementById('view');
@@ -16,13 +17,17 @@ function login(msg = '') {
   const f = h('form', 'signin');
   const l = h('label', null, 'Admin password'); const i = h('input'); i.type = 'password'; i.name = 'password'; l.append(i);
   const s = h('button', 'btn primary', 'Sign in'); s.type = 'submit';
-  f.append(h('h2', null, 'Instructor sign-in'), l, s, h('div', 'flash', msg));
+  f.append(h('h2', null, 'Instructor sign-in'), h('p', 'problem', 'Run the event from here: the queue, attendee workspaces and the deck.'), l, s, h('div', 'flash', msg));
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const r = await postJSON('/api/admin/login', { password: i.value });
     if (r.status === 200) render(); else login(r.body?.error ?? 'sign-in failed');
   });
-  view.replaceChildren(f);
+  view.replaceChildren(landing(f, {
+    title: 'Converged Data Modeling Lab',
+    lede: 'Instructor console',
+    note: 'Present the deck, pause the room while you talk, pre-warm workspaces and reset an attendee who gets stuck.',
+  }));
 }
 
 // The instructor deck, served by this lab host at /deck/ behind the same sign-in as this page.
@@ -108,7 +113,9 @@ async function render() {
     t.append(tr);
   });
   const list = h('div', 'card'); list.append(h('h3', null, `Attendees (${attendees.length})`), t);
-  view.replaceChildren(deckCard(), top, list);
+  const hero = h('section', 'hero');
+  hero.append(h('h1', null, 'Instructor console'), h('p', 'problem', 'Present the deck, watch the queue and look after attendee workspaces.'));
+  view.replaceChildren(hero, deckCard(), top, list);
   timer = setTimeout(render, 2000);
 }
 

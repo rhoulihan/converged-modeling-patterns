@@ -1,4 +1,8 @@
+<img src="docs/assets/oracle-logo.svg" alt="Oracle" height="24">
+
 # Converged Modeling Patterns
+
+Built on **Oracle AI Database 26ai**.
 
 Companion repository for the 90-minute lecture **"Model the Domain, Not the Engine:
 Converged Data Modeling."** Every document-modeling pattern in this repo is a
