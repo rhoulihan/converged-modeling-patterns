@@ -148,6 +148,12 @@ function signin() {
   const flash = h('div', 'flash');
   const submit = h('button', 'btn primary', 'Sign in'); submit.type = 'submit';
   f.append(submit, flash);
+  // The instructor console only exists in event mode.
+  if (config.mode === 'event') {
+    const alt = h('p', 'signin-alt', 'Running the event? ');
+    const a = h('a', null, 'Instructor sign-in'); a.href = '/admin.html';
+    alt.append(a); f.append(alt);
+  }
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     submit.disabled = true; flash.textContent = 'setting up your workspace…';
