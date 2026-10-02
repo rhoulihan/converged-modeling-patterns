@@ -15,15 +15,19 @@
 --    no SUM, no SORT, no full-collection scan. This is the field pattern behind
 --    the 60s -> 500ms dashboard result (a real landing page, anonymized).
 --
--- The needle-flip, resolved: the read is still one precomputed rollup, now
--- joined by primary key (about 30% more read work in the deck's model, paid on
--- every balance check); the write drops from a rewrite of the whole, growing
+-- The needle-flip, resolved: the rollup is still precomputed. Rate checks read
+-- the narrow summary row by primary key (measured on 26ai: 4.0 us against 9.5 us
+-- to pull a counter from a ~3.4 KB document); only the account page joins it
+-- through the duality view (about 30% more read work). The write drops from a rewrite of the whole, growing
 -- document to one small row plus a single-row counter update, flat however many
 -- CDRs the cycle holds; the ranking stops being a scan. The CBO plans all of it,
 -- ACID, one transaction.
 --
--- When to flip back: a rarely written total (light subscribers below about 4.4
--- CDRs a day, a closed cycle's final bill) can live on the document.
+-- When to flip back: a rollup-only document (counters, line items stored
+-- elsewhere) measured within 1.4x of the summary row; a closed cycle's final bill
+-- can live on a document. Counters inside the growing document lose at every
+-- volume: the 8 KB block is not a floor, redo and undo grow with the bytes
+-- rewritten (5,996 B per CDR at ~3.5 KB vs 1,776 B here).
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 

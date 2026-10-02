@@ -68,6 +68,14 @@ The three knobs, on every design:
 Knob 3 can veto the other two: a read-heavy, high-diversity workload still can't embed
 a field that is hot and mutable.
 
+**Blocks are the unit of I/O, not a floor on cost.** It's tempting to assume a small
+row and a small document cost the same because both fit in one 8 KB block. Measured
+on 26ai, they don't: redo and undo grow with the bytes rewritten, and a document
+update rewrites the whole document even when it changes one field. A ~3.5 KB
+document logs 3.4× the redo of a narrow row update, and repeated rewrites of a 6.2 KB
+document wrote 15× the blocks (pattern 02 has the numbers). Count bytes rewritten,
+not blocks touched.
+
 The breakpoint to keep in your head: **maintain a precomputed structure only if
 `read-freq × read-cost > write-freq × maintenance-cost`.** Writes get heavy or reads
 get rare, and it flips. Read-time compute is never free, but a real cost-based
