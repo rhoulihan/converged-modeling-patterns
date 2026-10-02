@@ -22,12 +22,19 @@ help:
       why: "The same duality view, read over the MongoDB API: one set of rows, two access surfaces, one advisor row."
       look: "The advisor.office in the returned document matches what the SQL read of xr_client_dv shows."
     measure:
-      why: "The ratio is the document model's redo for the advisor move divided by the converged model's. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count."
+      why: "On a normal day the document model wins the workload: it is read-heavy, and every one of about 50 million reads skips the join the projection pays. This tab measures the other side of the trade: the redo for one advisor move, document model divided by converged. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count. That per-edit cost is what a reorg day multiplies."
       look: "Your dot at 2 embedded copies, on a reference line that reaches about 3,000× at 1,000 copies."
 measure:
   x_label: "documents embedding the moved advisor"
   lab_x: 2
   deck_slides: "14–17"
+  verdict: >-
+    On a normal day the document model wins. The workload is read-heavy: about 50 million
+    client-360 reads against roughly 300 advisor edits, and every read of the embedded card
+    skips the join the projection pays (about 15% more read work in the deck's model), so
+    embedding is cheaper until edits pass about 930 a day. What this tab measures is the
+    other side of the trade: the cost of one advisor edit, which a reorg day of 8,000 edits
+    multiplies. That worst day, not the average one, is why the lab projects the card.
   calibration:
     - { x: 1, ratio: 3.47 }   # doc 1652 B, conv 476 B
     - { x: 10, ratio: 30.71 }   # doc 14616 B, conv 476 B

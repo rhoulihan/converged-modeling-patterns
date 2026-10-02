@@ -35,7 +35,13 @@ function frontMatter(file) {
     if (typeof fm.measure.x_label !== 'string' || !fm.measure.x_label.trim()) throw new Error(`${file}: measure.x_label must be a non-empty string`);
     const labX = Number(fm.measure.lab_x);
     if (!(labX >= cal[0].x && labX <= cal[cal.length - 1].x)) throw new Error(`${file}: measure.lab_x must lie inside the calibrated x range`);
-    measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal };
+    // Optional one-paragraph verdict shown at the top of the Measure it tab: what the measured
+    // write means for the whole workload (e.g. which model wins the read-heavy day).
+    if (fm.measure.verdict !== undefined && (typeof fm.measure.verdict !== 'string' || !fm.measure.verdict.trim())) {
+      throw new Error(`${file}: measure.verdict must be a non-empty string when present`);
+    }
+    measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal,
+      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null };
   }
   return {
     title: String(fm.title),

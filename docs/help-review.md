@@ -25,7 +25,7 @@ Entries missing help: **0**
 - **Look for:** The advisor.office in the returned document matches what the SQL read of xr_client_dv shows.
 
 **measure**
-- **Why:** The ratio is the document model's redo for the advisor move divided by the converged model's. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count.
+- **Why:** On a normal day the document model wins the workload: it is read-heavy, and every one of about 50 million reads skips the join the projection pays. This tab measures the other side of the trade: the redo for one advisor move, document model divided by converged. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count. That per-edit cost is what a reorg day multiplies.
 - **Look for:** Your dot at 2 embedded copies, on a reference line that reaches about 3,000× at 1,000 copies.
 
 ### document cards
