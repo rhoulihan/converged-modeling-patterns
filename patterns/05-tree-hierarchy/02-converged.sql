@@ -1,32 +1,25 @@
 -- ============================================================================
--- Pattern 05 · Tree / Hierarchy · THE CONVERGED ALTERNATIVE
--- Split the two questions the materialized path was trying to answer at once.
--- In the canonical form (the logical model) each parent -> child link is one
--- relationship; this relational projection stores it as one edge row, and
--- position is derived by walking the edges.
+-- Pattern 05 · Tree / Hierarchy · THE ALTERNATIVE: STORE THE EDGE
+-- The canonical form (the logical model) of a BOM is parts plus parent -> child
+-- links. This lane stores exactly that, one edge row per link, and derives
+-- position by walking the edges instead of storing it in every part:
 --
---   TREE structure lives in ADJACENCY EDGES (parent_id -> child_id). Re-parenting
---   is a SINGLE edge update -- the subtree follows automatically because position
---   is not baked into every node. Write amplification for a reorg drops from
---   O(subtree) to O(1).
+--   RE-PARENT is a SINGLE edge update: the subtree follows, because position
+--   was never stored. O(subtree) rewrites become O(1).
+--   EXPLODE walks the edges level by level with CONNECT BY (never a recursive
+--   CTE, which dams each level into an intermediate relation).
+--   WHERE-USED walks upward, by CONNECT BY or a SQL/PGQ GRAPH_TABLE match over
+--   the same rows.
 --
---   SUBTREE / EXPLOSION reads use native recursion -- CONNECT BY streams the
---   frontier in one pass (emit CONNECT BY or GRAPH_TABLE for hierarchy, never a
---   recursive CTE, which dams each level into an intermediate relation the CBO
---   can barely optimize). The walk is not free: it costs about 30% more per
---   explosion than a prefix scan in the deck's illustrative model.
---
---   GENUINE GRAPH questions -- "which assemblies use this wheel?", multi-parent,
---   N hops, the DAG a downward prefix string cannot express -- use SQL/PGQ
---   GRAPH_TABLE over the SAME rows. No separate graph database to sync.
---
--- The needle-flip, resolved: the write that the path made expensive (reorg)
--- becomes one row, and the read the path could not do at all (where-used across
--- shared components) becomes one graph match.
---
--- THE TRADEOFF: break-even sits near 1,000 parts per move. Below that, or for a
--- static tree read one way, the path's prefix scan is cheaper; a 10,000-part
--- move makes the path's day ~3x the edge model's, ~10x at 40,000.
+-- WHY IT LOSES THIS WORKLOAD (measured on 26ai Free, an 88,573-part BOM):
+-- the walk is paid on every read. Exploding a 1,092-part assembly took
+-- 1,116 us with CONNECT BY (parts joined in) and 1,945 us with GRAPH_TABLE,
+-- against 765 us for the path's prefix scan. At 2 million explosions a day
+-- that premium outweighs the path's rewrites until a typical move passes about
+-- 88,000 parts. Store the edge when moves are that large and that frequent,
+-- or when the questions are genuinely graph-shaped (many hops, many parents,
+-- ad hoc). For this workload, keep the path and read this lane as the
+-- measured alternative.
 -- Run:  sqlplus cmp_user/CmpUser2026@localhost:1521/FREEPDB1 @02-converged.sql
 -- ============================================================================
 
@@ -75,10 +68,10 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
      DESTINATION KEY (child_id) REFERENCES tr_parts (part_id)
      LABEL contains PROPERTIES (qty) );
 
--- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY, one pass.
+-- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY walks the edges.
 -- @step Explode the bicycle with CONNECT BY
--- @note Native recursion streams the whole frontier in one pass: no recursive CTE damming each level into an intermediate relation.
--- @why Read/write, priced honestly: CONNECT BY walks the edges from the root down in one statement, about 30% more work per explosion than a prefix scan in the deck's model.
+-- @note Native recursion walks the edges level by level: one index probe per part, paid on every explosion.
+-- @why Read/write is where this lane loses: the walk probes the edge index once per part and joins each part's row, so it costs about 1.5x the path's prefix scan on every explosion (measured on 26ai: 1,116 us against 765 us for a 1,092-part assembly), two million times a day.
 -- @look Each component with its qty and depth, indented under its parent.
 -- @figure erd.svg Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 -- @mongo db.aggregate([{ $sql: `
@@ -94,11 +87,11 @@ START WITH parent_id = 'P-1000'
 CONNECT BY PRIOR child_id = parent_id
 ORDER SIBLINGS BY child_id;
 
--- READ 2 -- where-used: which assemblies contain the wheel? The multi-parent,
--- N-hop question the materialized path could not express. SQL/PGQ, same rows.
--- @step Ask a graph question: where is the wheel used?
--- @note Multi-parent, N-hop, upward traversal: a downward prefix string simply cannot express this.
--- @why Diversity: where-used runs upward across shared parts, which a downward path cannot express. A SQL/PGQ graph over the same two tables answers it with no second structure to maintain.
+-- READ 2 -- where-used: which assemblies contain the wheel? Walked upward with a
+-- SQL/PGQ graph match over the same rows (the path lane reads it from one document).
+-- @step Walk upward with a graph match: where is the wheel used?
+-- @note Multi-parent, N-hop, upward traversal over the edge rows: no second structure, but a walk on every question.
+-- @why Diversity: where-used runs upward across shared parts. A SQL/PGQ graph over the same two tables answers it with nothing extra to maintain, but it walks to find what the path lane stores: measured, a GRAPH_TABLE where-used costs about 7x a CONNECT BY walk, and 1.6 to 10x the path on explosions. Graph matching pays off for genuinely graph-shaped questions, not for a fixed hierarchy.
 -- @look P-1300, the trailer that shares the wheel, appears alongside the bicycle's assemblies.
 -- @mongo db.aggregate([{ $sql: `
 -- @mongo   SELECT assembly
@@ -114,11 +107,11 @@ FROM   GRAPH_TABLE (tr_bom_graph
          COLUMNS (a.part_id AS assembly));
 -- ^ returns P-1100, P-1000, AND P-1300 (the trailer that shares the wheel).
 
--- THE NEEDLE-FLIP, RESOLVED -- re-parent the wheelset under the frame: ONE row.
+-- THE EDGE'S STRENGTH -- re-parent the wheelset under the frame: ONE row.
 -- The entire subtree moves with it; no descendant paths to rewrite.
 -- @step Re-parent the wheelset under the frame
 -- @note One edge update: the entire subtree moves with it, no descendant paths to rewrite.
--- @why Update locality collapses: position is derived from the edges, so the move is one edge row however many parts hang beneath it.
+-- @why Update locality is the edge's strength: position is derived, so the move is one edge row however many parts hang beneath it. It is the cheaper write by far, but writes are 200 a day here and reads 2 million; the saving only outweighs the read premium once a typical move passes about 88,000 parts.
 -- @look Rows affected is 1; Measure it shows redo near 1 KB for a subtree of any size.
 -- @measure reparent
 -- @mongo db.aggregate([{ $sql: `

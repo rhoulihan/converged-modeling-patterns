@@ -135,7 +135,7 @@ Run any of these live: each `[PASS]` line is a slide's claim, executed.
 | [02](patterns/02-computed/) | **Computed** | Telecom | Every CDR re-aggregates + rewrites the whole subscriber doc → write storm | Append-only rows + trigger-maintained summary (staleness 0); **Top-N 60s → 500ms** |
 | [03](patterns/03-bucket/) | **Bucket** | Manufacturing / IoT | Each reading rewrites the whole, growing bucket; marches at the 16 MB ceiling | INTERVAL-partitioned rows + `GROUP BY` rollup; **29s → sub-400ms** |
 | [04](patterns/04-subset/) | **Subset** | Insurance | Push-and-trim on every claim to serve a full read that hardly happens | One table + composite index; **query the hot slice** with `FETCH FIRST` |
-| [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path; where-used a prefix can't express | Adjacency edges (reorg = one row) + `CONNECT BY` + `GRAPH_TABLE` |
+| [05](patterns/05-tree-hierarchy/) | **Tree / Hierarchy** | Manufacturing BOM | Re-parent → rewrites every descendant's path, but 200 moves a day against 2M explosions: **the path wins** until moves pass ~88k parts | **Keep the path**: one doc per part, every path under a multivalue index, one transaction per move; edges + `CONNECT BY` / `GRAPH_TABLE` measured as the losing alternative (1.5–2.5× per explosion) |
 | [06](patterns/06-outlier/) | **Outlier** | Financial | `hasExtras` + overflow + app branch = the 16 MB limit leaking into your code | No special doc: "just more rows, the optimizer plans for it" |
 
 Each folder holds a `README.md` (the teaching), `01-document-model.sql` (the starting
@@ -180,7 +180,7 @@ converged-modeling-patterns/
     │   ├── 02-sql-in-pipeline.js#    $sql over the Mongo wire (the value-add)
     │   └── 03-parity.js         #    Mongo $sql rollup == SQL GROUP BY, asserted
     ├── 04-subset/               # insurance, pure SQL (no natural single Mongo collection)
-    ├── 05-tree-hierarchy/       # manufacturing BOM, pure SQL (adjacency + CONNECT BY + GRAPH_TABLE)
+    ├── 05-tree-hierarchy/       # manufacturing BOM (multi-path documents + multivalue index vs edges + CONNECT BY + GRAPH_TABLE)
     └── 06-outlier/              # financial, duality projection       (+ 03-parity.js, _capture.sql)
 ```
 
@@ -352,8 +352,9 @@ lanes agree:
   executable proof of *"one truth, many shapes."*
 
 Each parity script `quit(1)`s on any mismatch, so `run.sh` reports it as FAIL. Subset
-and Tree stay pure-SQL (no natural single Mongo collection for a claims table or an
-adjacency/graph traversal).
+and Tree have no parity script: Subset has no natural single Mongo collection for a
+claims table, and Tree's edge lane is a SQL traversal (its document lane's MongoDB API
+commands are in the console).
 
 ---
 

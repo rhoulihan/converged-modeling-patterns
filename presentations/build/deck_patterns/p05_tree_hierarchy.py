@@ -1,18 +1,19 @@
 """Pattern 5: Tree / Hierarchy · manufacturing bill of materials.
 
 Scenario (illustrative): industrial equipment maker, 1.2M parts, assemblies up to 12 levels
-deep, ~200 engineering change orders (ECOs) a day re-parent subassemblies of 10 to 40,000 parts.
+deep, ~2M explosions a day, ~200 engineering change orders (ECOs) a day re-parenting
+subassemblies of 10 to 40,000 parts.
 
-Cost model on slide C (illustrative, stated in notes + figcaption):
-  R  = 2e6 BOM explosion / rollup reads per day   (1 work unit each via a path-prefix range scan)
-  E  = 200 ECO re-parents per day,  W = 3 work units per document / row rewrite
-  s  = parts in the moved subtree (x axis, log, 10 -> 40,000)
-  path(s)  = R * 1.00 + E * s * W       (every descendant's path is rewritten)
-  edges(s) = R * 1.30 + E * 1 * W       (recursive CONNECT BY costs ~30% more per explosion;
-                                         a re-parent is one edge row)
-  break-even: 0.30 R = E * W * (s - 1)  ->  s = 600,000 / 600 + 1 ~= 1,000 parts per moved subtree
-Where-used is NOT in the model (the path can't express it; counting a second structure's upkeep
-would only move break-even further left) — so the model is conservative toward the path.
+Cost model on slide C: inputs MEASURED on 26ai Free (88,573-part synthetic BOM, 11 levels,
+the lab's Measure-it protocol); the scenario rates are illustrative. Database seconds a day:
+  R  = 2e6 explosions/day, each of an average 1,092-part assembly (the measured point)
+  E  = 200 ECO re-parents/day,  s = parts in the moved subtree (x axis, log)
+  path(s)  = R * 765 us  + E * s * 40 us   (multivalue-index prefix scan; every descendant
+                                            rewritten once, ~40 us and ~1.7-2.5 KB redo each)
+  edges(s) = R * 1116 us + E * 0.2 ms      (CONNECT BY with parts joined in; one edge row)
+  graph(s) = R * 1945 us + E * 0.2 ms      (GRAPH_TABLE {1,10})
+  break-even: 702 s = E * s * 40 us  ->  s ~= 88,000 parts per move
+Sensitivity (README, notes): at ~120-part explosions (101 vs 135 us) break-even drops to ~8,500.
 """
 import sys
 from pathlib import Path
@@ -24,41 +25,49 @@ from deck_patterns._common import code, facts, slide, table  # noqa: E402
 P = "Pattern 5: Tree / Hierarchy"
 R = 2e6
 ECOS = 200
-REWRITE = 3.0
-READ_PREMIUM = 1.30
+PATH_READ = 765e-6      # s per explosion, prefix scan on the multivalue index (measured)
+EDGE_READ = 1116e-6     # CONNECT BY with parts joined in (measured)
+GRAPH_READ = 1945e-6    # GRAPH_TABLE (measured)
+REWRITE = 40e-6         # s per moved part, path rewrite (measured)
+EDGE_WRITE = 0.2e-3     # one edge row (measured, upper bound)
 MONO = "IBM Plex Mono, monospace"
 
 
 def path_model(s):
-    return R + ECOS * s * REWRITE
+    return R * PATH_READ + ECOS * s * REWRITE
 
 
 def edge_model(s):
-    return R * READ_PREMIUM + ECOS * REWRITE
+    return R * EDGE_READ + ECOS * EDGE_WRITE
+
+
+def graph_model(s):
+    return R * GRAPH_READ + ECOS * EDGE_WRITE
+
+
+BREAK_EVEN = (R * (EDGE_READ - PATH_READ) + ECOS * EDGE_WRITE) / (ECOS * REWRITE)
 
 
 # ------------------------------------------------------------------------- A · problem
 def fig_doc():
-    f = Fig(560, 320, "One part document as built: a materialized path encodes its position, and a usedIn array was added for where-used")
+    f = Fig(560, 320, "One part document as built: every materialized path the part sits on, in one array covered by a multivalue index")
     lines = [
         "{",
         '  "_id": "P-88213",',
         '  "name": "pump seal kit",',
         '  "rev": "C",',
         '  "unitCost": 14.20,',
-        '  "path": "root.A-1.SA-7.HP-3",',
-        '  "depth": 4,',
-        '  "usedIn": [',
-        '    "HP-3", "HP-9", "VB-12"',
+        '  "paths": [',
+        '    "root.A-1.SA-7.HP-3",',
+        '    "root.A-4.VB-12"',
         "  ],",
-        '  "rollupCost": 14.20,',
         '  "supplier": "S-417"',
         "}",
     ]
     doc_panel(f, 18, 18, 316, lines, title="parts · one document per part",
-              hot={5, 6, 7, 8, 9}, size=11.5, lh=19,
-              callouts=[(5, ["path = position", "an ECO above it rewrites", "this and every descendant"], "hot"),
-                        (8, ["second structure for", "where-used: parent list,", "kept in sync by app code"], "hot")],
+              hot={5, 6, 7, 8}, size=11.5, lh=19,
+              callouts=[(5, ["path = position: an ECO", "above it rewrites this", "and every descendant"], "hot"),
+                        (8, ["shared part: one path per", "use, one document, one", "multivalue index entry each"], "hot")],
               callout_x=364)
     return f.svg()
 
@@ -80,23 +89,23 @@ def slide_a():
       </div>"""
     notes = ('<strong>Every manufacturer in the room owns this problem: a bill of materials is the most honest hierarchy in enterprise data.</strong><br><br>'
              'An industrial equipment maker: 1.2 million parts, products up to 12 levels deep, machine to seal kit. Illustrative numbers, universal shape.<br><br>'
-             'The dominant read is the explosion: MRP, product configuration and the service portal all want everything under an assembly. So the team stored a materialized path per part: one prefix range scan per explosion. Fast, and the right instinct.<br><br>'
-             'The red rows: about 200 change orders a day, many re-parenting a subassembly, SA-7 from A-1 to A-2. Path is position, so every part under SA-7 changes too. Ten parts on a good day, 40,000 when a platform module moves.<br><br>'
-             "Mid-recall, quality asks the reverse: which products contain this seal kit? Many do: it's a DAG, not a tree. The team bolted on a usedIn array: two structures, synced by hand.<br><br>"
-             '<em>Land: the path answers one question in one direction, beautifully. Engineering changes and recalls live in the other two.</em>')
+             'The dominant read is the explosion: MRP, product configuration and the service portal all want everything under an assembly, about two million times a day. So the team stored a materialized path per part: one prefix range scan per explosion. Fast, and the right instinct.<br><br>'
+             "A seal kit goes into many pumps: it's a DAG, not a tree. So the document carries one path per use, in an array, and a multivalue index covers every element. Where-used is then just the part's own document, and a cost change is one row.<br><br>"
+             'The red row is the bill: about 200 change orders a day, many re-parenting a subassembly, SA-7 from A-1 to A-2. Path is position, so every part under SA-7 changes too. Ten parts on a good day, 40,000 when a platform module moves.<br><br>'
+             '<em>Land: ten thousand explosions for every move. The question is which bill is bigger, and we will measure it rather than guess.</em>')
     return slide(label="Tree / Hierarchy: the problem", pattern=P, beat="A", clock="0:55 – 0:57",
-                 title="Manufacturing BOM: the path is fast until engineering moves it",
-                 lede="An equipment maker stores 1.2M parts with a <strong>materialized path</strong>, so exploding any assembly is one prefix scan. Then ~200 change orders a day re-parent subassemblies, and quality asks the <strong>reverse</strong> question: which products contain part X?",
+                 title="Manufacturing BOM: ten thousand explosions for every move",
+                 lede="An equipment maker stores 1.2M parts with <strong>materialized paths</strong>, so exploding any assembly is one prefix scan, and a shared part carries one path per use. About 200 change orders a day re-parent subassemblies, and <strong>every move rewrites the subtree beneath it</strong>.",
                  body=body,
-                 takeaway="The path makes the downward read one index scan. <strong>It makes every re-parent a subtree-sized rewrite</strong>, and it can't answer where-used without a second, hand-synced structure.",
+                 takeaway="The path makes every explosion one index scan and every re-parent a subtree-sized rewrite. <strong>With 2 million explosions against 200 moves a day, which bill is bigger?</strong>",
                  notes=notes)
 
 
 # ------------------------------------------------------------------------- B · model
 def fig_model():
-    f = Fig(960, 436, "Canonical ERD of part, BOM edge and change order beside the fan-out of one re-parent across materialized paths")
-    f.text(24, 30, "CANONICAL FORM: EDGES, NOT BAKED PATHS", size=11, weight=600, fill="var(--faint)", font=MONO)
-    f.text(652, 30, "THE SAME MOVE, AS PATHS", size=11, weight=600, fill="var(--faint)", font=MONO)
+    f = Fig(960, 436, "Canonical ERD of part, BOM edge and change order beside the two costs of storing materialized paths: one prefix scan per explosion, one rewrite per moved part")
+    f.text(24, 30, "CANONICAL FORM: PARTS AND EDGES", size=11, weight=600, fill="var(--faint)", font=MONO)
+    f.text(652, 30, "STORED FOR THE READ: PATHS", size=11, weight=600, fill="var(--faint)", font=MONO)
     ents = [
         dict(id="part", x=24, y=46, w=250, title="PART", cols=[
             ("part_id", "varchar2", "PK"), ("name", "varchar2", ""), ("rev", "varchar2", ""),
@@ -116,146 +125,149 @@ def fig_model():
     ]
     erd(f, ents, rels)
     f.text(360, 136, "parent → child · a part can have many parents (DAG)", size=11, fill="var(--muted)")
-    # fan-out of one re-parent under materialized paths
-    f.box(660, 46, 264, 54, ["ECO-4471 · re-parent SA-7", "A-1 → A-2"], tone="hot")
-    f.path("M792,100 V128 H722 V156", [(722, 100), (792, 156)], stroke="var(--hot)", sw=1.7, arrow=True)
-    f.path("M792,128 H862 V156", [(792, 128), (862, 156)], stroke="var(--hot)", sw=1.7, arrow=True)
-    f.box(660, 158, 124, 62, ["1", "SA-7 itself"], tone="hot", size=16)
-    f.box(800, 158, 124, 62, ["10 – 40k", "descendants"], tone="hot", size=16)
-    f.line(722, 220, 722, 248, stroke="var(--hot)", sw=1.7, arrow=True)
-    f.line(862, 220, 862, 248, stroke="var(--hot)", sw=1.7, arrow=True)
-    f.box(660, 250, 264, 58, ["≈ subtree-size rewrites", "per ECO · not one transaction"], tone="hot")
-    f.box(660, 326, 264, 55, ["Adjacency edge: 1 row update", "the subtree follows · atomic"], tone="cool")
+    # the two costs of the stored path
+    f.box(660, 46, 264, 54, ["2M explosions a day", "1 prefix range scan each"], tone="cool")
+    f.box(660, 128, 264, 54, ["ECO-4471 · re-parent SA-7", "A-1 → A-2"], tone="hot")
+    f.path("M792,182 V200 H722 V214", [(722, 182), (792, 214)], stroke="var(--hot)", sw=1.7, arrow=True)
+    f.path("M792,200 H862 V214", [(792, 200), (862, 214)], stroke="var(--hot)", sw=1.7, arrow=True)
+    f.box(660, 216, 124, 62, ["1", "SA-7 itself"], tone="hot", size=16)
+    f.box(800, 216, 124, 62, ["10 – 40k", "descendants"], tone="hot", size=16)
+    f.line(722, 278, 722, 300, stroke="var(--hot)", sw=1.7, arrow=True)
+    f.line(862, 278, 862, 300, stroke="var(--hot)", sw=1.7, arrow=True)
+    f.box(660, 302, 264, 58, ["one rewrite per moved part", "one statement · one transaction"], tone="hot")
     # legend
     f.rect(24, 402, 14, 14, fill="var(--hot-soft)", stroke="var(--hot)", sw=1, rx=3)
-    f.text(46, 414, "the column an ECO writes: structure, not position", size=11.5, fill="var(--muted)")
-    f.rect(470, 402, 14, 14, fill="var(--cool-soft)", stroke="var(--cool)", sw=1, rx=3)
-    f.text(492, 414, "immutable change history: safe to copy", size=11.5, fill="var(--muted)")
+    f.text(46, 414, "what an ECO changes: one edge row, or every path below it", size=11.5, fill="var(--muted)")
+    f.rect(500, 402, 14, 14, fill="var(--cool-soft)", stroke="var(--cool)", sw=1, rx=3)
+    f.text(522, 414, "what the path buys: the cheapest read, every time", size=11.5, fill="var(--muted)")
     return f.svg()
 
 
 def slide_b():
     body = f"""      <figure>{fig_model()}</figure>"""
     notes = ("<strong>Draw the BOM the way the domain actually is, and notice the path isn't in it anywhere.</strong><br><br>"
-             "Left is the canonical form: parts, and edges carrying parent, child, quantity. That's all of it. BOM_EDGE points to PART twice (parent, child); the second makes it a DAG (directed acyclic graph). One seal kit, many pumps.<br><br>"
-             "The red row is all an ECO writes: parent_id on one edge. Position is derived by walking edges, never stored. The green rows are history (moved-from parent, release time). Immutable, so copy it freely. That's audit, not denormalisation.<br><br>"
-             "Right, the same move as paths: SA-7 from A-1 to A-2 rewrites SA-7 and every descendant (10 parts or 40,000), and across that many documents it isn't one atomic change.<br><br>"
-             '<em>Land: the path stores a derived fact, position, in every node. Derived facts you store are facts you have to rewrite.</em>')
+             "Left is the canonical form: parts, and edges carrying parent, child, quantity. BOM_EDGE points to PART twice (parent, child); the second makes it a DAG (directed acyclic graph). One seal kit, many pumps. The green rows are history: immutable, copy them freely.<br><br>"
+             "Position isn't in the canonical form. A path is position, derived from the edges and stored in every part. Storing it is a projection made for one read, and it has two prices on the right.<br><br>"
+             "Top, what it buys: every explosion is one prefix range scan, two million times a day. Bottom, what it costs: SA-7 moves from A-1 to A-2 and every part beneath it is rewritten, 10 or 40,000 of them. On this engine that is one statement in one transaction, so no explosion sees half a move.<br><br>"
+             "Store the edge instead and the move is one row, but every explosion has to walk the edges to find what the path already says.<br><br>"
+             '<em>Land: a path is a derived fact stored N times. Whether that is worth it is a question of rates: reads that use it against moves that rewrite it.</em>')
     return slide(label="Tree / Hierarchy: the model", pattern=P, beat="B", clock="0:57 – 0:58",
-                 title="Store the edge, derive the position",
-                 lede="In canonical form each parent → child link is one relationship, stored as <strong>one row</strong> in the relational projection; position is computed by walking edges. The materialized path stores position <strong>in every part</strong>, so moving one subassembly rewrites the whole subtree beneath it.",
+                 title="The edge is the fact; the path is what the reads want",
+                 lede="In canonical form each parent → child link is one relationship, and position is derived by walking the edges. A materialized path <strong>stores that position in every part</strong>: every explosion becomes one range scan, and every move rewrites the subtree beneath it.",
                  body=body,
-                 takeaway="<strong>A path is a derived fact stored N times.</strong> The edge is the fact stored once: an ECO changes one row and the subtree follows.",
+                 takeaway="<strong>A path is a derived fact stored N times.</strong> Store it when the reads that use it outnumber the moves that rewrite it: here, ten thousand to one.",
                  notes=notes)
 
 
 # ------------------------------------------------------------------------- C · knobs
 def fig_knobs():
-    f = Fig(960, 380, "Knob settings for the BOM and a cost model of materialized paths versus adjacency edges as the moved subtree grows")
+    f = Fig(960, 380, "Knob settings for the BOM and a measured daily cost of materialized paths, adjacency edges and a property graph as the moved subtree grows")
     f.text(20, 30, "KNOB SETTINGS · THIS WORKLOAD", size=11, weight=600, fill="var(--faint)", font=MONO)
     knob_rows(f, 20, 44, [
         dict(name="1 · Diversity", value=0.8, tone="cool", setting="High: 4 questions",
              lines=["explode, roll up, where-used,", "recall impact"]),
-        dict(name="2 · Read / write", value=0.88, tone="cool", setting="Read-heavy",
+        dict(name="2 · Read / write", value=0.92, tone="cool", setting="Read-heavy: decides it",
              lines=["~2M explosions/day against", "~200 ECOs/day"]),
         dict(name="3 · Update locality", value=0.85, tone="hot", setting="Lands on every descendant",
              lines=["one re-parent rewrites", "10 to 40,000 part paths"]),
     ])
-    f.text(400, 28, "DAILY WORK vs PARTS PER MOVED SUBTREE · illustrative model", size=11, weight=600,
+    f.text(400, 28, "DATABASE SECONDS PER DAY vs PARTS PER MOVE · measured costs", size=11, weight=600,
            fill="var(--faint)", font=MONO)
-    chart(f, (400, 58, 520, 236), (10, 4e4), (1.5e6, 4e7),
+    chart(f, (400, 58, 520, 236), (1e3, 3e5), (1000, 4400),
           curves=[dict(name="Materialized path", fn=path_model, tone="hot"),
-                  dict(name="Adjacency edges · CONNECT BY, +30% read", fn=edge_model, tone="cool")],
-          xlabel="parts in the moved subtree (log)", ylabel="work units per day (log)",
-          logx=True, logy=True, yticks=[2e6, 5e6, 1e7, 2e7],
-          regions=[(10, 1000, "hot", "path is cheaper"), (1000, 4e4, "cool", "edges are cheaper")],
-          points=[(50, "Materialized path", "routine ECO · 50", 0, 17, "middle"),
-                  (10000, "Materialized path", "module move · 10k", -10, -2, "end")],
-          cross=("Materialized path", "Adjacency edges · CONNECT BY, +30% read"),
-          cross_label=dict(lines=["break-even ≈ 1,000 parts"], dx=-12, dy=-13, anchor="end"),
+                  dict(name="Edges · CONNECT BY", fn=edge_model, tone="cool"),
+                  dict(name="Graph · GRAPH_TABLE", fn=graph_model, tone="muted", dash="5 4")],
+          xlabel="parts in the moved subtree (log)", ylabel="database seconds per day",
+          logx=True, yticks=[1000, 2000, 3000, 4000],
+          regions=[(1e3, BREAK_EVEN, "hot", "path is cheaper"), (BREAK_EVEN, 3e5, "cool", "edges")],
+          points=[(1e4, "Materialized path", "module · 10k", 0, 17, "middle"),
+                  (4e4, "Materialized path", "platform · 40k", 0, 17, "middle")],
+          cross=("Materialized path", "Edges · CONNECT BY"),
+          cross_label=dict(lines=["break-even ≈ 88,000 parts"], dx=-12, dy=-13, anchor="end"),
           legend=(400, 352), legend_dir="h")
     return f.svg()
 
 
 def slide_c():
     body = f"""      <figure>{fig_knobs()}
-        <figcaption>Illustrative cost model, not a benchmark: 2×10⁶ explosion reads/day at 1 unit via a path-prefix scan; recursive CONNECT BY adds ~30% per explosion; 200 ECOs/day; each document or row rewrite costs 3 units. Where-used is left out, which favours the path.</figcaption>
+        <figcaption>Costs measured on 26ai Free (88,573-part BOM, 11 levels; the lab's protocol), rates illustrative: 2×10⁶ explosions/day of a 1,092-part assembly at 765 µs (path, multivalue-index prefix scan), 1,116 µs (CONNECT BY, parts joined in) or 1,945 µs (GRAPH_TABLE); 200 ECOs/day at 40 µs per moved part (path) or one edge row.</figcaption>
       </figure>"""
-    notes = ("<strong>Same three knobs, and again the honest answer is 'it depends on the size of the move', so put a number on it.</strong><br><br>"
-             "Two dials favour the path: diversity is high (explode, roll up, where-used, recall) and read/write leans hard to reads. Knob three is red: a re-parent lands on every descendant. That's the multiplier.<br><br>"
-             'Say the model out loud. The path explodes with one prefix range scan. Edges use a recursive CONNECT BY, one pass but level by level, so I charge it 30% more on each of 2 million reads. Traversal is not free. On writes, the path rewrites the whole moved subtree; edges update one row.<br><br>'
-             "Say plainly where the path wins: small moves or a static, read-only tree. Break-even is about 1,000 parts per move. A 10,000-part module move makes the path's day about 3 times the edges'. At 40,000, 10 times.<br><br>"
-             'And I left where-used out entirely: a scan or second structure to maintain for the path, an indexed traversal for the graph. Counting it only moves break-even left.<br><br>'
-             '<em>Land: static catalogue trees, keep the path. BOMs that engineering reshapes every day, store the edge.</em>')
+    notes = ("<strong>Same three knobs, and this time we measured instead of modelling.</strong><br><br>"
+             "Two dials favour the path: diversity is high, and the path answers all four questions; read/write leans hard to reads. Knob three is red: a re-parent lands on every descendant. That is the path's bill.<br><br>"
+             "The measurements, on 26ai with an 88,000-part BOM. Exploding a thousand-part assembly: 765 microseconds with the path's prefix scan, 1,116 walking edges with CONNECT BY, 1,945 with a graph match. Rewriting a moved part: about 40 microseconds and two kilobytes of redo. An edge move: one row.<br><br>"
+             "Multiply by the day. The walk costs about 350 microseconds more on each of two million explosions: around 700 database seconds. The path's rewrites cost 40 microseconds a part on 200 moves. Break-even is about 88,000 parts per move, more than twice the biggest move engineering makes. At 10,000 parts the edge model's day is about 1.4 times the path's; the graph's about 2.4.<br><br>"
+             "Be straight about the caveats. If most explosions are small, around a hundred parts, break-even drops to about 8,500. And the path's moves write redo, gigabytes a day at these sizes: log and standby I/O the edge never pays.<br><br>"
+             '<em>Land: read-heavy decides it. Pay on the move, not on every read.</em>')
     return slide(label="Tree / Hierarchy: where the knobs flip it", pattern=P, beat="C", clock="0:58 – 0:59",
-                 title="The needle flips on the size of the move",
-                 lede="Two knobs favour the path: <strong>four read questions</strong> and a <strong>read-heavy</strong> day. The third (every re-parent lands on the whole subtree) decides it. Charge the recursive read its real premium and break-even sits near <strong>1,000 parts per move</strong>.",
+                 title="Measured: the walk costs more than the rewrites",
+                 lede="Two knobs favour the path: <strong>four read questions</strong> and a <strong>read-heavy</strong> day. The third (every re-parent lands on the whole subtree) is its bill. Measured on 26ai, walking edges costs <strong>~1.5× the path's prefix scan</strong> on every explosion, so break-even sits near <strong>88,000 parts per move</strong>.",
                  body=body,
-                 takeaway="For small moves and static trees the path is cheaper: the recursive read costs more. <strong>Once engineering moves modules of thousands of parts, the edge wins: ~3× at 10k, ~10× at 40k.</strong>",
+                 takeaway="Across the moves engineering actually makes the path's day is cheaper: <strong>~1.4× at 10k, ~1.2× at 40k</strong> against edges, ~2.4× against a graph match. The edge only wins past ~88,000 parts per move.",
                  notes=notes)
 
 
 # ------------------------------------------------------------------------- D · converged
 def fig_flow():
-    f = Fig(560, 318, "BOM edges and parts feed a CONNECT BY explosion and a SQL/PGQ property graph over the same rows, serving planning, cost rollup and the recall desk")
-    f.text(92, 30, "RELATIONAL PROJECTION", size=10.5, weight=600, fill="var(--faint)", anchor="middle", font=MONO)
-    f.text(295, 30, "SAME ROWS, TWO READS", size=10.5, weight=600, fill="var(--faint)", anchor="middle", font=MONO)
+    f = Fig(560, 318, "Part documents with every path in a multivalue index feed a prefix-scan explosion and a one-document where-used; an ECO rewrites the moved subtree in one transaction")
+    f.text(92, 30, "ONE DOC PER PART", size=10.5, weight=600, fill="var(--faint)", anchor="middle", font=MONO)
+    f.text(295, 30, "TWO READS, NO WALK", size=10.5, weight=600, fill="var(--faint)", anchor="middle", font=MONO)
     f.text(481, 30, "CONSUMERS", size=10.5, weight=600, fill="var(--faint)", anchor="middle", font=MONO)
     fl = Flow(f)
-    fl.node("edge", 18, 56, 148, 64, ["bom_edges", "parent → child", "ECO writes here"], tone="hot")
-    fl.node("part", 18, 212, 148, 56, ["parts", "1.2M rows"])
-    fl.node("cb", 220, 44, 150, 96, ["CONNECT BY", "explode · roll up", "one recursive pass"], tone="cool")
-    fl.node("g", 220, 192, 150, 96, ["bom_graph", "SQL/PGQ graph", "where-used, N hops"], tone="cool")
-    fl.node("mrp", 420, 44, 122, 56, ["Planning", "SQL · explode"], tone="flow")
-    fl.node("cost", 420, 118, 122, 56, ["Cost rollup", "SQL · nightly"], tone="flow")
-    fl.node("rec", 420, 208, 122, 64, ["Recall desk", "where-used", "SQL/PGQ"], tone="flow")
-    fl.edge("edge", "cb", 193, tone="muted", ay=76, by=76)
-    fl.edge("edge", "g", 193, tone="muted", ay=100, by=222)
-    fl.edge("part", "g", 193, tone="muted", ay=250, by=250)
-    fl.edge("cb", "mrp", 396, tone="flow", ay=72, by=72)
-    fl.edge("cb", "cost", 396, tone="flow", ay=112, by=146)
-    fl.edge("g", "rec", 396, tone="flow", ay=240, by=240)
+    fl.node("doc", 18, 56, 148, 96, ["parts", "paths[] per part", "multivalue index"], tone="cool")
+    fl.node("eco", 18, 212, 148, 64, ["ECO · UPDATE", "moved subtree", "one transaction"], tone="hot")
+    fl.node("scan", 220, 44, 150, 96, ["prefix scan", "explode · roll up", "one range scan"], tone="cool")
+    fl.node("one", 220, 192, 150, 96, ["one doc read", "where-used", "paths = ancestors"], tone="cool")
+    fl.node("mrp", 420, 44, 122, 56, ["Planning", "explode"], tone="flow")
+    fl.node("cost", 420, 118, 122, 56, ["Cost rollup", "nightly"], tone="flow")
+    fl.node("rec", 420, 208, 122, 64, ["Recall desk", "where-used", "one read"], tone="flow")
+    fl.edge("doc", "scan", 193, tone="muted", ay=76, by=76)
+    fl.edge("doc", "one", 193, tone="muted", ay=128, by=222)
+    fl.edge("scan", "mrp", 396, tone="flow", ay=72, by=72)
+    fl.edge("scan", "cost", 396, tone="flow", ay=112, by=146)
+    fl.edge("one", "rec", 396, tone="flow", ay=240, by=240)
+    f.line(92, 210, 92, 154, stroke="var(--hot)", sw=1.7, arrow=True)
     return f.svg()
 
 
 def slide_d():
-    sql = ('<span class="c">-- explode: everything under an assembly, one pass</span>\n'
-           '<span class="k">SELECT</span> child_id, qty, <span class="k">LEVEL</span> <span class="k">FROM</span> bom_edges\n'
-           '<span class="k">START WITH</span> parent_id = :asm <span class="k">CONNECT BY PRIOR</span> child_id = parent_id;\n\n'
-           '<span class="c">-- where-used: the reverse question, same rows (bom_graph)</span>\n'
-           '<span class="k">SELECT</span> assembly <span class="k">FROM GRAPH_TABLE</span> ( bom_graph\n'
-           '  <span class="k">MATCH</span> (a <span class="k">IS</span> part)-[<span class="k">IS</span> contains]-&gt;{1,4}(p <span class="k">IS</span> part)\n'
-           '  <span class="k">WHERE</span> p.part_id = :part <span class="k">COLUMNS</span> (a.part_id <span class="k">AS</span> assembly) );\n\n'
-           '<span class="c">-- ECO-4471: re-parent SA-7 = ONE row, subtree follows</span>\n'
-           '<span class="k">UPDATE</span> bom_edges <span class="k">SET</span> parent_id = <span class="s">\'A-2\'</span>\n'
-           '<span class="k">WHERE</span>  parent_id = <span class="s">\'A-1\'</span> <span class="k">AND</span> child_id = <span class="s">\'SA-7\'</span>;')
-    ba = table(["", "Materialized path", "Edges + graph"], [
-        ["ECO re-parent", '<span class="hot">1 doc per part in subtree</span>', '<span class="cool">1 edge row</span>'],
-        ["Explode an assembly", "1 prefix range scan", "CONNECT BY pass (~+30%)"],
-        ["Where-used", '<span class="hot">2nd structure, app-synced</span>', '<span class="cool">GRAPH_TABLE, same rows</span>'],
+    sql = ('<span class="c">-- every path a part sits on, one index entry each</span>\n'
+           '<span class="k">CREATE MULTIVALUE INDEX</span> bom_paths <span class="k">ON</span> parts p (p.data.paths.string());\n\n'
+           '<span class="c">-- explode: everything under an assembly, one range scan</span>\n'
+           '<span class="k">SELECT</span> data <span class="k">FROM</span> parts\n'
+           '<span class="k">WHERE</span>  <span class="k">JSON_EXISTS</span>(data, <span class="s">\'$.paths?(@ starts with $p)\'</span> <span class="k">PASSING</span> :asm <span class="k">AS</span> "p");\n\n'
+           '<span class="c">-- where-used: the part\'s own document names every ancestor</span>\n'
+           'db.parts.find({ _id: <span class="s">"P-88213"</span> }, { paths: 1 })\n\n'
+           '<span class="c">-- ECO-4471: one statement, one transaction, every moved part once</span>\n'
+           '<span class="k">UPDATE</span> parts <span class="k">SET</span> data = <span class="k">JSON_TRANSFORM</span>(data, <span class="k">SET</span> <span class="s">\'$.paths\'</span> = ...)\n'
+           '<span class="k">WHERE</span>  <span class="k">JSON_EXISTS</span>(data, <span class="s">\'$.paths?(@ starts with "root.A-1.SA-7")\'</span>);')
+    ba = table(["", "Path · multivalue index", "Edges · CONNECT BY", "Graph · GRAPH_TABLE"], [
+        ["Explode 1,092 parts", '<span class="cool">765 µs</span>', "1,116 µs", '<span class="hot">1,945 µs</span>'],
+        ["Where-used", '<span class="cool">1 document</span>', "upward walk", "upward match"],
+        ["ECO re-parent", '<span class="hot">1 row per moved part</span>', '<span class="cool">1 edge row</span>', '<span class="cool">1 edge row</span>'],
+        ["Day at 10k-part moves", '<span class="cool">1×</span>', "~1.4×", '<span class="hot">~2.4×</span>'],
     ])
     body = f"""      <div class="split wide-r top">
         <div class="stack">
           <figure>{fig_flow()}</figure>
-          <div class="flipnote"><b>When to flip back:</b> a tree that rarely moves and is read one way (a product catalogue, an org chart snapshot), keep the materialized path. Its prefix scan is the cheapest explosion there is.</div>
+          <div class="flipnote"><b>When to store the edge:</b> moves far larger than what you read (past ~88,000 parts a move here, ~8,500 if explosions are small), or genuinely graph-shaped questions: many hops, many parents, asked ad hoc. Then the one-row move pays for the walk.</div>
         </div>
         <div class="stack">
-          {code(sql, "Store the edge: recurse down, match up, move with one row")}
+          {code(sql, "Keep the path: one row per part, every path indexed, one transaction per move")}
           {ba}
         </div>
       </div>"""
-    notes = ('<strong>The converged answer splits the two questions the path tried to answer with one string.</strong><br><br>'
-             'Structure lives in bom_edges. The ECO writes one row (the red box); the subtree follows, because position was never stored.<br><br>'
-             'Downward, native recursion: CONNECT BY streams the explosion in one pass for planning and the nightly cost rollup. Not a recursive CTE, and still dearer than a prefix scan: the 30% from the last slide.<br><br>'
-             'Upward, a graph match: a SQL/PGQ property graph over the same two tables, GRAPH_TABLE walking up from the seal kit to every assembly holding it, shared ones too. No graph database to sync, no usedIn array.<br><br>'
-             "The companion lab proves both: where-used returns the shared assembly the path couldn't express, and the single-row UPDATE shows in the next explosion.<br><br>"
-             "Flip back for a static tree read one way: there the path's prefix scan is the cheapest read there is.<br><br>"
-             '<em>Land: store the edge, derive the position. One row per move, and the recall question finally has an answer.</em>')
+    notes = ("<strong>The converged answer here is to keep the document pattern, and to run it properly.</strong><br><br>"
+             "One document per part, with every path it sits on in an array. A multivalue index puts each path in one index, so exploding an assembly is one range scan, and a shared seal kit is still one row to change.<br><br>"
+             "Where-used needs no walk: the part's own document names every ancestor. The recall desk reads one document.<br><br>"
+             "The bill is the ECO: every part beneath the moved node rewritten once. On this engine that is one UPDATE (or one updateMany over the MongoDB API) in one transaction. No explosion sees half a move.<br><br>"
+             "The table is the comparison we measured. Edges and CONNECT BY make the move one row and pay 1.5 times on every explosion. The graph match is the most flexible and the slowest for this job: graph earns its cost on graph-shaped questions, not on a fixed hierarchy read two million times a day. Both still run on this engine, over the same data, for the day you need them.<br><br>"
+             "The companion lab runs both lanes: the path's prefix scan and one-document where-used, and the edge lane's one-row move; Measure it shows what the path's re-parent costs.<br><br>"
+             '<em>Land: the lab explores the tradeoffs, and here the document pattern wins. Keep the path; pay on the move.</em>')
     return slide(label="Tree / Hierarchy: the converged answer", pattern=P, beat="D", clock="0:59 – 1:00",
-                 title="Store the edge: recurse down, match up, move one row",
-                 lede="Keep the BOM as <strong>parent → child edges</strong>: <code>CONNECT BY</code> explodes it, a <strong>SQL/PGQ graph</strong> over the same rows answers where-used, and an ECO re-parent is <strong>one row</strong>.",
+                 title="Keep the path: index every path, move in one transaction",
+                 lede="One document per part with <strong>every path it sits on</strong>, under a <strong>multivalue index</strong>: an explosion is one range scan, where-used is one document, and an ECO rewrites the moved subtree in <strong>one transaction</strong>. Edges and a graph were measured too, and lose on the read.",
                  body=body,
-                 takeaway="The re-parent went from <strong>one rewrite per descendant to one edge row</strong>, and where-used went from a hand-synced second structure to a graph match, paid for with a real recursive-read premium.",
+                 takeaway="Here the document pattern wins: <strong>the edge's one-row move saves 200 rewrites a day, and the path's range scan saves on every one of 2 million reads.</strong> Store the edge when the moves outgrow the reads.",
                  notes=notes)
 
 
