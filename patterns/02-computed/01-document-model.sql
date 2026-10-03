@@ -36,6 +36,8 @@ END;
 
 CREATE JSON COLLECTION TABLE cp_subscriber_doc;
 CREATE JSON COLLECTION TABLE cp_cdr_doc;
+-- The equivalent of MongoDB's built-in _id index, so SQL lookups by _id are key lookups.
+CREATE INDEX cp_ix_sub_id ON cp_subscriber_doc (JSON_VALUE(data, '$._id'));
 
 -- The cycle's CDRs, one small document each: 1,000 for S-001 mid-cycle, one each
 -- for S-002 and S-003. Generated, not pasted.
@@ -178,6 +180,7 @@ ROLLBACK;
 
 -- The account page read the pattern optimizes for (one document, already summed):
 -- @step Read the account page (summary already there)
+-- @measure-read read
 -- @note One document, one lookup: the CDRs' cost already landed on the writes. subscriber_doc_bytes is what every CDR rewrites.
 -- @why Read/write: this is the read the pattern pays for, and it happens a couple of times a day; the 28 daily rate checks need only the three counters.
 -- @look mb_this_cycle comes straight off the document; subscriber_doc_bytes shows the ~6 KB that every summary update rewrites.

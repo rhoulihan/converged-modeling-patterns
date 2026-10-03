@@ -68,24 +68,30 @@ CREATE OR REPLACE PROPERTY GRAPH tr_bom_graph
      DESTINATION KEY (child_id) REFERENCES tr_parts (part_id)
      LABEL contains PROPERTIES (qty) );
 
--- READ 1 -- explode the bicycle (all components, any depth): CONNECT BY walks the edges.
--- @step Explode the bicycle with CONNECT BY
--- @note Native recursion walks the edges level by level: one index probe per part, paid on every explosion.
+-- READ 1 -- explode the wheelset (all components, any depth): CONNECT BY walks the edges,
+-- and each component's name comes from its part row, as the path lane returns it.
+-- @step Explode the wheelset with CONNECT BY
+-- @measure-read read
+-- @note Native recursion walks the edges level by level: one index probe per part, then each part's row for its name, paid on every explosion.
 -- @why Read/write is where this lane loses: the walk probes the edge index once per part and joins each part's row, so it costs about 1.5x the path's prefix scan on every explosion (measured on 26ai: 1,116 us against 765 us for a 1,092-part assembly), two million times a day.
--- @look Each component with its qty and depth, indented under its parent.
+-- @look The wheel and the spoke with their names, the same answer as the path lane's prefix scan.
 -- @figure erd.svg Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 -- @mongo db.aggregate([{ $sql: `
--- @mongo   SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
--- @mongo   FROM   tr_bom_edges
--- @mongo   START WITH parent_id = 'P-1000'
--- @mongo   CONNECT BY PRIOR child_id = parent_id
--- @mongo   ORDER SIBLINGS BY child_id
+-- @mongo   SELECT h.child_id AS part, p.name, h.qty, h.depth
+-- @mongo   FROM  (SELECT child_id, qty, LEVEL AS depth
+-- @mongo          FROM   tr_bom_edges
+-- @mongo          START WITH parent_id = 'P-1100'
+-- @mongo          CONNECT BY PRIOR child_id = parent_id) h
+-- @mongo   JOIN   tr_parts p ON p.part_id = h.child_id
+-- @mongo   ORDER  BY part
 -- @mongo ` }])
-SELECT LPAD(' ', 2*(LEVEL-1)) || child_id AS component, qty, LEVEL AS depth
-FROM   tr_bom_edges
-START WITH parent_id = 'P-1000'
-CONNECT BY PRIOR child_id = parent_id
-ORDER SIBLINGS BY child_id;
+SELECT h.child_id AS part, p.name, h.qty, h.depth
+FROM  (SELECT child_id, qty, LEVEL AS depth
+       FROM   tr_bom_edges
+       START WITH parent_id = 'P-1100'
+       CONNECT BY PRIOR child_id = parent_id) h
+JOIN   tr_parts p ON p.part_id = h.child_id
+ORDER  BY part;
 
 -- READ 2 -- where-used: which assemblies contain the wheel? Walked upward with a
 -- SQL/PGQ graph match over the same rows (the path lane reads it from one document).

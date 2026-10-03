@@ -139,6 +139,7 @@ ORDER  BY machine_id, metric, hour_start;
 -- The dashboard read: one row per machine-metric-hour, already summed by the
 -- trigger, staleness zero. This is the read the bucket was built to serve.
 -- @step Read the hour from the summary row
+-- @measure-read read
 -- @note One primary-key row per machine and hour: no scan, no bucket, current as of the last commit.
 -- @why Read/write without the bucket's bet: the trigger did the rollup incrementally as each reading landed, so the 360-a-day dashboard reads one narrow row however fast the sensor reports.
 -- @look n, avg_val and max_val match the GROUP BY card exactly, read from one row per machine and hour.

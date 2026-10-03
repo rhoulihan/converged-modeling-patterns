@@ -273,6 +273,28 @@ export class Runner {
             runs.sort((a, b) => a.stats['redo size'] - b.stats['redo size']);
             return { sql: stmt.sql, ...runs[1] };
           };
+          // A read, measured by the blocks it touches. Every row is fetched (the console's row
+          // cap would cut a 3,000-part explosion short and undercount the blocks).
+          const readOnce = async (sql) => {
+            const before = await readStats(conn);
+            const r = await conn.execute(sql, [], { resultSet: true });
+            let rows = 0;
+            for (let batch = await r.resultSet.getRows(500); batch.length; batch = await r.resultSet.getRows(500)) rows += batch.length;
+            await r.resultSet.close();
+            const after = await readStats(conn);
+            return { rows, stats: Object.fromEntries(Object.keys(after).map((k) => [k, after[k] - before[k]])) };
+          };
+          const readSide = async (stmt) => {
+            try {
+              await readOnce(stmt.sql);   // warm-up: parse and first-touch effects stay out of it
+              const runs = [await readOnce(stmt.sql), await readOnce(stmt.sql), await readOnce(stmt.sql)];
+              runs.sort((a, b) => a.stats['session logical reads'] - b.stats['session logical reads']);
+              return { sql: stmt.sql, ...runs[1], result: { kind: 'rows', rowCount: runs[1].rows } };
+            } catch (e) {
+              return { sql: stmt.sql, stats: {}, rows: 0, result: labErr('LAB-MEASURE', e.message) };
+            }
+          };
+          const readPair = p.reads?.[0] ?? null;
           for (const n of sizes) {
             if (ctx.cancelled) { error = labErr('LAB-CANCELLED', 'Measurement was cancelled'); break; }
             conn.callTimeout = SYSTEM_BUDGET_MS;
@@ -280,7 +302,8 @@ export class Runner {
             await conn.commit();
             const document = await side(pair.document);
             const converged = await side(pair.converged);
-            points.push({ x: n, document, converged });
+            const reads = readPair ? { document: await readSide(readPair.document), converged: await readSide(readPair.converged) } : null;
+            points.push({ x: n, document, converged, reads });
             if (document.result.kind === 'error' || converged.result.kind === 'error') break;
           }
         } catch (e) {
@@ -301,6 +324,7 @@ export class Runner {
     const ratio = (d, c) => (d > 0 && c > 0 ? d / c : null);
     return {
       tag,
+      readTag: p.reads?.[0]?.tag ?? null,
       sizes,
       error: out.error,
       restored: out.restored,

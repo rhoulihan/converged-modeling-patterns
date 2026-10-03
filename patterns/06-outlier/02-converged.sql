@@ -106,6 +106,7 @@ FROM   ol_advisor_dv WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- The WHALE -- exact same table, exact same optimizer. You do not stitch an
 -- overflow collection; you page ordinary rows. Top 3 holdings for the desk:
 -- @step Read the whale's top 3 holdings
+-- @measure-read read
 -- @note Exact same table, exact same optimizer: no overflow collection to stitch back in.
 -- @why Read/write, priced honestly: a top-N range scan on (advisor_id, aum DESC) reads index entries and assembles rows on every read, but the same amount at 180 clients or 148,000.
 -- @look The 3 largest holdings by aum, from ol_clients with no overflow to stitch.

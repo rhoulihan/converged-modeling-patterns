@@ -106,6 +106,19 @@ function loadOne(root, id) {
   if (!lanes.document.length || !lanes.converged.length) throw new Error(`${dir}: needs at least one @step in each .sql file`);
   if (!measures.length) throw new Error(`${dir}: needs at least one @measure pair`);
 
+  // @measure-read pairs the read each model serves the same question with; the sweep counts the
+  // blocks each touches at every size, so reads and writes share one unit (logical reads).
+  const reads = [];
+  const docReads = new Map(doc.filter((s) => s.measureRead).map((s) => [s.measureRead, s]));
+  const convReads = new Map(conv.filter((s) => s.measureRead).map((s) => [s.measureRead, s]));
+  for (const tag of new Set([...docReads.keys(), ...convReads.keys()])) {
+    if (!docReads.has(tag) || !convReads.has(tag)) throw new Error(`${dir}: measure-read "${tag}" must appear in both 01-document-model.sql and 02-converged.sql`);
+    for (const [st, f] of [[docReads.get(tag), docFile], [convReads.get(tag), convFile]]) {
+      if (!/^\s*(SELECT|WITH)\b/i.test(st.sql)) throw new Error(`${f}: measure-read "${tag}" must be a SELECT`);
+    }
+    reads.push({ tag, document: docReads.get(tag), converged: convReads.get(tag) });
+  }
+
   const setup = { document: doc.filter(isSetup), converged: conv.filter(isSetup) };
   // calibrate.sql resizes the measured data to :n on both sides; the live sweep runs it per size.
   const calFile = path.join(dir, 'calibrate.sql');
@@ -115,7 +128,7 @@ function loadOne(root, id) {
     .update([...setup.document, ...setup.converged].map((s) => s.sql).join('\n;\n'))
     .digest('hex')
     .slice(0, 16);
-  return { id, meta, lanes, setup, measures, calibrate, version };
+  return { id, meta, lanes, setup, measures, reads, calibrate, version };
 }
 
 export function loadPatterns(root) {

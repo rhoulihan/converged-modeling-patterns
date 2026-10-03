@@ -4,6 +4,16 @@
 -- document model's write feels it: the summary update rewrites the whole document,
 -- while the converged summary row never touches the profile.
 -- Document model: rebuild the S-001 document at ~:n KB, summary unchanged.
+-- Background documents, once per sweep: a realistically populated collection, so the
+-- lookup by _id is an index lookup as in production rather than a scan of a one-row table.
+BEGIN
+  FOR r IN (SELECT 1 FROM dual WHERE NOT EXISTS (SELECT 1 FROM cp_subscriber_doc WHERE JSON_VALUE(data, '$._id') = 'S-BG00001')) LOOP
+    INSERT INTO cp_subscriber_doc SELECT JSON_OBJECT('_id' VALUE 'S-BG' || LPAD(k, 5, '0'), 'plan' VALUE 'UNL-5G', 'profile' VALUE JSON_OBJECT('name' VALUE 'Subscriber ' || k), 'cycleUsage' VALUE JSON_OBJECT('totalMB' VALUE MOD(k * 37, 9000), 'minutes' VALUE MOD(k, 600), 'cost' VALUE 0) RETURNING JSON) FROM (SELECT LEVEL AS k FROM dual CONNECT BY LEVEL <= 2000);
+    COMMIT;
+    DBMS_STATS.GATHER_SCHEMA_STATS(USER);
+  END LOOP;
+END;
+/
 UPDATE cp_subscriber_doc
 SET    data = JSON_TRANSFORM(data, SET '$.profile' =
        JSON_OBJECT(

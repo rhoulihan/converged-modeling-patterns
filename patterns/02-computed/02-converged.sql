@@ -179,6 +179,7 @@ COMMIT;
 
 -- Account page read: the rollup is already there (staleness = 0), one PK lookup.
 -- @step Read the account page (rollup already there)
+-- @measure-read read
 -- @note Staleness = 0: the trigger kept this current in the same transaction as the CDR insert.
 -- @why Read/write: the balance check still reads a precomputed rollup, now from a narrow summary row the trigger keeps current in the CDR's own transaction.
 -- @look total_mb and cost come from one primary-key lookup on cp_subscriber_usage, with no aggregation over cp_cdr.

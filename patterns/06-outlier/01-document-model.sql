@@ -34,6 +34,9 @@ END;
 
 CREATE JSON COLLECTION TABLE ol_advisor_doc;
 CREATE JSON COLLECTION TABLE ol_advisor_overflow;
+-- The equivalent of MongoDB's built-in _id index, plus the overflow's advisor lookup.
+CREATE INDEX ol_ix_advisor_id ON ol_advisor_doc (JSON_VALUE(data, '$._id'));
+CREATE INDEX ol_ix_overflow_adv ON ol_advisor_overflow (JSON_VALUE(data, '$.advisorId'));
 
 -- Typical advisor: whole book embedded, hasExtras=false. The model works.
 INSERT INTO ol_advisor_doc VALUES (JSON('{"_id":"A-001","name":"Grace Advisor","hasExtras":false,
@@ -116,6 +119,7 @@ FROM   ol_advisor_doc WHERE JSON_VALUE(data,'$._id') = 'A-001';
 -- overflow back in. The 16 MB limit is now branching logic in every consumer
 -- (including the LLM's context builder).
 -- @step Read the whale advisor (branch on hasExtras)
+-- @measure-read read
 -- @note Every reader must notice hasExtras and go stitch the overflow back in: the 16 MB limit is now application logic. Shows counts and the first 5 embedded clients, not the whole 800-client array.
 -- @why Update locality's skew shows up in the reader: the 16 MB cap has become a branch, and the rare path is the one least tested.
 -- @look clients_embedded is 801 and clients_in_overflow is 2 if you ran the two cards above (800 and 0 on fresh data): one advisor, read from two collections and stitched together.

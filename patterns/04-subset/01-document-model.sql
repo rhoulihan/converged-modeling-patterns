@@ -29,6 +29,8 @@ END;
 -- sb_policy_doc = policy + inline recent claims (hot); sb_claim_history = cold history.
 CREATE JSON COLLECTION TABLE sb_policy_doc;
 CREATE JSON COLLECTION TABLE sb_claim_history;
+-- The equivalent of MongoDB's built-in _id index, so SQL lookups by _id are key lookups.
+CREATE INDEX sb_ix_policy_id ON sb_policy_doc (JSON_VALUE(data, '$._id'));
 
 -- Policy P-001 with 3 recent claims inline (oldest -> newest).
 INSERT INTO sb_policy_doc VALUES (JSON('{"_id":"P-001","holder":"Dana Holder","product":"AUTO",
@@ -72,6 +74,7 @@ COMMIT;
 
 -- The common read the pattern optimizes for: recent claims, one document.
 -- @step Read the recent claims (one document)
+-- @measure-read read
 -- @note recentClaims now shows CL-1004 in, CL-1001 trimmed out: two writes paid so this read is one document fetch.
 -- @why Read/write is the subset's case: at about 67 summary reads per claim event, the policy page reads one document with the list already built.
 -- @look recent_claims_inline holds 3 claims, the list every event paid to keep sorted and trimmed.

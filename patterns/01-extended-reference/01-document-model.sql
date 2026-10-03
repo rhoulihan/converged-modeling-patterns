@@ -32,6 +32,8 @@ END;
 /
 
 CREATE JSON COLLECTION TABLE xr_client_doc;
+-- What a MongoDB developer adds for the fan-out: an index on the embedded advisor's id.
+CREATE INDEX xr_ix_doc_advisor ON xr_client_doc (JSON_VALUE(data, '$.advisor.advisorId'));
 
 -- Each client doc carries an EMBEDDED COPY of the advisor block (extended
 -- reference). Two clients of advisor A-001 => two copies of A-001's office/desk.
@@ -46,6 +48,7 @@ COMMIT;
 -- The read the pattern optimizes for: zero-join, everything inline. This is why
 -- people reach for the embed.
 -- @step Read the embedded advisor block
+-- @measure-read read
 -- @note Zero-join read: every client doc already carries its own copy of the advisor's office and desk.
 -- @why Read/write is why teams embed: at 50 million client-360 reads a day against about 300 advisor edits, a read with no lookup is the right thing to optimize.
 -- @look Every client row returns its own advisor_office, and the statement touches one table.
