@@ -14,7 +14,7 @@ export function wrap(fn) {
   });
 }
 
-export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, publicMode = false, signinLimit = new FailureLimit() }) {
+export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecret, event, publicMode = false, signinLimit = new FailureLimit() }) {
   const r = express.Router();
   const publicPaths = new Set(['/config', '/signin', '/admin/login']);
 
@@ -32,7 +32,7 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     return next();
   }));
 
-  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(cfg.event.code), instructor: !publicMode }));
+  r.get('/config', (req, res) => res.json({ mode: cfg.mode, eventCodeRequired: cfg.mode === 'event' && Boolean(event.code), instructor: !publicMode }));
 
   r.post('/signin', wrap(async (req, res) => {
     if (cfg.mode !== 'event') return res.status(404).json({ error: 'not in event mode' });
@@ -48,7 +48,7 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
       signinLimit.fail(req.ip);
       return res.status(400).json({ error: 'name and a valid email are required' });
     }
-    if (cfg.event.code && code !== cfg.event.code) {
+    if (event.code && code !== event.code) {
       signinLimit.fail(req.ip);
       return res.status(403).json({ error: 'wrong event code' });
     }

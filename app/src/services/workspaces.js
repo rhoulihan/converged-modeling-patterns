@@ -26,6 +26,18 @@ export class Workspaces {
     }
   }
 
+  // Key-value store for the event settings (event code, password hash) in lab_settings.
+  settingsStore() {
+    return {
+      get: () => this.withControl(async (c) => Object.fromEntries((await c.execute(
+        "SELECT k, v FROM lab_settings WHERE k IN ('event_code', 'admin_password_hash')", [], OBJ)).rows.map((r) => [r.K, r.V]))),
+      set: (name, value) => this.withControl((c) => c.execute(
+        `MERGE INTO lab_settings s USING (SELECT :k AS k, :v AS v FROM dual) x ON (s.k = x.k)
+           WHEN MATCHED THEN UPDATE SET s.v = x.v WHEN NOT MATCHED THEN INSERT (k, v) VALUES (x.k, x.v)`,
+        { k: name, v: value }, { autoCommit: true })),
+    };
+  }
+
   async load() {
     await this.withControl(async (c) => {
       this.#dirty.clear();
