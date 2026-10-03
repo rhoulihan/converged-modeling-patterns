@@ -1,7 +1,7 @@
 // Measure-it result: the calibrated curve with this run's live point, paired bars per statistic
 // (each row scaled to its own max) with ratios and ⓘ explainers, and a "what just happened" panel.
 // If either side errored there is no live point and every ratio shows — (raw values still shown).
-import { curveChart } from './chart.js';
+import { curveChart, fmtRatio as fmtR } from './chart.js';
 import { helpTrigger, openHelp } from './help.js';
 
 const STATS = [
@@ -70,10 +70,15 @@ export function renderMeasure(m, { pattern } = {}) {
   const grid = h('div', meas ? 'measure-grid' : 'measure-grid no-curve');
   if (meas) {
     const left = h('div', 'measure-curve');
-    left.append(h('div', 'kicker', 'Write amplification vs size'));
-    left.append(curveChart({ calibration: meas.calibration, labX: meas.labX, xLabel: meas.xLabel,
-      live: failed ? null : { redo: ratioOf(m.document.stats['redo size'], m.converged.stats['redo size']), blocks: ratioOf(m.document.stats['db block changes'], m.converged.stats['db block changes']) } }));
-    left.append(h('p', 'rmeta', 'Solid dot: your redo ratio · ring: your block-change ratio · line: reference measurements on 26ai Free at other sizes, same protocol.'));
+    const redo = failed ? null : ratioOf(m.document.stats['redo size'], m.converged.stats['redo size']);
+    // The run, in words, before the chart: what was measured and at what size.
+    if (redo !== null) {
+      const head = h('p', 'measure-headline');
+      head.append('Your run: the document model wrote ', h('strong', null, fmtR(redo)), ` the redo of the converged model, at this lab's size: ${meas.labX.toLocaleString('en-US')} ${meas.xLabel}.`);
+      left.append(head);
+    }
+    left.append(h('div', 'kicker', 'How the gap grows'));
+    left.append(curveChart({ calibration: meas.calibration, labX: meas.labX, xLabel: meas.xLabel, live: redo === null ? null : { redo } }));
     const thumb = h('button', 'deck-thumb'); thumb.type = 'button';
     const img = h('img'); img.src = `/figures/${pattern.id}/model-curve.svg`; img.alt = 'The deck\'s workload model for this pattern';
     thumb.append(img, h('span', null, `The full workload picture: illustrative model from the deck (slides ${meas.deckSlides})`));
