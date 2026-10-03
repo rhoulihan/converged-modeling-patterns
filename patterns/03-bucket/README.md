@@ -16,7 +16,7 @@ help:
       why: "The starting point: one bucket document per sensor per hour, readings pushed into an array under running count, sum and max. The dashboard reads one document; every reading rewrites the growing bucket."
       look: "The bucket read's n and max_temp come off counters that every write maintains."
     converged:
-      why: "Readings are small append-only rows in an hourly INTERVAL-partitioned table, and a trigger keeps a running summary row per machine and hour (count, sum, max) in each reading's own transaction. The dashboard reads one row; GROUP BY stays available for anything the summary doesn't answer."
+      why: "Readings are small append-only rows in an hourly INTERVAL-partitioned table, and a trigger keeps a running summary row per machine and hour (count, sum, max) in each reading's own transaction. The dashboard reads one row; GROUP BY stays available for anything the summary doesn't answer. The readings are relational rows; through the MongoDB API they are reached with $sql, the same SQL running as one stage of a MongoDB aggregation."
       look: "The insert reports 3 rows affected; the summary-row read and the GROUP BY return the same n, average and max per machine and hour."
     mongo:
       why: "The anomaly team keeps db.aggregate() through the MongoDB API and runs the rollup as one $sql stage (Oracle's addition to the aggregation pipeline: a full SQL statement as one stage) over the same partitioned rows, planned by the optimizer."

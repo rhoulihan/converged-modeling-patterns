@@ -117,6 +117,7 @@ COMMIT;
 -- single hour prunes to a single partition.
 -- @step Roll up the hour with GROUP BY
 -- @note Same answer the bucket counters gave, computed on read instead of maintained on every write.
+-- @note The readings are relational rows; through the MongoDB API they are reached with $sql, the same SQL running as one stage of a MongoDB aggregation.
 -- @why Read/write, priced honestly: the rollup is computed on read and pruned to the partitions asked for, but a range scan pays per row where the bucket was one fetch. Where reads repeat, the materialized view precomputes it.
 -- @look One row per machine and hour with n, avg_val and max_val, computed from the rows rather than maintained on every write.
 -- @mongo db.aggregate([{ $sql: `
