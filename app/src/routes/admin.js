@@ -51,6 +51,7 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
     timeouts: runner.timeouts,
     resets,
     pending: await workspaces.pendingCount(),
+    storage: await workspaces.storage(),
     attendees: await workspaces.list(),
   })));
 
@@ -76,6 +77,7 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
     const count = Number(req.body?.count);
     if (!Number.isInteger(count) || count < 1 || count > 200) return res.status(400).json({ error: 'count must be 1–200' });
     (async () => {
+      if ((await workspaces.storage({ maxAgeMs: 0 })).full) { console.warn('[lab-ui] prewarm skipped: storage cap reached'); return; }
       for (let i = 0; i < count; i++) {
         const w = await gate.run({ userId: `prewarm-${i}`, label: 'prewarm', exclusive: true }, () => workspaces.provision());
         await buildAll(w);

@@ -20,6 +20,8 @@ BEGIN
   x('GRANT SELECT ON sys.v_$mystat TO lab_admin WITH GRANT OPTION');
   x('GRANT SELECT ON sys.v_$statname TO lab_admin WITH GRANT OPTION');
   x('GRANT SELECT ON sys.v_$session TO lab_admin');
+  x('GRANT SELECT ON sys.dba_segments TO lab_admin');  -- storage cap: size of the attendee workspaces
+  x('GRANT SELECT ON sys.dba_users TO lab_admin');     -- storage cap: which schemas are user (not Oracle) data
   x('GRANT ALTER SYSTEM TO lab_admin');  -- reaper: ALTER SYSTEM KILL SESSION on a parked workspace's stuck sessions
   x('GRANT SELECT ON sys.v_$mystat TO cmp_user');
   x('GRANT SELECT ON sys.v_$statname TO cmp_user');

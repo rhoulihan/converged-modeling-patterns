@@ -59,9 +59,15 @@ async function render() {
     timer = setTimeout(render, 2000);
     return;
   }
-  const { gate, cache, attendees, resets, pending } = r.body;
+  const { gate, cache, attendees, resets, pending, storage } = r.body;
   const top = h('div', 'card');
   top.append(h('h3', null, `Queue: ${gate.queued.length} waiting · ${gate.running.length} running · ${gate.paused ? 'PAUSED' : 'live'}`));
+  if (storage) {
+    const gb = (b) => (b / 1024 ** 3).toFixed(2);
+    top.append(h('p', storage.full ? 'storage full' : 'storage',
+      `Storage: attendee workspaces ${gb(storage.workspaceBytes)} GB of the ${gb(storage.capBytes)} GB cap (${storage.workspaces} workspace${storage.workspaces === 1 ? '' : 's'}) · all user data ${gb(storage.userBytes)} GB of 12 GB (26ai Free limit)`));
+    if (storage.full) top.append(h('p', 'storage full', 'New sign-ins are closed: the workspace cap is reached. Returning attendees can still sign in.'));
+  }
   gate.running.forEach((x) => {
     const row = h('div', 'actions');
     row.append(h('span', 'rmeta', `${x.userId} · ${x.label} · ${Math.round(x.elapsedMs / 100) / 10}s`), btn('Cancel', async () => { await postJSON('/api/admin/cancel', { id: x.id }); render(); }));
