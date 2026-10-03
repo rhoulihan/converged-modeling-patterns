@@ -38,3 +38,17 @@ describe('renderMeasure (sweep)', () => {
     expect(el.querySelector('.measure-headline')).toBeNull();
   });
 });
+
+describe('renderMeasure (read side)', () => {
+  const lioSide = (lio, kind = 'dml') => ({ sql: 'x', stats: { 'redo size': lio * 100, 'session logical reads': lio }, rows: 1, result: { kind, rowsAffected: 1, elapsedMs: 1 } });
+  const rp = (x, dw, cw, dr, cr) => ({ x, document: lioSide(dw), converged: lioSide(cw), ratio: dw / cw,
+    reads: { document: lioSide(dr, 'rows'), converged: lioSide(cr, 'rows') } });
+  it('renders both read charts, the blocks table and the note on reading block counts', () => {
+    const P2 = { ...P, meta: { ...P.meta, measure: { ...P.meta.measure, workload: { readsPerWrite: 2000, label: 'test mix' } } } };
+    const el = renderMeasure(sweep([rp(1, 20, 3, 3, 4), rp(10, 112, 4, 3, 4), rp(100, 1031, 3, 3, 4)]), { pattern: P2 });
+    expect(el.querySelectorAll('.read-side svg.curve').length).toBe(2);
+    expect(el.querySelectorAll('.blocks-table tbody tr').length).toBe(3);
+    expect(el.querySelector('.read-note').textContent).toContain('not the number of references');
+    expect(el.textContent).toContain('the document model wins at every size measured');
+  });
+});

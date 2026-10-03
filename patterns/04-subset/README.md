@@ -18,14 +18,16 @@ help:
       why: "One claims table and a (policy_id, claim_ts DESC) index make the recent N a range scan that stops after N rows. The summary read does more work than one document fetch, about 25% in the deck's model; what that buys is one insert per claim and nothing to keep in step."
       look: "The insert reports 1 row affected, and the recent-claims query returns the newest 3 with no stored subset."
     measure:
-      why: "The ratio is the redo for pushing and trimming the policy document divided by the redo for one claim insert. The document side rewrites every claim kept inline, so the ratio grows with the subset's size; the insert stays near 1 KB."
-      look: "Your dot at 3 inline claims sits near 1.6×, and it leaves out the history insert the document model also pays."
+      why: "Each size rebuilds the policy with that many claims inline on the document side and as rows on the converged side, then re-runs one claim event: the document model pushes and trims the whole policy, the converged model inserts one row. The read side counts the blocks each model's recent-claims read touches."
+      look: "The redo gap grows with the subset's size; the break-even sits near 10 reads per event until the inline list gets large, then turns to never."
 measure:
   x_label: "claims kept inline in the policy document"
   lab_x: 3
   sizes: [3, 10, 100, 1000]
   workload: { reads_per_write: 67, label: "about 2 million summary reads against 30,000 claim events a day" }
   deck_slides: "26–29"
+  verdict: >-
+    The document model wins this workload, up to a point. Reading the recent claims touches 3 blocks from the policy document against 4 for the index range scan, so the document model needs about 9 to 10 reads per claim event to win while the subset is small. With about 67 (2 million reads, 30,000 events) it wins up to 100 claims inline; at 1,000 inline claims its read is dearer and it never wins. A catastrophe day of 300,000 events drops the mix to about 7 reads per event, and the converged model wins.
   calibration:
     - { x: 3, ratio: 1.62 }   # doc 1680 B, conv 1036 B
     - { x: 10, ratio: 1.95 }   # doc 2024 B, conv 1036 B

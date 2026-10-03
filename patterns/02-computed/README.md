@@ -22,14 +22,16 @@ help:
       why: "The subscriber document the app wanted, profile included, projected over the MongoDB API with the live summary inline and read-only."
       look: "cycleUsage.totalMB in the returned document matches total_mb from the SQL reads."
     measure:
-      why: "The ratio is the document model's redo for one CDR (CDR insert plus summary update) divided by the converged model's (CDR insert plus trigger-maintained summary row). The summary update rewrites the whole subscriber document, so the ratio grows with the document's size; the converged write stays near 1.5 KB."
-      look: "Your dot at the lab's ~6 KB subscriber document, near the 8.3× reference point (about 12.8 KB of redo against 1.5 KB)."
+      why: "Each size rebuilds the subscriber profile at that many KB and re-runs one CDR on both models: the document model's summary update rewrites the whole document, the converged trigger bumps a narrow row. The read side counts the blocks each model's account-page read touches."
+      look: "The redo gap grows with the document's size, and the break-even chart shows never: the converged summary row is the cheaper read too."
 measure:
   x_label: "KB in the subscriber document"
   lab_x: 6
   sizes: [1, 2, 4, 6, 7]
   workload: { reads_per_write: 2.7, label: "about 30 usage reads against 11 CDRs per subscriber a day" }
   deck_slides: "18–21"
+  verdict: >-
+    The converged model wins this workload. Each CDR's summary update rewrites the whole subscriber document, about 3× the converged write at 1 KB and 9× at 7 KB. And the read does not save it: the summary row is read in 2 blocks against 3 to 4 for the subscriber document, so the document model never wins, whatever the mix of reads and writes.
   calibration:
     - { x: 1, ratio: 2.82 }   # doc 4356 B, conv 1544 B
     - { x: 2, ratio: 3.97 }   # doc 6128 B, conv 1544 B
