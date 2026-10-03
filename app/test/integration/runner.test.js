@@ -123,6 +123,12 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
       expect(q.document.result.kind, `size ${q.x} document`).not.toBe('error');
       expect(q.converged.result.kind, `size ${q.x} converged`).not.toBe('error');
       expect(q.ratio, `size ${q.x}`).toBeGreaterThan(0);
+      // The read pair answers at every size (a resize must not remove what the read looks up).
+      for (const lane of ['document', 'converged']) {
+        expect(q.reads?.[lane].result.kind, `size ${q.x} ${lane} read`).not.toBe('error');
+        expect(q.reads[lane].rows, `size ${q.x} ${lane} read rows`).toBeGreaterThan(0);
+        expect(q.reads[lane].stats['session logical reads'], `size ${q.x} ${lane} read blocks`).toBeGreaterThan(0);
+      }
     }
     // The lesson of every pattern: more copies, a bigger gap. Smallest to largest size, the
     // ratio grows (allowing 10% noise between neighbours).

@@ -48,8 +48,15 @@ function frontMatter(file) {
         throw new Error(`${file}: measure.sizes must be 3 or more ascending positive integers`);
       }
     }
+    // Optional stated workload: reads per measured write, for the read-side break-even chart.
+    let workload = null;
+    if (fm.measure.workload !== undefined) {
+      const rpw = Number(fm.measure.workload?.reads_per_write);
+      if (!(rpw > 0) || typeof fm.measure.workload?.label !== 'string') throw new Error(`${file}: measure.workload needs reads_per_write > 0 and a label`);
+      workload = { readsPerWrite: rpw, label: fm.measure.workload.label };
+    }
     measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal,
-      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null, sizes };
+      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null, sizes, workload };
   }
   return {
     title: String(fm.title),

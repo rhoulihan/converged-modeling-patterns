@@ -71,7 +71,6 @@ SELECT JSON {
 
 -- Same read the document model served: identical shape, zero stored copies.
 -- @step Read the projected client document
--- @measure-read read
 -- @note Same shape as the document model's read: the advisor block is a live projection through the FK, not a stored copy.
 -- @why Diversity is served without copies: the duality view assembles the advisor block through the foreign key on every read. That primary-key join is real read work, about 15% more per read in the deck's model.
 -- @look The same client and advisor_office columns as the document model's read, now from xr_client_dv.
@@ -83,6 +82,15 @@ SELECT JSON {
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_dv;
+
+-- The same client-360 read through the duality view: the advisor block is joined in.
+-- @step Read one client's 360 through the duality view
+-- @measure-read read
+-- @note One client by _id, with the advisor block assembled from its own row through the foreign key.
+-- @why Read/write: the price of storing the advisor once is a primary-key join on every client read. Measure it counts the blocks this join touches against the document's single fetch.
+-- @look The same document for C-003 as the document model returns, built from two rows.
+-- @mongo db.xr_client_dv.find({ _id: "C-003" })
+SELECT data FROM xr_client_dv WHERE JSON_VALUE(data, '$._id') = 'C-003';
 
 -- ---------------------------------------------------------------------------
 -- THE NEEDLE-FLIP, RESOLVED. Advisor A-001 moves offices: ONE row. Every client

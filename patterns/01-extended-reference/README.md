@@ -28,6 +28,7 @@ measure:
   x_label: "documents embedding the moved advisor"
   lab_x: 2
   sizes: [1, 2, 10, 100, 1000]
+  workload: { reads_per_write: 166667, label: "about 50 million client reads against about 300 advisor edits a day" }
   deck_slides: "14–17"
   verdict: >-
     On a normal day the document model wins. The workload is read-heavy: about 50 million

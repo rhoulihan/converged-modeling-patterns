@@ -34,6 +34,8 @@ END;
 CREATE JSON COLLECTION TABLE xr_client_doc;
 -- What a MongoDB developer adds for the fan-out: an index on the embedded advisor's id.
 CREATE INDEX xr_ix_doc_advisor ON xr_client_doc (JSON_VALUE(data, '$.advisor.advisorId'));
+-- The equivalent of MongoDB's built-in _id index, so SQL lookups by _id are key lookups.
+CREATE INDEX xr_ix_doc_id ON xr_client_doc (JSON_VALUE(data, '$._id'));
 
 -- Each client doc carries an EMBEDDED COPY of the advisor block (extended
 -- reference). Two clients of advisor A-001 => two copies of A-001's office/desk.
@@ -48,7 +50,6 @@ COMMIT;
 -- The read the pattern optimizes for: zero-join, everything inline. This is why
 -- people reach for the embed.
 -- @step Read the embedded advisor block
--- @measure-read read
 -- @note Zero-join read: every client doc already carries its own copy of the advisor's office and desk.
 -- @why Read/write is why teams embed: at 50 million client-360 reads a day against about 300 advisor edits, a read with no lookup is the right thing to optimize.
 -- @look Every client row returns its own advisor_office, and the statement touches one table.
@@ -60,6 +61,15 @@ COMMIT;
 SELECT JSON_VALUE(data, '$.fullName') AS client,
        JSON_VALUE(data, '$.advisor.office') AS advisor_office
 FROM   xr_client_doc;
+
+-- The client-360 read the pattern is built for: one client, one document, by _id.
+-- @step Read one client's 360 (one document)
+-- @measure-read read
+-- @note One lookup by _id returns the client with the advisor card already inside: no join.
+-- @why Read/write: this is the read done 50 million times a day. The embedded card means one document fetch answers it, which is the whole case for the pattern.
+-- @look One document for C-003, advisor block included; Measure it counts the blocks this read touches at every size.
+-- @mongo db.xr_client_doc.find({ _id: "C-003" })
+SELECT data FROM xr_client_doc WHERE JSON_VALUE(data, '$._id') = 'C-003';
 
 -- ---------------------------------------------------------------------------
 -- THE NEEDLE FLIPS HERE. Advisor A-001 moves from NYC-01 to NYC-09. There is no

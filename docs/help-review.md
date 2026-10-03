@@ -35,6 +35,10 @@ Entries missing help: **0**
 - **Look for:** Every client row returns its own advisor_office, and the statement touches one table.
 - **Figure:** `doc-shape.svg`: The client document as built: the advisor card copied into every client and account
 
+**Read one client's 360 (one document)**
+- **Why:** Read/write: this is the read done 50 million times a day. The embedded card means one document fetch answers it, which is the whole case for the pattern.
+- **Look for:** One document for C-003, advisor block included; Measure it counts the blocks this read touches at every size.
+
 **Move advisor A-001 to a new office** · measured: advisor-move
 - **Why:** Update locality is the hot knob: the advisor exists only as copies, so one office change is a read-modify-write of every document that embeds A-001. At 2,700 embedding documents per advisor, that is 2,700 rewrites per edit.
 - **Look for:** Rows affected is 2 here, one per embedded copy; Measure it shows the redo those copies cost.
@@ -49,6 +53,10 @@ Entries missing help: **0**
 - **Why:** Diversity is served without copies: the duality view assembles the advisor block through the foreign key on every read. That primary-key join is real read work, about 15% more per read in the deck's model.
 - **Look for:** The same client and advisor_office columns as the document model's read, now from xr_client_dv.
 - **Figure:** `erd.svg`: Advisor, client, account and trade in canonical form, each fact once, beside the fan-out one advisor change causes in the embedded model
+
+**Read one client's 360 through the duality view**
+- **Why:** Read/write: the price of storing the advisor once is a primary-key join on every client read. Measure it counts the blocks this join touches against the document's single fetch.
+- **Look for:** The same document for C-003 as the document model returns, built from two rows.
 
 **Move advisor A-001 to a new office** · measured: advisor-move
 - **Why:** Update locality collapses: the advisor is one row, so an office change is one small row write however many clients project it.
@@ -282,9 +290,9 @@ Entries missing help: **0**
 
 ### converged cards
 
-**Explode the bicycle with CONNECT BY**
+**Explode the wheelset with CONNECT BY**
 - **Why:** Read/write is where this lane loses: the walk probes the edge index once per part and joins each part's row, so it costs about 1.5x the path's prefix scan on every explosion (measured on 26ai: 1,116 us against 765 us for a 1,092-part assembly), two million times a day.
-- **Look for:** Each component with its qty and depth, indented under its parent.
+- **Look for:** The wheel and the spoke with their names, the same answer as the path lane's prefix scan.
 - **Figure:** `erd.svg`: Part, BOM edge and change order in canonical form, beside the fan-out of one re-parent across materialized paths
 
 **Walk upward with a graph match: where is the wheel used?**
