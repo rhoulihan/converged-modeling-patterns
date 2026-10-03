@@ -62,4 +62,10 @@ describe('loadConfig', () => {
   it('is frozen', () => {
     expect(Object.isFrozen(loadConfig({}))).toBe(true);
   });
+  it('gate permits default to the pool size and can be set on their own', () => {
+    expect(loadConfig({}).gate.permits).toBe(1);
+    expect(loadConfig({ DB_POOL_MAX: '4' }).gate.permits).toBe(4);
+    expect(loadConfig({ DB_POOL_MAX: '4', GATE_PERMITS: '2' }).gate.permits).toBe(2);
+    expect(() => loadConfig({ GATE_PERMITS: '0' })).toThrow(/GATE_PERMITS/);
+  });
 });

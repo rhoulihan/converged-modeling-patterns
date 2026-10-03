@@ -19,6 +19,18 @@ describe('Gate', () => {
     expect(max).toBe(1);
   });
 
+  it('runs up to N operations at once with N permits, and no more', async () => {
+    const g = new Gate({ permits: 4 });
+    let running = 0; let peak = 0;
+    const work = () => g.run({ userId: `u${Math.random()}`, label: 't' }, async () => {
+      running++; peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 20));
+      running--;
+    });
+    await Promise.all(Array.from({ length: 10 }, work));
+    expect(peak).toBe(4);
+  });
+
   it('is first-in first-out across users', async () => {
     const g = new Gate({ permits: 1 });
     const order = [];
