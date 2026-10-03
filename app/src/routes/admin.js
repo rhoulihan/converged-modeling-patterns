@@ -1,15 +1,10 @@
 // app/src/routes/admin.js
 import express from 'express';
-import crypto from 'node:crypto';
 import { wrap } from './api.js';
 import { sign, verify, parseCookies, cookie } from '../services/auth.js';
+import { newEventCode } from '../services/eventSettings.js';
 
-const same = (a, b) => {
-  const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-};
-
-export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret }) {
+export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret, event }) {
   const r = express.Router();
   if (cfg.mode !== 'event') {
     r.use((req, res) => res.status(404).json({ error: 'admin is only available in event mode' }));
@@ -17,7 +12,7 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
   }
 
   r.post('/login', (req, res) => {
-    if (!same(req.body?.password ?? '', cfg.event.adminPassword)) return res.status(403).json({ error: 'wrong password' });
+    if (!event.checkPassword(req.body?.password ?? '')) return res.status(403).json({ error: 'wrong password' });
     res.setHeader('Set-Cookie', cookie('lab_admin', sign('admin', sessionSecret), { maxAgeSec: 12 * 3600 }));
     return res.json({ ok: true });
   });
@@ -50,10 +45,19 @@ export function adminRouter({ cfg, runner, workspaces, gate, cache, patterns, mo
     cache: { size: cache.size, enabled: cache.enabled },
     timeouts: runner.timeouts,
     resets,
+    eventCode: event.code,
     pending: await workspaces.pendingCount(),
     storage: await workspaces.storage(),
     attendees: await workspaces.list(),
   })));
+
+  // Event controls: a new event code (generated unless one is given), and a new instructor password.
+  r.post('/event-code', wrap(async (req, res) => {
+    try { return res.json({ code: await event.setCode(req.body?.code ? String(req.body.code).trim() : newEventCode()) }); } catch (e) { return res.status(e.status ?? 500).json({ error: e.message }); }
+  }));
+  r.post('/password', wrap(async (req, res) => {
+    try { await event.setPassword(req.body?.current, req.body?.next); return res.json({ ok: true }); } catch (e) { return res.status(e.status ?? 500).json({ error: e.message }); }
+  }));
 
   r.post('/timeouts', (req, res) => {
     const ok = (v) => Number.isInteger(v) && v >= 1000 && v <= 60000;

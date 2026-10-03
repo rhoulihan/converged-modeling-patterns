@@ -13,6 +13,7 @@ import { apiRouter } from './routes/api.js';
 import { adminRouter } from './routes/admin.js';
 import { figuresRouter } from './routes/figures.js';
 import { deckRouter } from './routes/deck.js';
+import { EventSettings } from './services/eventSettings.js';
 
 // The instructor side: the admin page and its script, the admin API and the deck.
 export const INSTRUCTOR_PATHS = ['/admin.html', '/js/admin.js', '/api/admin', '/deck'];
@@ -21,6 +22,8 @@ export const INSTRUCTOR_PATHS = ['/admin.html', '/js/admin.js', '/api/admin', '/
 // (404, as if never deployed), so a tunnel to it exposes only what attendees use. The LAN
 // listener keeps everything, and the instructor runs the event from the LAN.
 export function createApp(deps, { publicMode = false } = {}) {
+  // The live event code and password; tests and solo mode get one straight from the config.
+  deps = { ...deps, event: deps.event ?? new EventSettings({ cfg: deps.cfg }) };
   const app = express();
   app.disable('x-powered-by');
   if (publicMode) {
@@ -80,7 +83,8 @@ export async function main() {
   }
   const runner = new Runner({ cfg, gate, cache, pools, mongo, workspaces, patterns });
   const sessionSecret = await workspaces.sessionSecret();
-  const deps = { cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret };
+  const event = cfg.mode === 'event' ? await new EventSettings({ cfg, store: workspaces.settingsStore() }).load() : new EventSettings({ cfg });
+  const deps = { cfg, runner, workspaces, gate, cache, patterns, mongo, sessionSecret, event };
   createApp(deps).listen(cfg.port, () => console.log(`[lab-ui] ${cfg.mode} mode on :${cfg.port} · ${patterns.length} patterns`));
   if (cfg.publicPort) {
     createApp(deps, { publicMode: true }).listen(cfg.publicPort, () => console.log(`[lab-ui] public listener (attendee side only) on :${cfg.publicPort}`));
