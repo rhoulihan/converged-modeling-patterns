@@ -25,8 +25,8 @@ Entries missing help: **0**
 - **Look for:** The advisor.office in the returned document matches what the SQL read of xr_client_dv shows.
 
 **measure**
-- **Why:** On a normal day the document model wins the workload: it is read-heavy, and every one of about 50 million reads skips the join the projection pays. This tab measures the other side of the trade: the redo for one advisor move, document model divided by converged. The document side rewrites every document that embeds the advisor, so the ratio grows with that count; the converged side is one row at any count. That per-edit cost is what a reorg day multiplies.
-- **Look for:** Your dot at 2 embedded copies, on a reference line that reaches about 3,000× at 1,000 copies.
+- **Why:** Each size re-runs the advisor move with that many client documents embedding the advisor: the document model rewrites every copy, the converged model one row. The read side counts the blocks one client-360 read touches in each model, and the break-even chart turns both into reads per edit.
+- **Look for:** The redo gap climbs from about 3× at 1 copy to about 3,000× at 1,000, while both client reads stay at 3 to 5 blocks; the document model wins at every size against the normal day's reads per edit.
 
 ### document cards
 
@@ -94,8 +94,8 @@ Entries missing help: **0**
 - **Look for:** cycleUsage.totalMB in the returned document matches total_mb from the SQL reads.
 
 **measure**
-- **Why:** The ratio is the document model's redo for one CDR (CDR insert plus summary update) divided by the converged model's (CDR insert plus trigger-maintained summary row). The summary update rewrites the whole subscriber document, so the ratio grows with the document's size; the converged write stays near 1.5 KB.
-- **Look for:** Your dot at the lab's ~6 KB subscriber document, near the 8.3× reference point (about 12.8 KB of redo against 1.5 KB).
+- **Why:** Each size rebuilds the subscriber profile at that many KB and re-runs one CDR on both models: the document model's summary update rewrites the whole document, the converged trigger bumps a narrow row. The read side counts the blocks each model's account-page read touches.
+- **Look for:** The redo gap grows with the document's size, and the break-even chart shows never: the converged summary row is the cheaper read too.
 
 ### document cards
 
@@ -163,8 +163,8 @@ Entries missing help: **0**
 - **Look for:** One rollup document per machine and hour, with n, avg and max matching the SQL GROUP BY.
 
 **measure**
-- **Why:** The ratio is the bucket's redo for 3 appends divided by the redo for 3 row inserts plus their summary-row bumps. Each append rewrites the bucket as it stands, so the ratio grows with the readings in it; the inserts and bumps cost the same whether the hour holds 3 readings or 3,600.
-- **Look for:** Your dot at 33 readings (the lab bucket holds the hour's first 30, then the measured 3), near 3.9×. The reference line reaches about 166× at 3,600 readings (one a second for an hour).
+- **Why:** Each size pre-loads the machine-hour with that many readings on both sides and re-runs the 3 measured readings: the bucket rewrites itself per reading, the converged model inserts rows and bumps a summary row. The read side counts the blocks each model's hour read touches.
+- **Look for:** The redo gap climbs with the readings in the bucket, the bucket read grows from 3 to over 20 blocks while the summary row stays at 4, and the break-even turns to never by 1,000 readings.
 
 ### document cards
 
@@ -216,8 +216,8 @@ Entries missing help: **0**
 - **Look for:** The insert reports 1 row affected, and the recent-claims query returns the newest 3 with no stored subset.
 
 **measure**
-- **Why:** The ratio is the redo for pushing and trimming the policy document divided by the redo for one claim insert. The document side rewrites every claim kept inline, so the ratio grows with the subset's size; the insert stays near 1 KB.
-- **Look for:** Your dot at 3 inline claims sits near 1.6×, and it leaves out the history insert the document model also pays.
+- **Why:** Each size rebuilds the policy with that many claims inline on the document side and as rows on the converged side, then re-runs one claim event: the document model pushes and trims the whole policy, the converged model inserts one row. The read side counts the blocks each model's recent-claims read touches.
+- **Look for:** The redo gap grows with the subset's size; the break-even sits near 10 reads per event until the inline list gets large, then turns to never.
 
 ### document cards
 
@@ -266,8 +266,8 @@ Entries missing help: **0**
 - **Look for:** The re-parent reports 1 row affected; compare the explosion steps with the path lane's single range scan.
 
 **measure**
-- **Why:** The ratio is the path's redo for one re-parent (every descendant rewritten) divided by the edge model's (one row). It grows with the subtree, about 1.7 KB per moved part, while the edge update stays under 1 KB. It is the cost the path pays 200 times a day; the deck's model sets it against the read premium the edges pay 2 million times.
-- **Look for:** Your dot at 3 moved parts, near 7×, on a reference line that reaches about 5,100× at 3,000 parts.
+- **Why:** Each size grows the moved subtree to that many parts on both sides and re-runs the re-parent: the path rewrites every descendant, the edge model one row. The read side explodes the subtree in both models, fetching every part, and counts the blocks each touches.
+- **Look for:** The redo gap climbs with the subtree while the edge update stays flat; both explosions grow with the parts returned, the edge walk about 28× more blocks per part, and the break-even stays far below 10,000.
 
 ### document cards
 
@@ -328,8 +328,8 @@ Entries missing help: **0**
 - **Look for:** The returned A-001 document carries its clients array and no hasExtras flag.
 
 **measure**
-- **Why:** The ratio is the redo for appending one client to the embedded book divided by the redo for one client row. The document side rewrites the whole book, so the ratio grows with the clients already embedded; the row insert stays near 1.2 KB.
-- **Look for:** Your dot at 800 clients, near 17× (about 20 KB of redo against 1.2 KB).
+- **Why:** Each size gives the whale advisor that many clients on both sides and re-runs one client append: the document model rewrites the whole book, the converged model inserts one row. The read side counts the blocks the whale's book read and the top-holdings read touch.
+- **Look for:** The redo gap grows with the book; the book read climbs while the top-N read stays at 5 blocks, and the break-even turns to never once the book passes several hundred clients.
 
 ### document cards
 

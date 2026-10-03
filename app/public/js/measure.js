@@ -2,7 +2,7 @@
 // (each row scaled to its own max) with ratios and ⓘ explainers, and a "what just happened" panel.
 // If either side errored there is no live point and every ratio shows — (raw values still shown).
 import { curveChart, linesChart, breakEvenChart, fmtRatio as fmtR } from './chart.js';
-import { analyze, growth, verdict, fmtCount } from './readside.js';
+import { analyze, verdict, fmtCount, readLabel, logSteps, breakEvenRange, breakEvenSentence } from './readside.js';
 import { helpTrigger, openHelp } from './help.js';
 
 const STATS = [
@@ -89,37 +89,56 @@ export function renderMeasure(sw, { pattern } = {}) {
 function readSection(sw, meas) {
   const rows = analyze(sw.points);
   if (rows.length < 2) return null;
-  const xs = rows.map((r) => r.x);
-  const gDoc = growth(xs, rows.map((r) => r.docRead)); const gConv = growth(xs, rows.map((r) => r.convRead));
+  const gDoc = { label: readLabel(rows, 'docRead', 'docRows') }; const gConv = { label: readLabel(rows, 'convRead', 'convRows') };
   const first = rows[0]; const last = rows[rows.length - 1];
   const sec = h('div', 'read-side');
   sec.append(h('h4', 'read-side-title', 'The read side: reads and writes in one unit, blocks touched'));
   const head1 = h('p', 'measure-headline');
-  head1.append('Reading one item, the document model touched ', h('strong', null, `${first.docRead} → ${last.docRead} blocks`), ` (${gDoc.label}); the converged model `,
-    h('strong', null, `${first.convRead} → ${last.convRead}`), ` (${gConv.label}).`);
+  const n = (v) => v.toLocaleString('en-US');
+  const multi = Math.max(...rows.map((r) => Math.max(r.docRows, r.convRows))) > 1;
+  head1.append(multi ? 'For a read that returns many items, the document model touched ' : 'Reading one item, the document model touched ',
+    h('strong', null, `${n(first.docRead)} → ${n(last.docRead)} blocks`), ` (${gDoc.label}); the converged model `,
+    h('strong', null, `${n(first.convRead)} → ${n(last.convRead)}`), ` (${gConv.label}).`);
   const head2 = h('p', 'measure-headline');
   const v = meas.workload ? verdict(rows, meas.workload.readsPerWrite) : null;
   if (rows.every((r) => r.breakEven === null)) {
     head2.append('The document model\'s read is never cheaper here, so it ', h('strong', null, 'never wins'), ', whatever the mix of reads and writes.');
   } else if (v) {
-    const lead = `At this workload (~${fmtCount(meas.workload.readsPerWrite)} reads per write: ${meas.workload.label}) `;
+    const lead = `The document model ${breakEvenSentence(rows)}. At this workload (~${fmtCount(meas.workload.readsPerWrite)} reads per write: ${meas.workload.label}) `;
     if (v.kind === 'all') head2.append(lead, h('strong', null, 'the document model wins at every size measured'), '.');
     else if (v.kind === 'none') head2.append(lead, h('strong', null, 'the converged model wins at every size measured'), '.');
     else head2.append(lead, h('strong', null, `the document model wins up to ${v.upTo.toLocaleString('en-US')}`), ` ${meas.xLabel}; beyond that the converged model wins.`);
   } else {
-    head2.append('The document model wins wherever the reads per write are above the curve.');
+    head2.append(`The document model ${breakEvenSentence(rows)}.`);
   }
   sec.append(head1, head2);
   const grid = h('div', 'measure-grid two-charts');
-  const a = h('div', 'measure-curve'); a.append(h('div', 'kicker', 'Reading one item: blocks touched'));
+  const a = h('div', 'measure-curve'); a.append(h('div', 'kicker', 'Blocks touched per read'));
   a.append(linesChart({ xLabel: meas.xLabel, yLabel: 'blocks touched per read (log)', series: [
     { name: `document model: ${gDoc.label}`, tone: 'hot', points: rows.map((r) => ({ x: r.x, y: r.docRead })) },
     { name: `converged: ${gConv.label}`, tone: 'cool', points: rows.map((r) => ({ x: r.x, y: r.convRead })) },
   ] }));
   const b = h('div', 'measure-curve'); b.append(h('div', 'kicker', 'Reads per write before the document model wins'));
-  b.append(breakEvenChart({ rows, workload: meas.workload, xLabel: meas.xLabel }));
+  const ber = breakEvenRange(rows);
+  const beText = ber.span ? `${ber.span} reads per write${ber.partial ? ', never at the larger sizes' : ''}` : null;
+  b.append(breakEvenChart({ rows, workload: meas.workload, xLabel: meas.xLabel, breakEvenText: beText }));
   grid.append(a, b);
   sec.append(grid, blocksTable(rows, meas.xLabel));
+  // Why a converged lookup creeps up by a block at large sizes, and why multi-row reads grow.
+  const note = h('div', 'read-note');
+  for (const st of logSteps(rows)) {
+    const where = `${st.at.toLocaleString('en-US')} ${meas.xLabel}`;
+    note.append(h('p', 'read-step', st.kind === 'index'
+      ? `The ${st.what} rises from ${st.from} to ${st.to} blocks across these sizes: a step of a block or two, from an index gaining a level as its table grows (log n) or from where rows land in blocks, never a block per reference.`
+      : `The ${st.what} rises from ${st.from} to ${st.to} blocks by ${where}: the document outgrew its block, so reading it touches more blocks (its size, not an index).`));
+  }
+  note.append(h('strong', null, 'Reading the block counts. '),
+    'Every index lookup reads one block per index level, plus the row itself. An index gains a level only as its table grows, '
+    + 'roughly once per hundred-fold more rows, so a one-item read or a one-row write stays at a handful of blocks and rises by about one block '
+    + 'when an index grows a level (e.g. 4 to 5 blocks at 1,000 rows). That is the table size, not the number of references. '
+    + 'A read that returns many items is different: rows assembled by one lookup each cost about a block per item, '
+    + 'while items stored together in one document or a few adjacent blocks cost a small fraction of a block each.');
+  sec.append(note);
   return sec;
 }
 

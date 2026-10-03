@@ -22,14 +22,16 @@ help:
       why: "The anomaly team keeps db.aggregate() through the MongoDB API and runs the rollup as one $sql stage (Oracle's addition to the aggregation pipeline: a full SQL statement as one stage) over the same partitioned rows, planned by the optimizer."
       look: "One rollup document per machine and hour, with n, avg and max matching the SQL GROUP BY."
     measure:
-      why: "The ratio is the bucket's redo for 3 appends divided by the redo for 3 row inserts plus their summary-row bumps. Each append rewrites the bucket as it stands, so the ratio grows with the readings in it; the inserts and bumps cost the same whether the hour holds 3 readings or 3,600."
-      look: "Your dot at 33 readings (the lab bucket holds the hour's first 30, then the measured 3), near 3.9×. The reference line reaches about 166× at 3,600 readings (one a second for an hour)."
+      why: "Each size pre-loads the machine-hour with that many readings on both sides and re-runs the 3 measured readings: the bucket rewrites itself per reading, the converged model inserts rows and bumps a summary row. The read side counts the blocks each model's hour read touches."
+      look: "The redo gap climbs with the readings in the bucket, the bucket read grows from 3 to over 20 blocks while the summary row stays at 4, and the break-even turns to never by 1,000 readings."
 measure:
   x_label: "readings in the bucket after the write"
   lab_x: 33
   sizes: [33, 100, 1000, 3600]
   workload: { reads_per_write: 0.1, label: "about 360 dashboard reads against 3,600 readings per sensor-hour" }
   deck_slides: "22–25"
+  verdict: >-
+    The converged model wins this workload. Each reading rewrites the bucket as it stands: about 4× the converged write at 33 readings and 166× at 3,600. The bucket is the cheaper read only while it is small (3 blocks against 4 for the summary row, needing about 31 reads per reading to win), and by 1,000 readings it is the dearer read too. With about 0.1 dashboard reads per reading, the converged model wins at every size.
   calibration:
     - { x: 33, ratio: 3.87 }   # doc 10964 B, conv 2836 B
     - { x: 100, ratio: 8.82 }   # doc 24596 B, conv 2788 B

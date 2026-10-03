@@ -19,8 +19,8 @@ help:
       why: "The measured alternative: store the canonical edges and derive position by walking them. A re-parent becomes one edge row, but every explosion pays the walk (about 1.5x the path's prefix scan with CONNECT BY, 2.5x with GRAPH_TABLE), and at 2 million explosions a day that premium outweighs the path's rewrites."
       look: "The re-parent reports 1 row affected; compare the explosion steps with the path lane's single range scan."
     measure:
-      why: "The ratio is the path's redo for one re-parent (every descendant rewritten) divided by the edge model's (one row). It grows with the subtree, about 1.7 KB per moved part, while the edge update stays under 1 KB. It is the cost the path pays 200 times a day; the deck's model sets it against the read premium the edges pay 2 million times."
-      look: "Your dot at 3 moved parts, near 7×, on a reference line that reaches about 5,100× at 3,000 parts."
+      why: "Each size grows the moved subtree to that many parts on both sides and re-runs the re-parent: the path rewrites every descendant, the edge model one row. The read side explodes the subtree in both models, fetching every part, and counts the blocks each touches."
+      look: "The redo gap climbs with the subtree while the edge update stays flat; both explosions grow with the parts returned, the edge walk about 28× more blocks per part, and the break-even stays far below 10,000."
 measure:
   x_label: "parts in the moved subtree"
   lab_x: 3
@@ -28,13 +28,7 @@ measure:
   workload: { reads_per_write: 10000, label: "about 2 million explosions against 200 engineering changes a day" }
   deck_slides: "30–33"
   verdict: >-
-    The document model wins this workload. It is read-heavy: about 2 million explosions a
-    day against about 200 engineering changes, and every explosion is cheaper on the path's
-    prefix scan than walking edges (measured on 26ai: 765 µs against 1,116 µs for a
-    1,092-part assembly). What this tab measures is the other side of the trade: the redo for
-    one re-parent, which rewrites every part in the moved subtree. That bill comes 200 times
-    a day, and it only outweighs the read savings once a typical move passes about 88,000
-    parts.
+    The document model wins this workload. Exploding the moved subtree touches about 0.04 blocks per part on the path's prefix scan against about 1 block per part walking edges and fetching each part, so the path needs only about 5 to 43 reads per change to win across subtrees of 3 to 3,000 parts. The workload has about 10,000 (2 million explosions, 200 changes). What the path pays is the re-parent: about 7× the edge update's redo at 3 parts and 5,100× at 3,000.
   calibration:
     - { x: 3, ratio: 6.75 }   # doc 6348 B, conv 940 B
     - { x: 30, ratio: 53.76 }   # doc 51820 B, conv 964 B

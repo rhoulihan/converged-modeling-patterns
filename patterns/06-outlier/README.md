@@ -22,13 +22,15 @@ help:
       why: "The CRM reads the book as a document over the MongoDB API and the AI assistant reads the same projection over SQL/JSON, both from the client rows the book screen queries."
       look: "The returned A-001 document carries its clients array and no hasExtras flag."
     measure:
-      why: "The ratio is the redo for appending one client to the embedded book divided by the redo for one client row. The document side rewrites the whole book, so the ratio grows with the clients already embedded; the row insert stays near 1.2 KB."
-      look: "Your dot at 800 clients, near 17× (about 20 KB of redo against 1.2 KB)."
+      why: "Each size gives the whale advisor that many clients on both sides and re-runs one client append: the document model rewrites the whole book, the converged model inserts one row. The read side counts the blocks the whale's book read and the top-holdings read touch."
+      look: "The redo gap grows with the book; the book read climbs while the top-N read stays at 5 blocks, and the break-even turns to never once the book passes several hundred clients."
 measure:
   x_label: "clients embedded in the advisor's book"
   lab_x: 800
   sizes: [10, 100, 800, 2000]
   deck_slides: "34–37"
+  verdict: >-
+    The converged model wins for the whale. Appending a client rewrites the whole embedded book: about 2× the row insert at 10 clients and 41× at 2,000. Reading the book (4 to 22 blocks as it grows) only beats the top-holdings read (5 blocks at any size) while the book is small, needing about 7 reads per write to win; from 800 clients the document read is dearer too and the document model never wins.
   calibration:
     - { x: 10, ratio: 1.65 }   # doc 2016 B, conv 1224 B
     - { x: 100, ratio: 5.01 }   # doc 6136 B, conv 1224 B

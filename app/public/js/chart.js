@@ -199,7 +199,7 @@ export function linesChart({ series, xLabel, yLabel }) {
 
 // Break-even reads per write against size, with the stated workload as a line: the document
 // model is cheaper overall wherever the curve sits below the workload line. null = never.
-export function breakEvenChart({ rows, workload, xLabel }) {
+export function breakEvenChart({ rows, workload, xLabel, breakEvenText = null }) {
   const finiteRows = rows.filter((r) => r.breakEven !== null && r.breakEven > 0);
   const vals = [...finiteRows.map((r) => r.breakEven), ...(workload ? [workload.readsPerWrite] : [])];
   const yMin = Math.max(0.01, Math.min(...vals, 1) / 3); const yMax = Math.max(...vals, 10) * 30;
@@ -216,8 +216,19 @@ export function breakEvenChart({ rows, workload, xLabel }) {
     svg.append(s('line', { class: 'workload', x1: L, y1: wy, x2: W - R, y2: wy, stroke: 'var(--ink)', 'stroke-dasharray': '6 4', 'stroke-width': 1.4 }));
     const wText = `this workload: ~${fmtN(Math.round(workload.readsPerWrite * 10) / 10)} reads per write`;
     svg.append(t({ x: W - R - 4, y: wy - 6, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, fill: 'var(--ink)' }, wText));
-    svg.append(t({ x: W - R - 4, y: wy + 15, 'text-anchor': 'end', 'font-size': 10.5, fill: 'var(--muted)' }, 'below the line: the document model wins'));
-    placed.push(boxFor(W - R - 4, wy - 6, 'end', wText, 11), boxFor(W - R - 4, wy + 15, 'end', 'below the line: the document model wins', 10.5), { x0: L, x1: W - R, y0: wy - 2, y1: wy + 2 });
+    const below = 'below the line: the document model wins';
+    svg.append(t({ x: W - R - 4, y: wy + 15, 'text-anchor': 'end', 'font-size': 10.5, fill: 'var(--muted)' }, below));
+    placed.push(boxFor(W - R - 4, wy - 6, 'end', wText, 11), boxFor(W - R - 4, wy + 15, 'end', below, 10.5), { x0: L, x1: W - R, y0: wy - 2, y1: wy + 2 });
+    if (breakEvenText) {
+      const bt = `break-even here: ${breakEvenText}`;
+      svg.append(t({ class: 'be-range', x: W - R - 4, y: wy + 29, 'text-anchor': 'end', 'font-size': 10.5, 'font-weight': 700, fill: 'var(--flow)' }, bt));
+      placed.push(boxFor(W - R - 4, wy + 29, 'end', bt, 10.5));
+    }
+  }
+  if (!workload && breakEvenText) {   // no stated workload: the break-even still gets its own label
+    const bt = `break-even here: ${breakEvenText}`;
+    svg.append(t({ class: 'be-range', x: L + 40, y: ly + 18, 'font-size': 10.5, 'font-weight': 700, fill: 'var(--flow)' }, bt));
+    placed.push(boxFor(L + 40, ly + 18, 'start', bt, 10.5));
   }
   const geo = finiteRows.map((r) => [x(r.x), y(r.breakEven)]);
   if (geo.length > 1) svg.append(s('path', { class: 'be-line', d: `M${geo.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(' L')}`, fill: 'none', stroke: 'var(--flow)', 'stroke-width': 2.4 }));
