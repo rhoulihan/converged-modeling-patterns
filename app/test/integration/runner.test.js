@@ -113,6 +113,38 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
     }
   }, 120000);
 
+  it('measure-it sweep: every size measured, the gap grows with size, and the lab is restored', async () => {
+    const m = p.measures[0];
+    const out = await runner.sweep({ user, patternId: id, tag: m.tag });
+    expect(out.error, JSON.stringify(out.error)).toBeNull();
+    expect(out.restored).toBe(true);
+    expect(out.points.map((q) => q.x)).toEqual(p.meta.measure.sizes);
+    for (const q of out.points) {
+      expect(q.document.result.kind, `size ${q.x} document`).not.toBe('error');
+      expect(q.converged.result.kind, `size ${q.x} converged`).not.toBe('error');
+      expect(q.ratio, `size ${q.x}`).toBeGreaterThan(0);
+      // The read pair answers at every size (a resize must not remove what the read looks up).
+      for (const lane of ['document', 'converged']) {
+        expect(q.reads?.[lane].result.kind, `size ${q.x} ${lane} read`).not.toBe('error');
+        expect(q.reads[lane].rows, `size ${q.x} ${lane} read rows`).toBeGreaterThan(0);
+        expect(q.reads[lane].stats['session logical reads'], `size ${q.x} ${lane} read blocks`).toBeGreaterThan(0);
+      }
+    }
+    // The lesson of every pattern: more copies, a bigger gap. Smallest to largest size, the
+    // ratio grows (allowing 10% noise between neighbours).
+    const r = out.points.map((q) => q.ratio);
+    expect(r[r.length - 1], `ratios ${r}`).toBeGreaterThan(r[0]);
+    for (let i = 1; i < r.length; i++) expect(r[i], `ratios ${r}`).toBeGreaterThan(r[i - 1] * 0.9);
+    // Restored: a plain Measure it run now matches the reference point at the lab's size.
+    const after = await runner.measure({ user, patternId: id, tag: m.tag });
+    const ref = p.meta.measure.calibration.find((c) => c.x === p.meta.measure.labX);
+    if (ref) {
+      const live = after.document.stats['redo size'] / after.converged.stats['redo size'];
+      expect(live / ref.ratio, `lab-size ratio ${live} vs reference ${ref.ratio}`).toBeGreaterThan(0.7);
+      expect(live / ref.ratio, `lab-size ratio ${live} vs reference ${ref.ratio}`).toBeLessThan(1.4);
+    }
+  }, 180000);
+
   it('measure-it: write stats are non-zero and stable across repeated runs', async () => {
     await runner.reset({ user, patternId: id });
     for (const m of p.measures) {

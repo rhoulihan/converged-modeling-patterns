@@ -48,6 +48,7 @@ CREATE MULTIVALUE INDEX tr_ix_bom_paths ON tr_bom_doc t (t.data.paths.string());
 
 -- The read the pattern is built for: everything under the wheelset, one range scan.
 -- @step Explode the wheelset with one prefix scan
+-- @measure-read read
 -- @note Everything under the wheelset from one multivalue-index range scan: the genuine strength of the materialized path.
 -- @why Read/write decides this pattern: two million explosions a day each become one left-anchored prefix scan. Measured on 26ai, that is about 1.5x cheaper than walking edges with CONNECT BY and 2.5x cheaper than a GRAPH_TABLE match, on every explosion.
 -- @look The wheel and the spoke come back from one starts-with predicate over the paths array.

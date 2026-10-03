@@ -27,6 +27,8 @@ END;
 /
 
 CREATE JSON COLLECTION TABLE bk_sensor_doc;
+-- The equivalent of MongoDB's built-in _id index, so SQL lookups by _id are key lookups.
+CREATE INDEX bk_ix_doc_id ON bk_sensor_doc (JSON_VALUE(data, '$._id'));
 
 -- One bucket: machine M-100, metric TEMP, hour starting 10:00. It already holds
 -- the hour's first 30 readings (the same 30 the converged model stores as rows), so
@@ -81,6 +83,7 @@ COMMIT;
 
 -- The read the pattern optimizes for: one bucket, counters already there.
 -- @step Read the bucket (counters already there)
+-- @measure-read read
 -- @note One document, running counters already maintained: cheap, until the bucket has to grow again.
 -- @why Read/write is the bucket's case: a dashboard that reads the hour 360 times gets one contiguous document with the counters already computed. Below about 900 readings a bucket, that read win beats the rewrites.
 -- @look n, avg_temp and max_temp come straight off the counters, with no pass over the readings array.

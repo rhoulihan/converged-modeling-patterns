@@ -145,7 +145,17 @@ describe('help and measure front matter', () => {
     expect(p.meta.help.tabs.document).toEqual({ why: 'The starting point.', look: 'One read.', figure: { file: 'doc-shape.svg', caption: null } });
     expect(p.meta.help.tabs.converged).toBeUndefined();
     expect(p.meta.measure).toEqual({ xLabel: 'CDR line items in the document', labX: 1000, deckSlides: '18–21',
-      calibration: [{ x: 10, ratio: 1.2 }, { x: 100, ratio: 5 }, { x: 1000, ratio: 33 }, { x: 5000, ratio: 260 }], verdict: null });
+      calibration: [{ x: 10, ratio: 1.2 }, { x: 100, ratio: 5 }, { x: 1000, ratio: 33 }, { x: 5000, ratio: 260 }], verdict: null, sizes: null, workload: null });
+  });
+  it('parses optional sweep sizes, which need calibrate.sql and must ascend', () => {
+    const withSizes = FM_HELP.replace('  lab_x: 1000\n', '  lab_x: 1000\n  sizes: [10, 100, 1000]\n');
+    const files = { 'README.md': withSizes, '01-document-model.sql': DOC, '02-converged.sql': CONV };
+    expect(() => loadPatterns(fixture(files))).toThrow(/calibrate\.sql/);
+    const [p] = loadPatterns(fixture({ ...files, 'calibrate.sql': 'DELETE FROM d WHERE a > :n;\n' }));
+    expect(p.meta.measure.sizes).toEqual([10, 100, 1000]);
+    expect(p.calibrate).toEqual(['DELETE FROM d WHERE a > :n']);
+    const bad = FM_HELP.replace('  lab_x: 1000\n', '  lab_x: 1000\n  sizes: [100, 10, 1000]\n');
+    expect(() => loadPatterns(fixture({ 'README.md': bad, '01-document-model.sql': DOC, '02-converged.sql': CONV, 'calibrate.sql': 'SELECT 1 FROM dual;\n' }))).toThrow(/sizes/);
   });
   it('parses an optional measure verdict and rejects an empty one', () => {
     const withVerdict = FM_HELP.replace('  deck_slides: "18–21"\n', '  deck_slides: "18–21"\n  verdict: >-\n    On a normal day the document wins.\n');

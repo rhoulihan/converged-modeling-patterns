@@ -25,8 +25,10 @@ help:
       why: "The ratio is the document model's redo for one CDR (CDR insert plus summary update) divided by the converged model's (CDR insert plus trigger-maintained summary row). The summary update rewrites the whole subscriber document, so the ratio grows with the document's size; the converged write stays near 1.5 KB."
       look: "Your dot at the lab's ~6 KB subscriber document, near the 8.3× reference point (about 12.8 KB of redo against 1.5 KB)."
 measure:
-  x_label: "Subscriber document size (KB)"
+  x_label: "KB in the subscriber document"
   lab_x: 6
+  sizes: [1, 2, 4, 6, 7]
+  workload: { reads_per_write: 2.7, label: "about 30 usage reads against 11 CDRs per subscriber a day" }
   deck_slides: "18–21"
   calibration:
     - { x: 1, ratio: 2.82 }   # doc 4356 B, conv 1544 B

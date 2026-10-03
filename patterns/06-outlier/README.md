@@ -27,6 +27,7 @@ help:
 measure:
   x_label: "clients embedded in the advisor's book"
   lab_x: 800
+  sizes: [10, 100, 800, 2000]
   deck_slides: "34–37"
   calibration:
     - { x: 10, ratio: 1.65 }   # doc 2016 B, conv 1224 B

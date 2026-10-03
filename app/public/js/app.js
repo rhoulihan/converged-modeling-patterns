@@ -72,10 +72,14 @@ function measureCard(p, m) {
   const kd = h('div', 'kicker', 'Document model'); const kdh = helpTrigger(m.help?.document, { label: 'document write', patternId: p.id }); if (kdh) kd.append(kdh);
   const kc = h('div', 'kicker', 'Converged'); const kch = helpTrigger(m.help?.converged, { label: 'converged write', patternId: p.id }); if (kch) kc.append(kch);
   c.append(kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
+  const sizes = p.meta.measure?.sizes ?? [];
+  if (sizes.length) {
+    c.append(h('p', 'rmeta', `Measures this write at ${sizes.length} sizes (${sizes.map((n) => n.toLocaleString('en-US')).join(', ')} ${p.meta.measure.xLabel}), then rebuilds this pattern's lab data, so any changes you made to it are reset.`));
+  }
   const out = h('div', 'card-out');
-  const b = btn('Measure it', async () => {
-    b.disabled = true; out.textContent = 'measuring… (waits for an exclusive slot)';
-    const r = await postJSON('/api/measure', { patternId: p.id, tag: m.tag });
+  const b = btn(sizes.length ? `Measure it at ${sizes.length} sizes` : 'Measure it', async () => {
+    b.disabled = true; out.textContent = `measuring at ${sizes.length} sizes… (waits for an exclusive slot)`;
+    const r = await postJSON('/api/measure/sweep', { patternId: p.id, tag: m.tag });
     b.disabled = false;
     out.replaceChildren(r.status === 200 ? renderMeasure(r.body, { pattern: p }) : h('div', 'result error', MSG[r.status] ?? r.body?.error ?? `error ${r.status}`));
   }, 'btn primary');

@@ -40,8 +40,23 @@ function frontMatter(file) {
     if (fm.measure.verdict !== undefined && (typeof fm.measure.verdict !== 'string' || !fm.measure.verdict.trim())) {
       throw new Error(`${file}: measure.verdict must be a non-empty string when present`);
     }
+    // Optional sizes the live sweep measures at (Measure it runs the pair once per size).
+    let sizes = null;
+    if (fm.measure.sizes !== undefined) {
+      sizes = Array.isArray(fm.measure.sizes) ? fm.measure.sizes.map(Number) : [];
+      if (sizes.length < 3 || sizes.some((n) => !Number.isInteger(n) || n <= 0) || sizes.some((n, i) => i && n <= sizes[i - 1])) {
+        throw new Error(`${file}: measure.sizes must be 3 or more ascending positive integers`);
+      }
+    }
+    // Optional stated workload: reads per measured write, for the read-side break-even chart.
+    let workload = null;
+    if (fm.measure.workload !== undefined) {
+      const rpw = Number(fm.measure.workload?.reads_per_write);
+      if (!(rpw > 0) || typeof fm.measure.workload?.label !== 'string') throw new Error(`${file}: measure.workload needs reads_per_write > 0 and a label`);
+      workload = { readsPerWrite: rpw, label: fm.measure.workload.label };
+    }
     measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal,
-      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null };
+      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null, sizes, workload };
   }
   return {
     title: String(fm.title),
@@ -98,12 +113,29 @@ function loadOne(root, id) {
   if (!lanes.document.length || !lanes.converged.length) throw new Error(`${dir}: needs at least one @step in each .sql file`);
   if (!measures.length) throw new Error(`${dir}: needs at least one @measure pair`);
 
+  // @measure-read pairs the read each model serves the same question with; the sweep counts the
+  // blocks each touches at every size, so reads and writes share one unit (logical reads).
+  const reads = [];
+  const docReads = new Map(doc.filter((s) => s.measureRead).map((s) => [s.measureRead, s]));
+  const convReads = new Map(conv.filter((s) => s.measureRead).map((s) => [s.measureRead, s]));
+  for (const tag of new Set([...docReads.keys(), ...convReads.keys()])) {
+    if (!docReads.has(tag) || !convReads.has(tag)) throw new Error(`${dir}: measure-read "${tag}" must appear in both 01-document-model.sql and 02-converged.sql`);
+    for (const [st, f] of [[docReads.get(tag), docFile], [convReads.get(tag), convFile]]) {
+      if (!/^\s*(SELECT|WITH)\b/i.test(st.sql)) throw new Error(`${f}: measure-read "${tag}" must be a SELECT`);
+    }
+    reads.push({ tag, document: docReads.get(tag), converged: convReads.get(tag) });
+  }
+
   const setup = { document: doc.filter(isSetup), converged: conv.filter(isSetup) };
+  // calibrate.sql resizes the measured data to :n on both sides; the live sweep runs it per size.
+  const calFile = path.join(dir, 'calibrate.sql');
+  const calibrate = fs.existsSync(calFile) ? parseSqlFile(fs.readFileSync(calFile, 'utf8')).map((s) => s.sql) : null;
+  if (meta.measure?.sizes && !calibrate) throw new Error(`${dir}: measure.sizes needs a calibrate.sql`);
   const version = crypto.createHash('sha256')
     .update([...setup.document, ...setup.converged].map((s) => s.sql).join('\n;\n'))
     .digest('hex')
     .slice(0, 16);
-  return { id, meta, lanes, setup, measures, version };
+  return { id, meta, lanes, setup, measures, reads, calibrate, version };
 }
 
 export function loadPatterns(root) {

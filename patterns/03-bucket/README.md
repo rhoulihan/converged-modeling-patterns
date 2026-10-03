@@ -27,6 +27,8 @@ help:
 measure:
   x_label: "readings in the bucket after the write"
   lab_x: 33
+  sizes: [33, 100, 1000, 3600]
+  workload: { reads_per_write: 0.1, label: "about 360 dashboard reads against 3,600 readings per sensor-hour" }
   deck_slides: "22–25"
   calibration:
     - { x: 33, ratio: 3.87 }   # doc 10964 B, conv 2836 B

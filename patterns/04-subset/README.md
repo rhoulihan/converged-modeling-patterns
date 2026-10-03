@@ -23,6 +23,8 @@ help:
 measure:
   x_label: "claims kept inline in the policy document"
   lab_x: 3
+  sizes: [3, 10, 100, 1000]
+  workload: { reads_per_write: 67, label: "about 2 million summary reads against 30,000 claim events a day" }
   deck_slides: "26–29"
   calibration:
     - { x: 3, ratio: 1.62 }   # doc 1680 B, conv 1036 B

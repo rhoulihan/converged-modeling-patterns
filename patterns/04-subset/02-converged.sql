@@ -69,6 +69,7 @@ COMMIT;
 -- FIRST. Nothing was maintained to make this fast; the read pays for a short scan instead. (EXPLAIN PLAN shows the range
 -- scan stops after 3 rows -- no sort of the full history.)
 -- @step Read the recent 3 claims (index range scan)
+-- @measure-read read
 -- @note CL-1004 is already the top row: nothing was maintained to make this fast, the index just stops after 3.
 -- @why Read/write, priced honestly: the recent list is an index range scan that stops after 3 rows, more work than one document fetch, about 25% more per summary read in the deck's model.
 -- @look The 3 newest claims in claim_ts order, with nothing stored to keep them current.

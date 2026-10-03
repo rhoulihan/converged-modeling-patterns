@@ -15,54 +15,44 @@ describe('logScale', () => {
 });
 
 describe('curveChart', () => {
-  it('draws the calibration line, points, break-even line and a live marker', () => {
-    const svg = curveChart({ calibration: CAL, labX: 1000, xLabel: 'CDR items', live: { redo: 32.8, blocks: 1.9 } });
-    expect(svg.querySelector('path.cal')).not.toBeNull();
-    expect(svg.querySelectorAll('circle.calpt').length).toBe(4);
+  const pts = (pairs) => pairs.map(([x, ratio]) => ({ x, ratio }));
+  it('draws the attendee\'s curve: one labelled point per size, break-even and a legend', () => {
+    const svg = curveChart({ points: pts([[10, 1.2], [100, 5], [1000, 32.8], [5000, 260]]), xLabel: 'CDR items' });
+    expect(svg.querySelector('path.run')).not.toBeNull();
+    expect(svg.querySelectorAll('circle.runpt').length).toBe(4);
+    expect([...svg.querySelectorAll('text.pt-label')].map((e) => e.textContent)).toEqual(['1.2×', '5.0×', '33×', '260×']);
     expect(svg.querySelector('line.breakeven')).not.toBeNull();
-    expect(svg.querySelector('circle.live-redo')).not.toBeNull();
-    expect(svg.querySelector('circle.live-blocks')).not.toBeNull();
-    expect(svg.textContent).toContain('you · 32.8× redo');
-  });
-  it('no marker when the live ratio is not finite', () => {
-    const svg = curveChart({ calibration: CAL, labX: 1000, xLabel: 'x', live: { redo: Infinity, blocks: null } });
-    expect(svg.querySelector('circle.live-redo')).toBeNull();
-    expect(svg.querySelector('circle.live-blocks')).toBeNull();
+    expect(svg.textContent).toContain('your runs: one per size, measured just now');
     expect(svg.textContent).not.toMatch(/NaN|Infinity/);
   });
-  it('offsets the live markers apart when they would otherwise coincide with a calibration point', () => {
-    // labX is the first calibration x, and both live ratios equal that point's reference ratio —
-    // both the "near-equal to each other" and "on top of a calibration point" triggers fire.
-    const svg = curveChart({ calibration: CAL, labX: 10, xLabel: 'x', live: { redo: 1.2, blocks: 1.2 } });
-    const dot = svg.querySelector('circle.live-redo');
-    const ring = svg.querySelector('circle.live-blocks');
-    expect(dot.getAttribute('cx')).not.toBe(ring.getAttribute('cx'));
+  it('skips points whose ratio is not finite', () => {
+    const svg = curveChart({ points: [{ x: 10, ratio: 2 }, { x: 100, ratio: Infinity }, { x: 1000, ratio: 20 }], xLabel: 'x' });
+    expect(svg.querySelectorAll('circle.runpt').length).toBe(2);
+    expect(svg.textContent).not.toMatch(/NaN|Infinity/);
   });
-  it('anchors the live label at the end when labX sits at the maximum calibration x', () => {
-    // Live ratio kept off the 5000 calibration point: that point is now a label obstacle, and a
-    // label sitting on it would (correctly) move above instead of anchoring at the end.
-    const svg = curveChart({ calibration: CAL, labX: 5000, xLabel: 'x', live: { redo: 120, blocks: null } });
-    const label = [...svg.querySelectorAll('text')].find((el) => el.textContent.startsWith('you'));
-    expect(label.getAttribute('text-anchor')).toBe('end');
-    expect(Number(label.getAttribute('x'))).toBeLessThanOrEqual(540);
-  });
-
-  it('moves the break-even label off a calibration point that sits under its default position', () => {
-    // 02-computed's real calibration: the x=10 point (1.73x) sits just above the break-even line,
-    // right where the left-anchored label used to go. Box estimate matches chart.js (0.6 em/char).
-    const cal = [{ x: 10, ratio: 1.73 }, { x: 100, ratio: 7.16 }, { x: 1000, ratio: 32.53 }, { x: 5000, ratio: 203.24 }];
-    const svg = curveChart({ calibration: cal, labX: 1000, xLabel: 'x', live: { redo: 32.8, blocks: 2 } });
-    const be = [...svg.querySelectorAll('text')].find((el) => el.textContent.startsWith('break-even'));
-    const fs = Number(be.getAttribute('font-size')); const w = 0.6 * fs * be.textContent.length;
-    const bx = Number(be.getAttribute('x')); const by = Number(be.getAttribute('y'));
-    const anchor = be.getAttribute('text-anchor');
-    const x0 = anchor === 'end' ? bx - w : anchor === 'middle' ? bx - w / 2 : bx;
-    const box = { x0, x1: x0 + w, y0: by - fs, y1: by + fs * 0.3 };
-    const pt = svg.querySelector('circle.calpt'); // first = x=10
-    const cx = Number(pt.getAttribute('cx')); const cy = Number(pt.getAttribute('cy')); const r = Number(pt.getAttribute('r'));
-    // Distance from the point's edge to the label box.
-    const dx = Math.max(box.x0 - cx, 0, cx - box.x1); const dy = Math.max(box.y0 - cy, 0, cy - box.y1);
-    expect(Math.hypot(dx, dy) - r).toBeGreaterThanOrEqual(8);
+  it('no label overlaps another label or crosses the break-even line, for every pattern\'s shape', () => {
+    const shapes = [
+      [[1, 3.5], [2, 6.1], [10, 30.6], [100, 304], [1000, 3036]],
+      [[1, 2.8], [2, 4.0], [4, 6.1], [6, 8.3], [7, 9.4]],
+      [[33, 3.8], [100, 8.8], [1000, 38.7], [3600, 165]],
+      [[3, 1.6], [10, 2.0], [100, 6.1], [1000, 26.3]],
+      [[3, 6.8], [30, 53.8], [300, 527], [3000, 5137]],
+      [[10, 1.6], [100, 5.0], [800, 17], [2000, 43.4]],
+    ];
+    for (const shape of shapes) {
+      const svg = curveChart({ points: pts(shape), xLabel: 'x' });
+      const boxes = [...svg.querySelectorAll('text.pt-label')].map((e) => {
+        const fs = Number(e.getAttribute('font-size')); const w = 0.6 * fs * e.textContent.length;
+        const lx = Number(e.getAttribute('x')); const ly = Number(e.getAttribute('y')); const a = e.getAttribute('text-anchor');
+        const x0 = a === 'end' ? lx - w : a === 'middle' ? lx - w / 2 : lx;
+        return { t: e.textContent, x0, x1: x0 + w, y0: ly - fs, y1: ly + fs * 0.3 };
+      });
+      const be = svg.querySelector('line.breakeven');
+      for (const A of boxes) if (be) expect(A.y0 < Number(be.getAttribute('y1')) && A.y1 > Number(be.getAttribute('y1')), `"${A.t}" crosses break-even`).toBe(false);
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        const A = boxes[i]; const Bx = boxes[j];
+        expect(A.x0 < Bx.x1 && A.x1 > Bx.x0 && A.y0 < Bx.y1 && A.y1 > Bx.y0, `"${A.t}" overlaps "${Bx.t}"`).toBe(false);
+      }
+    }
   });
 });
-

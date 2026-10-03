@@ -24,6 +24,8 @@ help:
 measure:
   x_label: "parts in the moved subtree"
   lab_x: 3
+  sizes: [3, 30, 300, 3000]
+  workload: { reads_per_write: 10000, label: "about 2 million explosions against 200 engineering changes a day" }
   deck_slides: "30–33"
   verdict: >-
     The document model wins this workload. It is read-heavy: about 2 million explosions a
