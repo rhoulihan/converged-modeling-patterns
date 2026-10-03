@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { analyze, growth, verdict, readLabel, logSteps } from '../../public/js/readside.js';
+import { analyze, growth, verdict, readLabel, logSteps, breakEvenRange, breakEvenSentence } from '../../public/js/readside.js';
 import { linesChart, breakEvenChart } from '../../public/js/chart.js';
 
 const st = (lio) => ({ stats: { 'session logical reads': lio }, result: { kind: 'dml' } });
@@ -101,5 +101,23 @@ describe('readLabel and logSteps', () => {
       { kind: 'doc', what: 'document read', from: 3, to: 6, at: 1000 }]);
     const p5 = [r(3, 2, 11, 14, 2, 2), r(30, 2, 40, 14, 29, 29), r(300, 14, 310, 15, 299, 299), r(3000, 110, 3073, 24, 2999, 2999)];   // 14 → 15 at 300, the big step at 3,000
     expect(logSteps(p5)).toEqual([{ kind: 'index', what: 'converged write', from: 14, to: 24, at: 3000 }]);
+  });
+});
+
+describe('break-even range', () => {
+  it('a span, a single value, none, or partial (never at the larger sizes)', () => {
+    expect(breakEvenRange([{ breakEven: 3.2 }, { breakEven: 8 }, { breakEven: 44 }])).toEqual({ span: '3.2–44', partial: false });
+    expect(breakEvenRange([{ breakEven: 7 }, { breakEven: 7 }])).toEqual({ span: '7', partial: false });
+    expect(breakEvenRange([{ breakEven: null }, { breakEven: null }])).toEqual({ span: null, partial: false });
+    expect(breakEvenSentence([{ breakEven: 16 }, { breakEven: 17 }, { breakEven: null }]))
+      .toBe('needs 16–17 reads per write to win at the smaller sizes, and never at the larger ones');
+    expect(breakEvenSentence([{ breakEven: 4.9 }, { breakEven: 43 }])).toBe('needs 4.9–43 reads per write to win across these sizes');
+  });
+  it('is labelled on the chart, with and without a workload line', () => {
+    const rows = [{ x: 3, breakEven: 3.2 }, { x: 3000, breakEven: 44 }];
+    const withW = breakEvenChart({ rows, workload: { readsPerWrite: 10000, label: 'x' }, xLabel: 'x', breakEvenText: '3.2–44 reads per write' });
+    expect(withW.querySelector('text.be-range').textContent).toBe('break-even here: 3.2–44 reads per write');
+    const noW = breakEvenChart({ rows, workload: null, xLabel: 'x', breakEvenText: '3.2–44 reads per write' });
+    expect(noW.querySelector('text.be-range').textContent).toBe('break-even here: 3.2–44 reads per write');
   });
 });

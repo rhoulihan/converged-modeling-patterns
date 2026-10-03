@@ -2,7 +2,7 @@
 // (each row scaled to its own max) with ratios and ⓘ explainers, and a "what just happened" panel.
 // If either side errored there is no live point and every ratio shows — (raw values still shown).
 import { curveChart, linesChart, breakEvenChart, fmtRatio as fmtR } from './chart.js';
-import { analyze, verdict, fmtCount, readLabel, logSteps } from './readside.js';
+import { analyze, verdict, fmtCount, readLabel, logSteps, breakEvenRange, breakEvenSentence } from './readside.js';
 import { helpTrigger, openHelp } from './help.js';
 
 const STATS = [
@@ -104,12 +104,12 @@ function readSection(sw, meas) {
   if (rows.every((r) => r.breakEven === null)) {
     head2.append('The document model\'s read is never cheaper here, so it ', h('strong', null, 'never wins'), ', whatever the mix of reads and writes.');
   } else if (v) {
-    const lead = `At this workload (~${fmtCount(meas.workload.readsPerWrite)} reads per write: ${meas.workload.label}) `;
+    const lead = `The document model ${breakEvenSentence(rows)}. At this workload (~${fmtCount(meas.workload.readsPerWrite)} reads per write: ${meas.workload.label}) `;
     if (v.kind === 'all') head2.append(lead, h('strong', null, 'the document model wins at every size measured'), '.');
     else if (v.kind === 'none') head2.append(lead, h('strong', null, 'the converged model wins at every size measured'), '.');
     else head2.append(lead, h('strong', null, `the document model wins up to ${v.upTo.toLocaleString('en-US')}`), ` ${meas.xLabel}; beyond that the converged model wins.`);
   } else {
-    head2.append('The document model wins wherever the reads per write are above the curve.');
+    head2.append(`The document model ${breakEvenSentence(rows)}.`);
   }
   sec.append(head1, head2);
   const grid = h('div', 'measure-grid two-charts');
@@ -119,7 +119,9 @@ function readSection(sw, meas) {
     { name: `converged: ${gConv.label}`, tone: 'cool', points: rows.map((r) => ({ x: r.x, y: r.convRead })) },
   ] }));
   const b = h('div', 'measure-curve'); b.append(h('div', 'kicker', 'Reads per write before the document model wins'));
-  b.append(breakEvenChart({ rows, workload: meas.workload, xLabel: meas.xLabel }));
+  const ber = breakEvenRange(rows);
+  const beText = ber.span ? `${ber.span} reads per write${ber.partial ? ', never at the larger sizes' : ''}` : null;
+  b.append(breakEvenChart({ rows, workload: meas.workload, xLabel: meas.xLabel, breakEvenText: beText }));
   grid.append(a, b);
   sec.append(grid, blocksTable(rows, meas.xLabel));
   // Why a converged lookup creeps up by a block at large sizes, and why multi-row reads grow.

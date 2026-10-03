@@ -83,4 +83,21 @@ export function logSteps(rows) {
   return out;
 }
 
-export const fmtCount = (v) => (v >= 100 ? Math.round(v).toLocaleString('en-US') : v >= 10 ? v.toFixed(0) : v.toFixed(1));
+// The break-even rate across the sizes: span "3.2–44" (or "7"), and whether some sizes never win.
+export function breakEvenRange(rows) {
+  const vals = rows.filter((r) => r.breakEven !== null).map((r) => r.breakEven);
+  if (!vals.length) return { span: null, partial: false };
+  const lo = Math.min(...vals); const hi = Math.max(...vals);
+  return { span: fmtCount(lo) === fmtCount(hi) ? fmtCount(lo) : `${fmtCount(lo)}–${fmtCount(hi)}`, partial: vals.length < rows.length };
+}
+
+// In a sentence: "needs 4.9–43 reads per write to win across these sizes" /
+// "needs 16–17 reads per write to win at the smaller sizes, and never at the larger ones".
+export function breakEvenSentence(rows) {
+  const { span, partial } = breakEvenRange(rows);
+  if (!span) return 'never wins on reads at these sizes';
+  return partial ? `needs ${span} reads per write to win at the smaller sizes, and never at the larger ones`
+    : `needs ${span} reads per write to win across these sizes`;
+}
+
+export const fmtCount = (v) => (v >= 100 ? Math.round(v).toLocaleString('en-US') : v >= 10 || Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1));
