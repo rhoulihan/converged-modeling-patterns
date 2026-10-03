@@ -25,6 +25,14 @@ measure:
   x_label: "parts in the moved subtree"
   lab_x: 3
   deck_slides: "30–33"
+  verdict: >-
+    The document model wins this workload. It is read-heavy: about 2 million explosions a
+    day against about 200 engineering changes, and every explosion is cheaper on the path's
+    prefix scan than walking edges (measured on 26ai: 765 µs against 1,116 µs for a
+    1,092-part assembly). What this tab measures is the other side of the trade: the redo for
+    one re-parent, which rewrites every part in the moved subtree. That bill comes 200 times
+    a day, and it only outweighs the read savings once a typical move passes about 88,000
+    parts.
   calibration:
     - { x: 3, ratio: 6.75 }   # doc 6348 B, conv 940 B
     - { x: 30, ratio: 53.76 }   # doc 51820 B, conv 964 B
