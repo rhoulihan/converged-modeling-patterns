@@ -50,6 +50,36 @@ h1 { font-size: 30px; font-weight: 800; }
 .read-side-title { font: 700 15px var(--head); margin: 0 0 8px; }
 .measure-grid.two-charts { grid-template-columns: 1fr 1fr; }
 .blocks-table { margin-top: 12px; }
+.subtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline); margin: 4px 0 14px; }
+.subtab { font: 600 13px var(--sans); padding: 7px 14px; border: 0; background: none; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+.subtab.on { color: var(--ink); border-bottom-color: var(--flow); }
+.plans-intro { font-size: 14px; color: var(--muted); margin: 0 0 10px; max-width: 90ch; }
+.plan-change { font-size: 13.5px; background: var(--chip); border-left: 3px solid var(--flow); padding: 8px 12px; border-radius: 6px; margin: 6px 0; }
+.size-picker { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+.size-picker .btn.on { background: var(--flow); color: #fff; border-color: var(--flow); }
+.plan-pair-title { font: 700 14px var(--head); margin: 16px 0 6px; }
+.plan-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 1000px) { .plan-pair { grid-template-columns: 1fr; } }
+.plan-card { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 14px; background: var(--panel); }
+.plan-card.document { border-top: 3px solid var(--hot); }
+.plan-card.converged { border-top: 3px solid var(--cool); }
+.plan-card h5 { margin: 0 0 6px; font: 700 13.5px var(--sans); }
+.plan-steps { margin: 0; padding-left: 20px; }
+.plan-steps li { margin: 6px 0; font-size: 13.5px; }
+.step-line { display: flex; justify-content: space-between; gap: 10px; }
+.step-meta { color: var(--muted); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.step-bar { height: 5px; background: var(--chip); border-radius: 3px; margin-top: 3px; }
+.step-bar span { display: block; height: 100%; background: var(--flow); border-radius: 3px; }
+.plan-card.document .step-bar span { background: var(--hot); }
+.plan-card.converged .step-bar span { background: var(--cool); }
+.step-warn { color: var(--hot); font-size: 12.5px; margin-top: 2px; }
+.plan-total { margin: 10px 0 4px; font-size: 13.5px; }
+.plan-why { font-size: 13.5px; margin: 8px 0 0; color: var(--ink); }
+details.raw { margin-top: 6px; font-size: 12.5px; }
+details.raw summary { cursor: pointer; color: var(--muted); }
+.raw-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: var(--mono); font-size: 11.5px; }
+.raw-table th, .raw-table td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--hairline); }
+.raw-table .num { text-align: right; }
 .read-step { margin: 0 0 6px; font-weight: 600; }
 .read-note { margin-top: 12px; padding: 10px 14px; background: var(--chip); border-radius: 8px; font-size: 13.5px; line-height: 1.5; color: var(--ink); max-width: 100ch; }
 @media (max-width: 1100px) { .measure-grid.two-charts { grid-template-columns: 1fr; } }
