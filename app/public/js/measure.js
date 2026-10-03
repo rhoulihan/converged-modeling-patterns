@@ -2,6 +2,7 @@
 // (each row scaled to its own max) with ratios and ⓘ explainers, and a "what just happened" panel.
 // If either side errored there is no live point and every ratio shows — (raw values still shown).
 import { curveChart, linesChart, breakEvenChart, fmtRatio as fmtR } from './chart.js';
+import { renderPlans } from './planview.js';
 import { analyze, verdict, fmtCount, readLabel, logSteps, breakEvenRange, breakEvenSentence } from './readside.js';
 import { helpTrigger, openHelp } from './help.js';
 
@@ -45,8 +46,29 @@ function whatHappened(n, reads = false) {
   return box;
 }
 
+// Two sub-tabs: the summary (charts, tables) and the plans and statistics it is derived from.
 export function renderMeasure(sw, { pattern } = {}) {
-  const box = h('div', 'measure-out');
+  const out = h('div', 'measure-out');
+  const tabs = h('div', 'subtabs');
+  const summary = renderSummary(sw, { pattern });
+  const plans = h('div', 'plans-host');
+  let built = false;
+  const show = (which) => {
+    for (const b of tabs.children) b.classList.toggle('on', b.dataset.tab === which);
+    summary.hidden = which !== 'summary';
+    if (which === 'plans' && !built) { plans.append(renderPlans(sw, { pattern })); built = true; }
+    plans.hidden = which !== 'plans';
+  };
+  for (const [key, label] of [['summary', 'Summary'], ['plans', 'Plans & stats']]) {
+    const b = h('button', 'subtab', label); b.type = 'button'; b.dataset.tab = key; b.addEventListener('click', () => show(key)); tabs.append(b);
+  }
+  out.append(tabs, summary, plans);
+  show('summary');
+  return out;
+}
+
+function renderSummary(sw, { pattern } = {}) {
+  const box = h('div', 'measure-summary');
   const meas = pattern?.meta?.measure;
   if (sw.error) box.append(h('div', 'result error', `${sw.error.code ?? ''} ${sw.error.error}`));
   for (const q of sw.points) {

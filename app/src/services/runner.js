@@ -5,7 +5,8 @@ import { splitConsoleSql } from '../content/sqlParser.js';
 import { parseMongoCommand, MongoParseError } from '../content/mongoCommand.js';
 import { classifySql, classifyMongo } from '../guard.js';
 import { isReadOnlySql, isReadOnlyMongo, patternsTouched } from '../cache.js';
-import { executeSql, readStats } from '../db/oracle.js';
+import oracledb from 'oracledb';
+import { executeSql, readStats, readPlan } from '../db/oracle.js';
 import { runMongo } from '../db/mongo.js';
 
 const isTimeout = (r) => r.kind === 'error' && /DPI-1067|NJS-123|call timeout|timed out/i.test(r.error);
@@ -257,39 +258,50 @@ export class Runner {
         let error = null;
         try {
           await conn.execute('ALTER SESSION SET "_in_memory_undo" = false');
-          const once = async (stmt) => {
+          // Executed plans: runtime numbers per plan step, read on the control connection right
+          // after each statement (before this session runs anything else).
+          await conn.execute('ALTER SESSION SET statistics_level = ALL');
+          const sid = Number((await conn.execute("SELECT SYS_CONTEXT('USERENV', 'SID') AS sid FROM dual", [], { outFormat: oracledb.OUT_FORMAT_OBJECT })).rows[0].SID);
+          const plan = async () => {
+            try { return await this.#ws.withControl((c) => readPlan(c, sid)); } catch { return null; }
+          };
+          const once = async (stmt, withPlan = false) => {
             const before = await readStats(conn);
             const result = track(await executeSql(conn, stmt.sql, this.#limits(false)));
+            const steps = withPlan ? await plan() : null;
             const after = await readStats(conn);
             await conn.rollback();
-            return { result, stats: Object.fromEntries(Object.keys(after).map((n) => [n, after[n] - before[n]])) };
+            return { result, plan: steps, stats: Object.fromEntries(Object.keys(after).map((n) => [n, after[n] - before[n]])) };
           };
           const side = async (stmt) => {
             track(await executeSql(conn, stmt.sql, this.#limits(false)));   // warm-up, unmeasured
             await conn.rollback();
-            const runs = [await once(stmt), await once(stmt), await once(stmt)];
+            const runs = [await once(stmt), await once(stmt), await once(stmt, true)];
             const failed = runs.find((r) => r.result.kind === 'error');
             if (failed) return { sql: stmt.sql, stats: {}, result: failed.result };
+            const planned = runs[2].plan;
             runs.sort((a, b) => a.stats['redo size'] - b.stats['redo size']);
-            return { sql: stmt.sql, ...runs[1] };
+            return { sql: stmt.sql, ...runs[1], plan: planned };
           };
           // A read, measured by the blocks it touches. Every row is fetched (the console's row
           // cap would cut a 3,000-part explosion short and undercount the blocks).
-          const readOnce = async (sql) => {
+          const readOnce = async (sql, withPlan = false) => {
             const before = await readStats(conn);
             const r = await conn.execute(sql, [], { resultSet: true });
             let rows = 0;
             for (let batch = await r.resultSet.getRows(500); batch.length; batch = await r.resultSet.getRows(500)) rows += batch.length;
             await r.resultSet.close();
+            const steps = withPlan ? await plan() : null;
             const after = await readStats(conn);
-            return { rows, stats: Object.fromEntries(Object.keys(after).map((k) => [k, after[k] - before[k]])) };
+            return { rows, plan: steps, stats: Object.fromEntries(Object.keys(after).map((k) => [k, after[k] - before[k]])) };
           };
           const readSide = async (stmt) => {
             try {
               await readOnce(stmt.sql);   // warm-up: parse and first-touch effects stay out of it
-              const runs = [await readOnce(stmt.sql), await readOnce(stmt.sql), await readOnce(stmt.sql)];
+              const runs = [await readOnce(stmt.sql), await readOnce(stmt.sql), await readOnce(stmt.sql, true)];
+              const planned = runs[2].plan;
               runs.sort((a, b) => a.stats['session logical reads'] - b.stats['session logical reads']);
-              return { sql: stmt.sql, ...runs[1], result: { kind: 'rows', rowCount: runs[1].rows } };
+              return { sql: stmt.sql, ...runs[1], plan: planned, result: { kind: 'rows', rowCount: runs[1].rows } };
             } catch (e) {
               return { sql: stmt.sql, stats: {}, rows: 0, result: labErr('LAB-MEASURE', e.message) };
             }

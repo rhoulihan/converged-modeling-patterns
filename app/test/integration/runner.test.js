@@ -123,6 +123,12 @@ describe.each(patterns.map((p) => [p.id, p]))('%s', (id, p) => {
       expect(q.document.result.kind, `size ${q.x} document`).not.toBe('error');
       expect(q.converged.result.kind, `size ${q.x} converged`).not.toBe('error');
       expect(q.ratio, `size ${q.x}`).toBeGreaterThan(0);
+      // Executed plans come back for every SQL statement (PL/SQL blocks have none).
+      for (const [what, side] of [['document write', q.document], ['converged write', q.converged], ['document read', q.reads?.document], ['converged read', q.reads?.converged]]) {
+        if (!side || /^\s*(BEGIN|DECLARE)\b/i.test(side.sql)) continue;
+        expect(side.plan?.length, `size ${q.x} ${what}: plan`).toBeGreaterThan(0);
+        expect(side.plan[0].id, `size ${q.x} ${what}: plan root`).toBe(0);
+      }
       // The read pair answers at every size (a resize must not remove what the read looks up).
       for (const lane of ['document', 'converged']) {
         expect(q.reads?.[lane].result.kind, `size ${q.x} ${lane} read`).not.toBe('error');
