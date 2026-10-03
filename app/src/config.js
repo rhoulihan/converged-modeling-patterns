@@ -53,7 +53,9 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     },
     mongo: { host: env.MONGO_HOST || env.DB_HOST || 'oracle', port: int(env, 'MONGO_PORT', 27017), poolMax: int(env, 'MONGO_POOL_MAX', 1) },
     gate: {
-      permits: 1,
+      // How many attendee statements run at once. Defaults to the pool size; exclusive work
+      // (sign-in, reset, Measure it) still takes every permit.
+      permits: int(env, 'GATE_PERMITS', int(env, 'DB_POOL_MAX', 1)),
       queueTimeoutMs: int(env, 'QUEUE_TIMEOUT_MS', 30000),
       sqlTimeoutMs: int(env, 'SQL_TIMEOUT_MS', 10000),
       mongoTimeoutMs: int(env, 'MONGO_TIMEOUT_MS', 10000),

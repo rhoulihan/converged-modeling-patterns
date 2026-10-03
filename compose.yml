@@ -59,6 +59,7 @@ services:
       LAB_ADMIN_PASSWORD: '${LAB_ADMIN_PASSWORD:-LabAdmin2026}'
       DB_POOL_MAX: '${DB_POOL_MAX:-1}'
       MONGO_POOL_MAX: '${MONGO_POOL_MAX:-1}'
+      GATE_PERMITS: '${GATE_PERMITS:-}'           # concurrent attendee statements; empty = DB_POOL_MAX
 
   lab-ui-test:
     profiles: ['test']

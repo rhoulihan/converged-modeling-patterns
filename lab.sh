@@ -49,7 +49,7 @@ fi
 : "${CMP_DB_BIND:=127.0.0.1}" "${CMP_PORT:=1522}" "${CMP_ORDS_PORT:=8182}" "${CMP_MONGO_PORT:=27018}"
 : "${CMP_UI_BIND:=127.0.0.1}" "${CMP_UI_PORT:=3100}" "${CMP_PUBLIC_PORT:=3101}" "${WORKSPACE_STORAGE_CAP_GB:=10}"
 : "${ORACLE_PASSWORD:=Sandbox2026}" "${CMP_PASSWORD:=CmpUser2026}" "${LAB_ADMIN_PASSWORD:=LabAdmin2026}"
-: "${LAB_MODE:=solo}" "${ADMIN_PASSWORD:=}" "${EVENT_CODE:=}" "${DB_POOL_MAX:=1}" "${MONGO_POOL_MAX:=1}"
+: "${LAB_MODE:=solo}" "${ADMIN_PASSWORD:=}" "${EVENT_CODE:=}" "${DB_POOL_MAX:=1}" "${MONGO_POOL_MAX:=1}" "${GATE_PERMITS:=}"
 
 e()        { "$ENGINE" "$@"; }
 exists()   { e container inspect "$1" >/dev/null 2>&1; }
@@ -96,7 +96,7 @@ wait_db() {  # compose's depends_on: service_healthy, done by polling the same c
   echo " timed out after 10 minutes. See: ./lab.sh logs oracle"; exit 1
 }
 
-ui_env=(LAB_MODE ADMIN_PASSWORD EVENT_CODE ORACLE_PASSWORD CMP_PASSWORD LAB_ADMIN_PASSWORD DB_POOL_MAX MONGO_POOL_MAX WORKSPACE_STORAGE_CAP_GB)
+ui_env=(LAB_MODE ADMIN_PASSWORD EVENT_CODE ORACLE_PASSWORD CMP_PASSWORD LAB_ADMIN_PASSWORD DB_POOL_MAX MONGO_POOL_MAX WORKSPACE_STORAGE_CAP_GB GATE_PERMITS)
 ui_config() {  # fingerprint of everything that should force a console recreate (compose recreates on change)
   { for k in "${ui_env[@]}"; do printf '%s=%s\n' "$k" "${!k}"; done
     echo "$CMP_UI_BIND:$CMP_UI_PORT:$CMP_PUBLIC_PORT"; e image inspect -f '{{.Id}}' "$IMG_UI"; } | cksum | cut -d' ' -f1
