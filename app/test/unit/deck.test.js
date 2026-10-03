@@ -18,6 +18,7 @@ function app(mode) {
   fs.mkdirSync(path.join(dir, 'images'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'build'), { recursive: true });
   fs.writeFileSync(path.join(dir, DECK), '<!DOCTYPE html><title>deck</title>');
+  fs.writeFileSync(path.join(dir, 'dev-day-intro.html'), '<!DOCTYPE html><title>dev day</title>');
   fs.writeFileSync(path.join(dir, 'images', 'a.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
   fs.writeFileSync(path.join(dir, 'build', 'build_deck.py'), 'print(1)');
   fs.writeFileSync(path.join(root, 'secret.txt'), 'nope');
@@ -47,6 +48,14 @@ describe('/deck (instructor deck)', () => {
   it('solo mode: open, since there is no sign-in', async () => {
     expect((await request(app('solo')).get('/deck/')).status).toBe(200);
   });
+  it('serves other decks in presentations/ (the Dev Day intro) under the same instructor gate', async () => {
+    const a = app('event');
+    expect((await request(a).get('/deck/dev-day-intro.html')).status).toBe(401);
+    const r = await request(a).get('/deck/dev-day-intro.html').set('Cookie', admin);
+    expect(r.status).toBe(200);
+    expect(r.text).toContain('dev day');
+  });
+
   it('redirects /deck to /deck/', async () => {
     const r = await request(app('solo')).get('/deck');
     expect(r.status).toBe(301);

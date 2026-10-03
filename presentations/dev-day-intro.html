@@ -1,0 +1,2198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>From RDBMS to NoSQL at Enterprise Scale - UMT 15-minute edition</title>
+<link rel="icon" href="images/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="images/favicon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="images/favicon-192.png">
+    <style>
+        :root {
+            --oracle-red: #C74634;
+            --oracle-dark: #1a1a1a;
+            --oracle-gray: #2d2d2d;
+            --oracle-light-gray: #3d3d3d;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --accent-blue: #4a9eff;
+            --accent-green: #4ade80;
+            --accent-purple: #a78bfa;
+            --accent-orange: #fb923c;
+            --accent-yellow: #fbbf24;
+            --accent-red: #f87171;
+            --accent-cyan: #22d3d3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--oracle-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .presentation {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            color: var(--text-primary);
+        }
+
+        h3 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--oracle-red);
+        }
+
+        p {
+            font-size: 1.4rem;
+            line-height: 1.7;
+            max-width: 1000px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .highlight {
+            color: var(--oracle-red);
+            font-weight: 600;
+        }
+
+        .highlight-green {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 100;
+            flex-wrap: wrap;
+            max-width: 90%;
+            justify-content: center;
+        }
+
+        .nav-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--oracle-gray);
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.3s ease;
+        }
+
+        .nav-dot.active {
+            background: var(--oracle-red);
+            transform: scale(1.4);
+        }
+
+        .nav-dot:hover {
+            background: var(--oracle-red);
+        }
+
+        .nav-dot.highlight-dot {
+            width: 12px;
+            height: 12px;
+        }
+
+        .nav-arrows {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .nav-arrow {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--oracle-gray);
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-arrow:hover {
+            background: var(--oracle-red);
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 35px;
+            left: 30px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            z-index: 100;
+        }
+
+        /* Title Slide */
+        .title-slide h1 {
+            font-size: 4rem;
+            background: linear-gradient(135deg, var(--oracle-red), #ff6b5b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .title-slide .subtitle {
+            font-size: 1.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .title-slide .author {
+            margin-top: 2rem;
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+        }
+
+        /* Section Divider */
+        .section-slide {
+            background: linear-gradient(135deg, var(--oracle-gray) 0%, var(--oracle-dark) 100%);
+        }
+
+        .section-slide h1 {
+            font-size: 3.5rem;
+            color: var(--oracle-red);
+        }
+
+        .section-number {
+            font-size: 8rem;
+            font-weight: 800;
+            color: var(--oracle-gray);
+            position: absolute;
+            top: 50px;
+            right: 80px;
+            opacity: 0.3;
+        }
+
+        /* Quote Slide */
+        .quote-slide blockquote {
+            font-size: 2rem;
+            font-style: italic;
+            color: var(--text-primary);
+            max-width: 900px;
+            text-align: center;
+            line-height: 1.6;
+            position: relative;
+            padding: 0 40px;
+        }
+
+        .quote-slide blockquote::before {
+            content: '"';
+            font-size: 6rem;
+            color: var(--oracle-red);
+            position: absolute;
+            top: -40px;
+            left: -20px;
+            opacity: 0.5;
+        }
+
+        .quote-slide .attribution {
+            margin-top: 2rem;
+            font-size: 1.2rem;
+            color: var(--oracle-red);
+            font-weight: 600;
+        }
+
+        /* Timeline */
+        .timeline-container {
+            width: 100%;
+            max-width: 1300px;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+
+        .timeline {
+            display: flex;
+            align-items: center;
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green), var(--accent-purple), var(--accent-orange), var(--oracle-red));
+            transform: translateY(-50%);
+        }
+
+        .timeline-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+            opacity: 0;
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .timeline-item:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-item:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-item:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-item:nth-child(4) { animation-delay: 0.4s; }
+        .timeline-item:nth-child(5) { animation-delay: 0.5s; }
+        .timeline-item:nth-child(6) { animation-delay: 0.6s; }
+        .timeline-item:nth-child(7) { animation-delay: 0.7s; }
+        .timeline-item:nth-child(8) { animation-delay: 0.8s; }
+
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--oracle-gray);
+            border: 3px solid var(--text-primary);
+            margin-bottom: 15px;
+        }
+
+        .timeline-item.highlight-item .timeline-dot {
+            width: 30px;
+            height: 30px;
+            background: var(--oracle-red);
+            box-shadow: 0 0 20px var(--oracle-red);
+        }
+
+        .timeline-content {
+            text-align: center;
+            background: var(--oracle-gray);
+            padding: 12px 8px;
+            border-radius: 10px;
+            min-width: 100px;
+        }
+
+        .timeline-item.highlight-item .timeline-content {
+            background: var(--oracle-red);
+        }
+
+        .timeline-year {
+            font-size: 0.75rem;
+            color: var(--accent-orange);
+            margin-bottom: 4px;
+        }
+
+        .timeline-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            max-width: 1100px;
+            margin-top: 2rem;
+        }
+
+        .stat-card {
+            background: var(--oracle-gray);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .stat-card:nth-child(1) { animation-delay: 0.1s; }
+        .stat-card:nth-child(2) { animation-delay: 0.2s; }
+        .stat-card:nth-child(3) { animation-delay: 0.3s; }
+        .stat-card:nth-child(4) { animation-delay: 0.4s; }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--oracle-red);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            max-width: 1000px;
+            margin-top: 1.5rem;
+            border-collapse: collapse;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 18px 25px;
+            text-align: center;
+            border-bottom: 1px solid var(--oracle-light-gray);
+        }
+
+        .comparison-table th {
+            background: var(--oracle-red);
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .comparison-table th:first-child {
+            border-radius: 12px 0 0 0;
+        }
+
+        .comparison-table th:last-child {
+            border-radius: 0 12px 0 0;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: var(--oracle-gray);
+        }
+
+        .comparison-table tr:hover {
+            background: var(--oracle-light-gray);
+        }
+
+        .comparison-table td {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Two Column Layout */
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            max-width: 1200px;
+            margin-top: 1.5rem;
+        }
+
+        .column-card {
+            background: var(--oracle-gray);
+            border-radius: 16px;
+            padding: 35px;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .column-card:nth-child(1) { animation-delay: 0.2s; }
+        .column-card:nth-child(2) { animation-delay: 0.4s; }
+
+        .column-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 1.5rem;
+        }
+
+        .column-card .icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .column-card.sql .icon { background: var(--accent-blue); }
+        .column-card.nosql .icon { background: var(--accent-green); }
+        .column-card.problem .icon { background: var(--accent-red); }
+        .column-card.solution .icon { background: var(--accent-green); }
+
+        .column-card ul {
+            list-style: none;
+        }
+
+        .column-card li {
+            padding: 10px 0;
+            font-size: 1.05rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+        }
+
+        .column-card li .check { color: var(--accent-green); }
+        .column-card li .cross { color: var(--accent-red); }
+
+        /* Code Container */
+        .code-container {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 950px;
+            width: 100%;
+            margin-top: 1.5rem;
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .code-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .code-dot.red { background: #ff5f56; }
+        .code-dot.yellow { background: #ffbd2e; }
+        .code-dot.green { background: #27ca40; }
+
+        pre {
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            color: #d4d4d4;
+        }
+
+        .keyword { color: #569cd6; }
+        .string { color: #ce9178; }
+        .function { color: #dcdcaa; }
+        .comment { color: #6a9955; }
+        .number { color: #b5cea8; }
+
+        /* Access Dimensions Grid */
+        .dimensions-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 18px;
+            max-width: 1400px;
+            margin-top: 1.5rem;
+        }
+
+        .dimension-card {
+            background: var(--oracle-gray);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.6s ease forwards;
+            border-top: 4px solid;
+        }
+
+        .dimension-card:nth-child(1) { animation-delay: 0.15s; border-color: var(--accent-blue); }
+        .dimension-card:nth-child(2) { animation-delay: 0.25s; border-color: var(--accent-green); }
+        .dimension-card:nth-child(3) { animation-delay: 0.35s; border-color: var(--accent-purple); }
+        .dimension-card:nth-child(4) { animation-delay: 0.45s; border-color: var(--accent-orange); }
+        .dimension-card:nth-child(5) { animation-delay: 0.55s; border-color: var(--accent-yellow); }
+
+        .dimension-card .dim-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .dimension-card h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.3rem;
+            color: var(--text-primary);
+        }
+
+        .dimension-card .dim-type {
+            font-size: 0.85rem;
+            color: var(--accent-orange);
+            margin-bottom: 0.8rem;
+        }
+
+        .dimension-card p {
+            font-size: 0.9rem;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        /* Polyglot Problem SVG */
+        .polyglot-container {
+            width: 100%;
+            max-width: 1150px;
+            margin-top: 1rem;
+        }
+
+        /* Prism Animation */
+        .prism-container {
+            position: relative;
+            width: 100%;
+            max-width: 1100px;
+            height: 480px;
+            margin-top: 0.5rem;
+        }
+
+        .prism-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Delete Grid */
+        .delete-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            max-width: 950px;
+            margin-top: 1.5rem;
+        }
+
+        .delete-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 18px;
+            background: var(--oracle-gray);
+            border-radius: 10px;
+            opacity: 0;
+            animation: slideInStrike 0.5s ease forwards;
+        }
+
+        .delete-item:nth-child(1) { animation-delay: 0.1s; }
+        .delete-item:nth-child(2) { animation-delay: 0.15s; }
+        .delete-item:nth-child(3) { animation-delay: 0.2s; }
+        .delete-item:nth-child(4) { animation-delay: 0.25s; }
+        .delete-item:nth-child(5) { animation-delay: 0.3s; }
+        .delete-item:nth-child(6) { animation-delay: 0.35s; }
+        .delete-item:nth-child(7) { animation-delay: 0.4s; }
+        .delete-item:nth-child(8) { animation-delay: 0.45s; }
+
+        .delete-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--oracle-red);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .delete-text {
+            font-size: 1rem;
+        }
+
+        .delete-text .old {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+
+        .delete-text .new {
+            color: var(--accent-green);
+            margin-left: 8px;
+        }
+
+        /* Schema Pattern Cards */
+        .pattern-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 1200px;
+            margin-top: 1.5rem;
+        }
+
+        .pattern-card {
+            background: var(--oracle-gray);
+            border-radius: 12px;
+            padding: 25px;
+            opacity: 0;
+            transform: scale(0.95);
+            animation: scaleIn 0.5s ease forwards;
+        }
+
+        .pattern-card:nth-child(1) { animation-delay: 0.1s; }
+        .pattern-card:nth-child(2) { animation-delay: 0.2s; }
+        .pattern-card:nth-child(3) { animation-delay: 0.3s; }
+
+        .pattern-card h4 {
+            font-size: 1.2rem;
+            color: var(--oracle-red);
+            margin-bottom: 0.8rem;
+        }
+
+        .pattern-card p {
+            font-size: 0.95rem;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .pattern-card .example {
+            background: var(--oracle-light-gray);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-green);
+        }
+
+        /* Oracle Badge */
+        .oracle-badge {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px 40px;
+            background: var(--oracle-gray);
+            border-radius: 12px;
+            margin-top: 2rem;
+        }
+
+        .oracle-badge span {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        /* Closing Quote */
+        .closing-quote {
+            font-size: 2.2rem;
+            font-weight: 600;
+            text-align: center;
+            max-width: 900px;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+
+        .closing-quote span {
+            color: var(--oracle-red);
+        }
+
+        /* Bullet List */
+        .bullet-list {
+            list-style: none;
+            max-width: 900px;
+            margin-top: 1.5rem;
+        }
+
+        .bullet-list li {
+            font-size: 1.3rem;
+            padding: 12px 0;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+
+        .bullet-list .bullet {
+            color: var(--oracle-red);
+            font-weight: bold;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes slideInStrike {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(199,70,52,0.6); }
+            50% { transform: scale(1.1); box-shadow: 0 0 30px rgba(199,70,52,0.8); }
+        }
+
+        @keyframes drawBeam {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0); }
+            70% { transform: scale(1.3); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .dimensions-grid { grid-template-columns: repeat(3, 1fr); }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 1024px) {
+            h1 { font-size: 2.5rem; }
+            h2 { font-size: 2rem; }
+            .two-column { grid-template-columns: 1fr; }
+            .dimensions-grid { grid-template-columns: 1fr 1fr; }
+            .delete-grid { grid-template-columns: 1fr; }
+            .pattern-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ===== 15-minute edition additions (same tokens, same look) ===== */
+
+        /* Speaker notes: hidden per-slide source, shown in the popup window */
+        aside.notes { display: none; }
+
+        .notes-toggle {
+            position: fixed;
+            bottom: 26px;
+            left: 92px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--oracle-gray);
+            border: 1px solid var(--oracle-light-gray);
+            color: var(--text-primary);
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+            z-index: 100;
+        }
+        .notes-toggle:hover, .notes-toggle.active { background: var(--oracle-red); }
+
+        /* Timeline (verbatim slide): fit its fixed 1300px canvas to the viewport so the
+           absolutely-positioned thumbnails stay aligned with the SVG at any window size */
+        .timeline-slide .timeline-chart-container { width: 1300px !important; max-width: none !important; flex-shrink: 0; }
+        .timeline-slide .timeline-chart-container > svg { overflow: visible; }
+
+        /* Codd + When NoSQL */
+        .codd-grid {
+            display: grid;
+            grid-template-columns: 170px 1fr 1fr;
+            gap: 28px;
+            max-width: 1200px;
+            width: 100%;
+            margin-top: 0.5rem;
+            align-items: start;
+        }
+        .quote-card {
+            background: var(--oracle-gray);
+            border-radius: 14px;
+            padding: 18px 22px;
+            border-left: 4px solid var(--oracle-red);
+            margin-bottom: 14px;
+        }
+        .quote-card p {
+            font-style: italic;
+            font-size: 1.02rem;
+            line-height: 1.55;
+            text-align: left;
+            color: var(--text-secondary);
+        }
+        .quote-card .so-what {
+            font-style: normal;
+            margin-top: 8px;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+        }
+        .comparison-table.compact th, .comparison-table.compact td { padding: 11px 16px; }
+        .comparison-table.compact td { font-size: 0.98rem; }
+
+        /* UMT flow */
+        .umt-flow { width: 100%; max-width: 1200px; margin-top: 0.4rem; }
+
+        /* One engine */
+        .engine-grid {
+            display: grid;
+            grid-template-columns: 1.35fr 1fr;
+            gap: 30px;
+            max-width: 1250px;
+            width: 100%;
+            margin-top: 0.6rem;
+            align-items: start;
+        }
+        .engine-grid .code-container { margin-top: 0; max-width: none; padding: 18px 20px; }
+        .engine-grid pre { font-size: 0.8rem; line-height: 1.55; }
+        .engine-grid .delete-grid { grid-template-columns: 1fr; gap: 9px; margin-top: 0; max-width: none; }
+        .engine-grid .delete-item { padding: 10px 14px; }
+        .engine-grid .delete-icon { width: 28px; height: 28px; font-size: 0.85rem; }
+        .engine-grid .delete-text { font-size: 0.98rem; }
+        .col-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        /* Amara's Law chart */
+        .amara-quote { font-size: 1.15rem; line-height: 1.5; max-width: 980px; }
+        .amara-quote em { color: var(--text-primary); }
+        .amara-quote .who { color: var(--oracle-red); font-weight: 600; font-style: normal; white-space: nowrap; }
+        .amara-chart {
+            position: relative;
+            width: 100%;
+            max-width: 1100px;
+            aspect-ratio: 1100 / 440;
+            margin-top: 0.6rem;
+        }
+        .amara-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .amara-lead { transition: opacity 0.3s ease; }
+        .amara-hot {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            margin: -15px 0 0 -15px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            background: var(--oracle-red);
+            color: #ffffff;
+            font: 700 0.95rem 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            animation: pulse 2s infinite;
+            z-index: 3;
+            padding: 0;
+        }
+        .amara-hot.visited { background: #8a3a2e; animation: none; box-shadow: none; }
+        .amara-hot.on {
+            background: #ffffff;
+            color: var(--oracle-red);
+            animation: none;
+            box-shadow: 0 0 0 6px rgba(199,70,52,0.55), 0 0 24px rgba(255,255,255,0.5);
+        }
+        .amara-hot:focus-visible { outline: 3px solid var(--accent-yellow); outline-offset: 3px; }
+        .amara-card {
+            position: absolute;
+            box-sizing: border-box;
+            background: var(--oracle-gray);
+            border: 1px solid var(--oracle-light-gray);
+            border-left: 5px solid var(--oracle-red);
+            border-radius: 12px;
+            padding: 14px 18px 14px 16px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.55);
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.96);
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+            z-index: 4;
+            text-align: left;
+        }
+        .amara-card.open { opacity: 1; visibility: visible; transform: scale(1); }
+        .amara-card .card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .amara-card .num {
+            flex: 0 0 26px; height: 26px; border-radius: 50%;
+            background: var(--oracle-red); color: #fff;
+            font-weight: 700; font-size: 0.9rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .amara-card .ttl { font-size: 1.12rem; font-weight: 700; color: var(--text-primary); }
+        .amara-card p { font-size: 1rem; line-height: 1.45; text-align: left; color: var(--text-secondary); }
+        .amara-card p strong { color: var(--text-primary); }
+        .amara-card .bridge { margin-top: 6px; color: var(--accent-green); font-weight: 600; font-size: 0.95rem; }
+        .amara-card.c4, .amara-card.c5 { border-left-color: var(--accent-green); }
+        .amara-card.c4 .num, .amara-card.c5 .num { background: var(--accent-green); color: #1a1a1a; }
+        .amara-hint { font-size: 0.9rem; margin-top: 0.3rem; opacity: 0.75; }
+
+        /* Enablement program */
+        .enable-grid {
+            display: grid;
+            grid-template-columns: 1fr 44px 1.2fr 44px 1.05fr;
+            gap: 10px;
+            max-width: 1250px;
+            width: 100%;
+            margin-top: 0.6rem;
+            align-items: stretch;
+        }
+        .en-card {
+            background: var(--oracle-gray);
+            border-radius: 14px;
+            padding: 12px 16px;
+            text-align: left;
+        }
+        .en-card h4 { font-size: 1.15rem; color: var(--text-primary); margin-bottom: 2px; }
+        .en-card .tag { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
+        .en-card ul { list-style: none; }
+        .en-card li {
+            font-size: 0.93rem;
+            line-height: 1.33;
+            color: var(--text-secondary);
+            padding: 3px 0 3px 22px;
+            position: relative;
+        }
+        .en-card li::before { content: '▸'; position: absolute; left: 4px; top: 3px; }
+        .en-card li strong { color: var(--text-primary); }
+        .en-card.invest { border-top: 4px solid var(--accent-blue); }
+        .en-card.invest .tag, .en-card.invest li::before { color: var(--accent-blue); }
+        .en-returns { display: flex; flex-direction: column; gap: 8px; }
+        .en-card.you { border-top: 4px solid var(--accent-green); flex: 1; }
+        .en-card.you .tag, .en-card.you li::before { color: var(--accent-green); }
+        .en-card.oracle { border-top: 4px solid var(--oracle-red); }
+        .en-card.oracle .tag, .en-card.oracle li::before { color: var(--oracle-red); }
+        .en-flow { background: var(--oracle-gray); border-radius: 14px; padding: 12px 10px 6px; display: flex; flex-direction: column; }
+        .en-flow h4 { font-size: 1.15rem; color: var(--text-primary); text-align: center; }
+        .en-flow .tag { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; text-align: center; color: var(--accent-orange); }
+        .en-flow svg { width: 100%; height: auto; flex: 1; }
+        .en-arrow { display: flex; align-items: center; justify-content: center; }
+        .en-arrow svg { width: 44px; height: 60px; }
+        .en-proof {
+            display: grid;
+            grid-template-columns: 1.3fr repeat(4, 1fr);
+            gap: 12px;
+            max-width: 1250px;
+            width: 100%;
+            margin-top: 8px;
+            background: var(--oracle-gray);
+            border-radius: 14px;
+            padding: 6px 18px;
+            align-items: center;
+        }
+        .en-proof .lbl { font-size: 0.95rem; color: var(--text-secondary); text-align: left; line-height: 1.35; }
+        .en-proof .lbl strong { color: var(--text-primary); }
+        .en-proof .stat { text-align: center; border-left: 1px solid var(--oracle-light-gray); }
+        .en-proof .stat .n { font-size: 1.8rem; font-weight: 800; color: var(--oracle-red); line-height: 1.1; }
+        .en-proof .stat .l { font-size: 0.85rem; color: var(--text-secondary); }
+        .en-headline {
+            max-width: 1250px;
+            width: 100%;
+            margin-top: 8px;
+            background: linear-gradient(135deg, var(--oracle-red), #ff6b5b);
+            border-radius: 12px;
+            padding: 10px 24px;
+            color: #ffffff;
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-align: center;
+            box-shadow: 0 8px 28px rgba(199,70,52,0.35);
+        }
+
+        /* Close */
+        .close-list { list-style: none; max-width: 980px; margin-top: 0.4rem; }
+        .close-list li { font-size: 1.15rem; padding: 7px 0; color: var(--text-secondary); display: flex; gap: 14px; align-items: flex-start; text-align: left; }
+        .close-list .bullet { color: var(--oracle-red); font-weight: bold; }
+        .close-list strong { color: var(--text-primary); }
+        .cta {
+            margin-top: 1.2rem;
+            background: var(--oracle-gray);
+            border-left: 4px solid var(--accent-green);
+            border-radius: 12px;
+            padding: 14px 24px;
+            font-size: 1.12rem;
+            color: var(--text-primary);
+            max-width: 980px;
+        }
+        .cta strong { color: var(--accent-green); }
+
+        .close-quote-sm { font-size: 1.85rem !important; max-width: 1100px !important; }
+        .column-card li > span.t { display: inline; }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+
+        <!-- ==================== SLIDE 1: Title (source slide 1) ==================== -->
+        <div class="slide title-slide active" data-slide="0">
+            <h1>From RDBMS to NoSQL</h1>
+            <p class="subtitle">at Enterprise Scale</p>
+            <p class="subtitle" style="margin-top: 1rem; color: var(--accent-green);">Unified Model Theory · 15-minute edition</p>
+            <p class="author">Rick Houlihan | Field CTO, Oracle Data &amp; AI Platform</p>
+        </div>
+        <aside class="notes">
+<strong>Fifteen minutes, one idea: the fight between relational and NoSQL was the wrong fight.</strong><br><br>
+▸ <strong>Who I am, in ten seconds</strong>: I ran the largest relational-to-NoSQL migration in history at Amazon and built the single-table design patterns for DynamoDB. Then I spent years at MongoDB teaching Fortune 500 teams document modeling. Now I am at Oracle. I have sat in every seat in this theater.<br>
+▸ <strong>What you will leave with</strong>: why Amazon left relational, why most NoSQL projects stall, what Unified Model Theory is, and what we invest to get your teams across the gap.<br>
+▸ <strong>The promise</strong>: no product tour. History, physics, and one framework you can use on Monday.<br>
+▸ <strong>Pace</strong>: about a minute per slide. The timeline and the adoption curve are the two places to slow down.<br><br>
+<em>Land: I have seen this movie before. Let me show you how it ends.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 2: Amazon's Story (source slide 5) ==================== -->
+        <div class="slide" data-slide="1">
+            <h2>Amazon's Great Migration: Why NoSQL?</h2>
+            <div class="amazon-context" style="display: flex; gap: 40px; align-items: flex-start; max-width: 1300px; margin-top: 1rem;">
+                <!-- Left: Amazon Infographic Image -->
+                <div class="amazon-image" style="flex: 0 0 440px; opacity: 0; animation: fadeInUp 0.6s ease 0.2s forwards;">
+                    <img src="images/image87.png" alt="Amazon Business Operations" style="width: 100%; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);"/>
+                </div>
+
+                <!-- Right: Highlight Tiles -->
+                <div class="highlight-tiles" style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                    <div class="highlight-tile" style="background: var(--oracle-gray); border-radius: 12px; padding: 16px 22px; border-left: 4px solid var(--accent-blue); opacity: 0; animation: fadeInUp 0.5s ease 0.3s forwards;">
+                        <div style="font-size: 1.1rem; color: var(--text-primary); font-weight: 600;">Founded in 1995</div>
+                        <div style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 4px;">Built on monolithic services and Oracle databases</div>
+                    </div>
+
+                    <div class="highlight-tile" style="background: var(--oracle-gray); border-radius: 12px; padding: 16px 22px; border-left: 4px solid var(--accent-green); opacity: 0; animation: fadeInUp 0.5s ease 0.4s forwards;">
+                        <div style="font-size: 1.1rem; color: var(--text-primary); font-weight: 600;">$5B Company in 2005</div>
+                        <div style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 4px;">When service-oriented architecture became the internal standard</div>
+                    </div>
+
+                    <div class="highlight-tile" style="background: var(--oracle-gray); border-radius: 12px; padding: 16px 22px; border-left: 4px solid var(--accent-purple); opacity: 0; animation: fadeInUp 0.5s ease 0.5s forwards;">
+                        <div style="font-size: 1.1rem; color: var(--text-primary); font-weight: 600;">By 2018: Scale Breaking Things</div>
+                        <div style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 4px; display: flex; gap: 20px;">
+                            <span><strong style="color: var(--oracle-red);">3K</strong> Oracle instances</span>
+                            <span><strong style="color: var(--oracle-red);">10K</strong> App services</span>
+                            <span><strong style="color: var(--oracle-red);">25K</strong> Developers</span>
+                        </div>
+                    </div>
+
+                    <div class="highlight-tile" style="background: var(--oracle-gray); border-radius: 12px; padding: 16px 22px; border-left: 4px solid var(--accent-orange); opacity: 0; animation: fadeInUp 0.5s ease 0.6s forwards;">
+                        <div style="font-size: 1.1rem; color: var(--text-primary); font-weight: 600;">RDBMS Cost: A Big Line Item</div>
+                        <div style="font-size: 0.95rem; color: var(--text-secondary); margin-top: 4px;">Largest Oracle license in the world • High infrastructure TCO</div>
+                    </div>
+
+                    <div class="highlight-tile" style="background: linear-gradient(135deg, var(--oracle-red), #ff6b5b); border-radius: 12px; padding: 18px 22px; opacity: 0; animation: fadeInUp 0.5s ease 0.7s forwards;">
+                        <div style="font-size: 1.2rem; color: white; font-weight: 700; text-align: center;">Maybe a better way?</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <aside class="notes">
+<strong>Amazon was not "born in the cloud". It was born on monoliths and Oracle, and scale broke it.</strong><br><br>
+▸ <strong>1995</strong>: a monolithic web store on relational databases. Completely normal for the time.<br>
+▸ <strong>2005</strong>: a $5B company, and service-oriented architecture became the internal standard. Every team owned its services, and every service owned its data.<br>
+▸ <strong>2018</strong>: 3,000 Oracle instances, 10,000 application services, 25,000 developers. At that scale everything that can break does: capacity planning, failover, schema changes, cost.<br>
+▸ <strong>The line item</strong>: the largest Oracle license in the world, plus the infrastructure to run it. When a single bill is that big, someone asks the question on the red tile.<br>
+▸ <strong>The irony I want you to hold</strong>: Amazon moved off Oracle onto NoSQL, and I helped lead that move. Relational was not wrong. It was being used to serve access patterns it was not tuned for, at a cost that grew with every service. Hold that thought, because the engine Amazon left has since changed shape.<br><br>
+<em>Land: "Maybe a better way?" was the right question. NoSQL was the best answer available in 2018. It is not the best answer available today.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 8: Timeline with Peaks & Valleys (Step-through) ==================== -->
+        <div class="slide timeline-slide" data-slide="7" data-steps="10" style="padding: 40px 60px;">
+            <h2 style="margin-bottom: 0.3rem;">Timeline of Database Technology</h2>
+            <p style="margin-bottom: 0.5rem; font-size: 1.2rem;">Data Pressure Through the Ages</p>
+
+            <div class="timeline-chart-container" style="position: relative; width: 100%; max-width: 1300px; height: 560px;">
+                <!-- SVG Chart with peaks and valleys -->
+                <svg viewBox="0 -40 1300 560" style="width: 100%; height: 100%;">
+                    <defs>
+                        <!-- Gradient for the area under curve -->
+                        <linearGradient id="pressureGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#C74634;stop-opacity:0.6" />
+                            <stop offset="100%" style="stop-color:#C74634;stop-opacity:0.05" />
+                        </linearGradient>
+                        <!-- Glow filter for the line -->
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                            <feMerge>
+                                <feMergeNode in="coloredBlur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+
+                    <!-- Step 0: Base chart (always visible) -->
+                    <g class="timeline-step" data-step="0">
+                        <!-- Y-axis label -->
+                        <text x="25" y="200" fill="#b0b0b0" font-size="12" transform="rotate(-90, 25, 200)">Data Pressure</text>
+                        <!-- X-axis (time) -->
+                        <line x1="60" y1="420" x2="1280" y2="420" stroke="#3d3d3d" stroke-width="2"/>
+                        <!-- Y-axis -->
+                        <line x1="60" y1="60" x2="60" y2="420" stroke="#3d3d3d" stroke-width="2"/>
+                        <!-- Area fill under curve -->
+                        <path d="M 60,420 L 60,380 C 80,375 100,360 130,320 C 160,280 200,350 280,380 C 320,390 360,340 420,280 C 480,220 520,300 580,350 C 640,400 680,320 740,240 C 800,160 840,280 920,340 C 980,390 1020,280 1080,180 C 1120,100 1160,140 1200,100 C 1220,80 1250,350 1260,390 L 1260,420 Z" fill="url(#pressureGradient)" opacity="0.8"/>
+                        <!-- Data pressure curve -->
+                        <path d="M 60,380 C 80,375 100,360 130,320 C 160,280 200,350 280,380 C 320,390 360,340 420,280 C 480,220 520,300 580,350 C 640,400 680,320 740,240 C 800,160 840,280 920,340 C 980,390 1020,280 1080,180 C 1120,100 1160,140 1200,100 C 1220,80 1250,350 1260,390" fill="none" stroke="#C74634" stroke-width="4" filter="url(#glow)"/>
+                    </g>
+
+                    <!-- Step 1: Human Brain -->
+                    <g class="timeline-step" data-step="1" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="130" y1="320" x2="130" y2="460" stroke="#4a9eff" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="130" cy="320" r="8" fill="#4a9eff"/>
+                        <text x="130" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">~100,000 BC</text>
+                        <text x="130" y="340" fill="#4a9eff" font-size="10" font-weight="600" text-anchor="middle">Human Brain</text>
+                    </g>
+
+                    <!-- Step 2: Ledgers -->
+                    <g class="timeline-step" data-step="2" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="280" y1="380" x2="280" y2="460" stroke="#4ade80" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="280" cy="380" r="8" fill="#4ade80"/>
+                        <text x="280" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">~3000 BC</text>
+                        <text x="280" y="400" fill="#4ade80" font-size="10" font-weight="600" text-anchor="middle">Ledgers</text>
+                    </g>
+
+                    <!-- Step 3: Punch Cards -->
+                    <g class="timeline-step" data-step="3" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="420" y1="280" x2="420" y2="460" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="420" cy="280" r="8" fill="#a78bfa"/>
+                        <text x="420" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">1890s</text>
+                        <text x="420" y="300" fill="#a78bfa" font-size="10" font-weight="600" text-anchor="middle">Punch Cards</text>
+                    </g>
+
+                    <!-- Step 4: Magnetic Tape -->
+                    <g class="timeline-step" data-step="4" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="580" y1="350" x2="580" y2="460" stroke="#fb923c" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="580" cy="350" r="8" fill="#fb923c"/>
+                        <text x="580" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">1950s</text>
+                        <text x="580" y="370" fill="#fb923c" font-size="10" font-weight="600" text-anchor="middle">Magnetic Tape</text>
+                    </g>
+
+                    <!-- Step 5: Block Storage -->
+                    <g class="timeline-step" data-step="5" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="740" y1="240" x2="740" y2="460" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="740" cy="240" r="8" fill="#fbbf24"/>
+                        <text x="740" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">1970s</text>
+                        <text x="740" y="260" fill="#fbbf24" font-size="10" font-weight="600" text-anchor="middle">Block Storage</text>
+                    </g>
+
+                    <!-- Step 6: RDBMS -->
+                    <g class="timeline-step" data-step="6" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="920" y1="340" x2="920" y2="460" stroke="#22d3d3" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="920" cy="340" r="8" fill="#22d3d3"/>
+                        <text x="920" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">1980s</text>
+                        <text x="920" y="360" fill="#22d3d3" font-size="10" font-weight="600" text-anchor="middle">RDBMS</text>
+                    </g>
+
+                    <!-- Step 7: Distributed NoSQL -->
+                    <g class="timeline-step" data-step="7" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="1080" y1="180" x2="1080" y2="460" stroke="#f87171" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="1080" cy="180" r="8" fill="#f87171"/>
+                        <text x="1080" y="478" fill="#b0b0b0" font-size="9" text-anchor="middle">2000s</text>
+                        <text x="1080" y="200" fill="white" font-size="10" font-weight="600" text-anchor="middle">Distributed NoSQL</text>
+                    </g>
+
+                    <!-- Step 8: Polyglot Persistence -->
+                    <g class="timeline-step" data-step="8" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="1200" y1="100" x2="1200" y2="460" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4 2" opacity="0.5"/>
+                        <circle cx="1200" cy="100" r="10" fill="#fbbf24" stroke="white" stroke-width="2"/>
+                        <text x="1200" y="478" fill="#fbbf24" font-size="9" text-anchor="middle">2015+</text>
+                        <text x="1200" y="122" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">Polyglot</text>
+                        <text x="1200" y="134" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">Persistence</text>
+                        <!-- Access Dimension Icons -->
+                        <rect x="1187" y="-15" width="26" height="26" rx="5" fill="#4a9eff"/>
+                        <text x="1200" y="3" fill="white" font-size="13" text-anchor="middle">📊</text>
+                        <text x="1200" y="-22" fill="#4a9eff" font-size="7" font-weight="600" text-anchor="middle">SQL</text>
+                        <rect x="1217" y="7" width="26" height="26" rx="5" fill="#4ade80"/>
+                        <text x="1230" y="25" fill="white" font-size="13" text-anchor="middle">📄</text>
+                        <text x="1250" y="24" fill="#4ade80" font-size="7" font-weight="600" text-anchor="start">Doc</text>
+                        <rect x="1207" y="43" width="26" height="26" rx="5" fill="#a78bfa"/>
+                        <text x="1220" y="61" fill="white" font-size="13" text-anchor="middle">🔗</text>
+                        <text x="1240" y="60" fill="#a78bfa" font-size="7" font-weight="600" text-anchor="start">Graph</text>
+                        <rect x="1167" y="43" width="26" height="26" rx="5" fill="#fb923c"/>
+                        <text x="1180" y="61" fill="white" font-size="13" text-anchor="middle">📈</text>
+                        <text x="1160" y="60" fill="#fb923c" font-size="7" font-weight="600" text-anchor="end">Time</text>
+                        <rect x="1157" y="7" width="26" height="26" rx="5" fill="#fbbf24"/>
+                        <text x="1170" y="25" fill="white" font-size="13" text-anchor="middle">🎯</text>
+                        <text x="1150" y="24" fill="#fbbf24" font-size="7" font-weight="600" text-anchor="end">Vector</text>
+                    </g>
+
+                    <!-- Step 9: UMT -->
+                    <g class="timeline-step" data-step="9" style="opacity: 0; transition: opacity 0.4s ease;">
+                        <line x1="1260" y1="390" x2="1260" y2="460" stroke="#C74634" stroke-width="2" stroke-dasharray="4 2" opacity="0.8"/>
+                        <circle cx="1260" cy="390" r="12" fill="#C74634" stroke="white" stroke-width="3"/>
+                        <text x="1260" y="492" fill="white" font-size="10" font-weight="bold" text-anchor="middle">2020s</text>
+                        <text x="1260" y="414" fill="white" font-size="11" font-weight="700" text-anchor="middle">Unified Model</text>
+                        <text x="1260" y="428" fill="white" font-size="11" font-weight="700" text-anchor="middle">Theory</text>
+                    </g>
+                </svg>
+
+                <!-- Image thumbnails positioned over the chart -->
+                <img src="images/image79.png" alt="Human Brain" class="timeline-img" data-step="1"
+                     style="position: absolute; left: 90px; top: 240px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #4a9eff; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image84.png" alt="Ledgers" class="timeline-img" data-step="2"
+                     style="position: absolute; left: 240px; top: 320px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #4ade80; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image83.png" alt="Punch Cards" class="timeline-img" data-step="3"
+                     style="position: absolute; left: 380px; top: 200px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #a78bfa; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image77.png" alt="Magnetic Tape" class="timeline-img" data-step="4"
+                     style="position: absolute; left: 540px; top: 290px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #fb923c; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image78.png" alt="Block Storage" class="timeline-img" data-step="5"
+                     style="position: absolute; left: 700px; top: 165px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #fbbf24; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image89.png" alt="RDBMS" class="timeline-img" data-step="6"
+                     style="position: absolute; left: 880px; top: 280px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #22d3d3; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/image93.png" alt="NoSQL" class="timeline-img" data-step="7"
+                     style="position: absolute; left: 1040px; top: 115px; width: 70px; height: 55px; object-fit: cover; border-radius: 8px; border: 2px solid #f87171; opacity: 0; transition: opacity 0.4s ease;">
+
+                <img src="images/umt-icon.png" alt="Unified Model Theory" class="timeline-img" data-step="9"
+                     style="position: absolute; left: 1220px; top: 300px; width: 90px; height: 90px; object-fit: contain; border-radius: 12px; opacity: 0; transition: opacity 0.4s ease; filter: drop-shadow(0 0 15px rgba(199, 70, 52, 0.7));">
+            </div>
+
+            <p style="margin-top: 0.5rem;"><span class="highlight">Each peak = data pressure exceeding current technology. Each valley = the solution.</span></p>
+        </div>
+        <aside class="notes">
+<strong>Every big shift in data technology follows the same rhythm: pressure builds, the old tool breaks, a new tool resets the curve.</strong> Step through it: each click adds one era.<br><br>
+▸ <strong>Step 1, the human brain</strong>: the first database. Great at relationships, terrible at persistence.<br>
+▸ <strong>Step 2, ledgers</strong>: about 5,000 years ago we wrote it down. Persistence solved; pressure drops.<br>
+▸ <strong>Step 3, punch cards</strong>: the 1890 US census was drowning in data. Hollerith's machine-readable cards turned a decade of tabulation into a couple of years.<br>
+▸ <strong>Step 4, magnetic tape</strong>: 1950s. Faster, but sequential. You read the whole tape to find one record.<br>
+▸ <strong>Step 5, block storage</strong>: 1970s. Random access. Now you can jump to the record you want.<br>
+▸ <strong>Step 6, RDBMS</strong>: 1980s. Storage was the most expensive thing in the data center, so we normalized to store every fact exactly once and paid in CPU at read time. A brilliant trade for its economics.<br>
+▸ <strong>Step 7, distributed NoSQL</strong>: 2000s. The economics flipped: storage got cheap, CPU and scale got expensive. So we denormalized, pre-joined data into documents, and scaled out.<br>
+▸ <strong>Step 8, polyglot persistence</strong>: 2015 onward. One database per access shape: SQL, documents, graph, time series, vectors. The highest peak on the chart, and it is the one most of you are living in right now.<br>
+▸ <strong>Step 9, Unified Model Theory</strong>: the 2020s valley. Not one more database, but a way to model once and serve every shape from one engine.<br><br>
+<em>Land: each peak is data pressure exceeding the technology. Each valley is the solution. Every valley so far was a new tool. This one is a new way of modeling.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 4: Codd + When NoSQL (source slides 9, 10, 11) ==================== -->
+        <div class="slide" data-slide="3">
+            <h2>Codd Saw It Coming</h2>
+            <div class="codd-grid">
+                <div>
+                    <img src="images/image127.png" alt="Edgar F. Codd" style="width: 100%; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+                    <p style="font-size: 1.05rem; color: var(--text-primary); margin-top: 0.7rem; font-weight: 600; line-height: 1.3;">EDGAR F. "TED" CODD</p>
+                    <p style="font-size: 0.9rem; line-height: 1.4;">"A Relational Model of Data for Large Shared Data Banks", 1970</p>
+                </div>
+                <div>
+                    <div class="quote-card">
+                        <p>"...normal form is not only an advantage for storage purposes but also for <span class="highlight">communication of bulk data between systems which use widely different representations of the data</span>."</p>
+                        <p class="so-what">One logical model, many physical representations.</p>
+                    </div>
+                    <div class="quote-card" style="border-left-color: var(--accent-green);">
+                        <p>"...<span class="highlight">extra storage space and update time are consumed</span> with a potential <span class="highlight-green">drop in query time</span> for some queries."</p>
+                        <p class="so-what">Denormalization: pay on write and storage, save on read.</p>
+                    </div>
+                </div>
+                <div style="align-self: center;">
+                    <table class="comparison-table compact" style="margin-top: 0;">
+                        <tr><th>NoSQL / Document</th><th>SQL / Relational</th></tr>
+                        <tr><td>Optimized for compute</td><td>Optimized for storage</td></tr>
+                        <tr><td>Denormalized, hierarchical</td><td>Normalized, relational</td></tr>
+                        <tr><td>Instantiated views</td><td>Ad hoc queries</td></tr>
+                        <tr><td>Scale horizontally</td><td>Scale vertically</td></tr>
+                        <tr><td>Built for OLTP at scale</td><td>Good for OLAP</td></tr>
+                    </table>
+                </div>
+            </div>
+            <p style="margin-top: 1.4rem; font-size: 1.2rem;"><span class="highlight">Oracle AI Database 26ai:</span> both columns, one copy of the data, with JSON Relational Duality.</p>
+        </div>
+        <aside class="notes">
+<strong>None of this is new. Ted Codd wrote the trade-off down in 1970.</strong><br><br>
+▸ <strong>Quote one</strong>: Codd says normal form is valuable not just for storage, but for moving data between systems that use "widely different representations." Read that again. The father of relational was describing one logical model with many physical representations. That is the core of what I will show you in a few minutes.<br>
+▸ <strong>Quote two</strong>: when you store redundant copies, you pay extra storage and update time, and you may get faster queries. That sentence is the entire NoSQL bargain: denormalize, pay on the write, win on the read. Codd wrote it 40 years before anyone said "document database".<br>
+▸ <strong>The table: when does NoSQL fit?</strong> When you are optimizing for compute rather than storage, when the access patterns are known and repeated, and when you need OLTP at scale. Relational shines when the questions are ad hoc. Neither column is wrong. They are tuned for different physics.<br>
+▸ <strong>Define the terms for the room</strong>: OLTP is the high-volume transactional traffic, the clicks and the orders. OLAP is analysis: the questions nobody planned for.<br>
+▸ <strong>The 26ai point</strong>: you no longer have to pick a column per database. Duality views let one copy of the data serve both sides. Be precise here: the trade-off does not vanish. Assembling a document from tables at read time costs more than reading a pre-built blob. What you get in return is zero write amplification, no copies to keep in sync, and an optimizer that does the work instead of your application.<br><br>
+<em>Land: Codd gave us the trade-off. We spent 15 years picking one side of it per database. Now we can choose per access pattern.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 5: Access Patterns Drive Cost (source slides 14-15) ==================== -->
+        <div class="slide" data-slide="4">
+            <h2>Access Patterns Drive Cost</h2>
+            <p style="font-size: 1.1rem; margin-bottom: 0.4rem;"><strong style="color: var(--text-primary);">Access pattern:</strong> a question your app asks of the data, and how often it asks it.</p>
+            <div style="display: flex; gap: 40px; align-items: flex-start; max-width: 1100px; margin-top: 1rem;">
+                <!-- Left: Werner Vogels Photo -->
+                <div style="flex: 0 0 220px;">
+                    <img src="images/image95.png" alt="Werner Vogels" style="width: 100%; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+                    <p style="font-size: 1rem; color: var(--text-primary); margin-top: 0.8rem; font-weight: 600;">Werner Vogels</p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">CTO, Amazon</p>
+                </div>
+                <!-- Right: Stats -->
+                <div style="flex: 1;">
+                    <p style="margin-bottom: 1rem; font-size: 1.1rem; text-align: left;">At Amazon in 2017:</p>
+                    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+                        <div class="stat-card">
+                            <div class="stat-number">70%</div>
+                            <div class="stat-label">Single row access</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">20%</div>
+                            <div class="stat-label">Range from a single table</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">50%</div>
+                            <div class="stat-label">Of infrastructure served the last 10%</div>
+                        </div>
+                    </div>
+                    <p style="margin-top: 1.5rem; text-align: left;">
+                        <span class="highlight">90% of queries are simple lookups.</span> Document patterns optimize for the common case.<br>
+                        <span class="highlight-green">The ERD still matters:</span> every workload is relationships. Access patterns decide how you read them.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <aside class="notes">
+<strong>Here is the data point that launched Amazon's migration, and it is the most important number in this talk.</strong><br><br>
+▸ <strong>Define it first</strong>: an access pattern is a specific question the application asks, like "get this customer's open orders", together with how often it asks.<br>
+▸ <strong>Werner's numbers, Amazon 2017</strong>: 70% of queries touched a single row. Another 20% read a range of rows from a single table. So 90% of the traffic was simple lookups that never needed a join.<br>
+▸ <strong>The punchline</strong>: up to half of the infrastructure existed to serve the last 10%, the complex, ad hoc queries. We were sizing the whole fleet for the rare case.<br>
+▸ <strong>Why documents won that round</strong>: if 90% of your reads are "give me this thing and everything about it", store it the way you read it. One lookup, one round trip. That is what document patterns optimize.<br>
+▸ <strong>But do not overcorrect</strong>: every workload is relationships. Social networks, document management, process control, IT monitoring, data lakes: all of them are entities connected to other entities. NoSQL does not mean non-relational. The ERD still matters. What changes is how often you traverse each relationship, and that is what should drive the physical design.<br><br>
+<em>Land: know your access patterns before you pick your shapes. The 90% tells you how to store it. The 10% tells you why you still need relationships.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 6: The False Choice -> The Insight (source slides 17-18) ==================== -->
+        <div class="slide" data-slide="5">
+            <h2>The False Choice</h2>
+            <div class="two-column" style="margin-top: 0.5rem; align-items: stretch; max-width: 1150px;">
+                <div class="column-card problem" style="padding: 26px 30px;">
+                    <h3 style="margin-bottom: 0.8rem;"><span class="icon">🔥</span> What we were told</h3>
+                    <ul>
+                        <li><span>Choose <strong>relational</strong> → object-to-table mismatch</span></li>
+                        <li><span>Choose <strong>documents</strong> → duplicated data drifts apart</span></li>
+                        <li><span>Need <strong>graph</strong>? → add a graph store + sync</span></li>
+                        <li><span>Need <strong>time series</strong>? → add another store + CDC</span></li>
+                        <li><span>Need <strong>vectors</strong>? → add a vector store + pipeline</span></li>
+                    </ul>
+                </div>
+                <div class="column-card solution" style="padding: 26px 30px; display: flex; flex-direction: column; justify-content: center;">
+                    <h3 style="margin-bottom: 0.8rem;"><span class="icon">✓</span> The Insight</h3>
+                    <p style="font-size: 1.15rem; color: var(--text-primary); text-align: left; line-height: 1.5;">Documents, graphs, time series, vectors and relations are not competing paradigms.</p>
+                    <p style="font-size: 1.6rem; color: var(--oracle-red); font-weight: 700; text-align: left; line-height: 1.35; margin-top: 0.8rem;">They are orthogonal projections of the same underlying truth.</p>
+                </div>
+            </div>
+            <p style="margin-top: 1.5rem; font-size: 1.3rem;">This was a <span class="highlight">modeling problem</span>, not a technology problem. Model once. <span class="highlight-green">Project the shapes your consumers need.</span></p>
+        </div>
+        <aside class="notes">
+<strong>For 15 years the industry handed architects a menu of false choices.</strong><br><br>
+▸ <strong>Choose relational</strong>, and your developers fight the mismatch between the objects in their code and the rows in your tables. That fight is why ORMs exist.<br>
+▸ <strong>Choose documents</strong>, and you copy the same fact into many documents. Update one copy and miss another, and your data now disagrees with itself. Engineers call that an update anomaly.<br>
+▸ <strong>Need graph, time series, vectors?</strong> The answer was always "add a database and a pipeline to keep it in sync".<br>
+▸ <strong>The insight</strong>: these are not rival paradigms. Take one order. In the orders table it is a row. In your API it is a document with the customer and line items embedded. In a graph it is an edge between a customer and a product. In a time series it is a point on the revenue curve. In a vector index it is a neighbor of similar orders. Same fact. Five shapes.<br>
+▸ <strong>Orthogonal</strong> just means independent: the shape you serve does not have to dictate the way you store the truth.<br><br>
+<em>Land: this was never a technology problem. It was a modeling problem. Model once, and project the shapes your consumers need.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 7: Polyglot Problem (source slide 20) ==================== -->
+        <div class="slide" data-slide="6">
+            <h2>The Polyglot Persistence Problem</h2>
+            <div class="polyglot-container">
+                <svg viewBox="14 14 962 238" style="width: 100%; height: auto;">
+                    <defs>
+                        <marker id="polyAr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/>
+                        </marker>
+                    </defs>
+                    <!-- Row of 5 databases -->
+                    <rect x="30" y="30" width="120" height="60" fill="#4ade80" rx="10" opacity="0" style="animation: fadeIn 0.4s ease 0.2s forwards;"/>
+                    <text x="90" y="55" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.3s forwards;">MongoDB</text>
+                    <text x="90" y="72" fill="#1a1a1a" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.3s forwards;">Documents</text>
+
+                    <rect x="170" y="30" width="120" height="60" fill="#a78bfa" rx="10" opacity="0" style="animation: fadeIn 0.4s ease 0.35s forwards;"/>
+                    <text x="230" y="55" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.4s forwards;">Neo4j</text>
+                    <text x="230" y="72" fill="#1a1a1a" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.4s forwards;">Graph</text>
+
+                    <rect x="310" y="30" width="120" height="60" fill="#fb923c" rx="10" opacity="0" style="animation: fadeIn 0.4s ease 0.45s forwards;"/>
+                    <text x="370" y="55" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.5s forwards;">InfluxDB</text>
+                    <text x="370" y="72" fill="#1a1a1a" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.5s forwards;">Time Series</text>
+
+                    <rect x="450" y="30" width="120" height="60" fill="#fbbf24" rx="10" opacity="0" style="animation: fadeIn 0.4s ease 0.55s forwards;"/>
+                    <text x="510" y="55" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.6s forwards;">Pinecone</text>
+                    <text x="510" y="72" fill="#1a1a1a" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.6s forwards;">Vectors</text>
+
+                    <rect x="590" y="30" width="120" height="60" fill="#4a9eff" rx="10" opacity="0" style="animation: fadeIn 0.4s ease 0.65s forwards;"/>
+                    <text x="650" y="55" fill="#1a1a1a" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.7s forwards;">PostgreSQL</text>
+                    <text x="650" y="72" fill="#1a1a1a" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 0.7s forwards;">Analytics</text>
+
+                    <!-- Sync arrows -->
+                    <line x1="90" y1="90" x2="90" y2="125" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" opacity="0" style="animation: fadeIn 0.3s ease 0.8s forwards;"/>
+                    <line x1="230" y1="90" x2="230" y2="125" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" opacity="0" style="animation: fadeIn 0.3s ease 0.85s forwards;"/>
+                    <line x1="370" y1="90" x2="370" y2="125" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" opacity="0" style="animation: fadeIn 0.3s ease 0.9s forwards;"/>
+                    <line x1="510" y1="90" x2="510" y2="125" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" opacity="0" style="animation: fadeIn 0.3s ease 0.95s forwards;"/>
+                    <line x1="650" y1="90" x2="650" y2="125" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" opacity="0" style="animation: fadeIn 0.3s ease 1s forwards;"/>
+
+                    <!-- CDC Layer -->
+                    <rect x="30" y="125" width="680" height="45" fill="#f87171" rx="8" opacity="0" style="animation: fadeIn 0.5s ease 1.1s forwards;"/>
+                    <text x="370" y="153" fill="white" font-size="12" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.2s forwards;">5 CDC Pipelines • 5 Consistency Models • 5 Failure Modes</text>
+
+                    <!-- AI Application -->
+                    <rect x="780" y="30" width="180" height="140" fill="#C74634" rx="12" opacity="0" style="animation: fadeIn 0.5s ease 1.3s forwards;"/>
+                    <text x="870" y="70" fill="white" font-size="14" font-weight="700" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.4s forwards;">AI / RAG</text>
+                    <text x="870" y="90" fill="white" font-size="10" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.4s forwards;">Application</text>
+                    <text x="870" y="120" fill="white" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.5s forwards;">Needs: vectors + docs +</text>
+                    <text x="870" y="135" fill="white" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.5s forwards;">graph + time series + joins</text>
+                    <text x="870" y="155" fill="white" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 1.5s forwards;">in ONE query</text>
+
+                    <!-- Arrow: CDC layer feeds the AI app (orthogonal) -->
+                    <line x1="712" y1="147" x2="777" y2="147" stroke="#b0b0b0" stroke-width="2" stroke-dasharray="4 2" marker-end="url(#polyAr)" opacity="0" style="animation: fadeIn 0.3s ease 1.6s forwards;"/>
+
+                    <!-- Warning badges -->
+                    <rect x="100" y="190" width="120" height="28" fill="#f87171" rx="5" opacity="0" style="animation: fadeIn 0.4s ease 1.7s forwards;"/>
+                    <text x="160" y="209" fill="white" font-size="10" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 1.75s forwards;">5 Network Hops</text>
+
+                    <rect x="280" y="190" width="140" height="28" fill="#f87171" rx="5" opacity="0" style="animation: fadeIn 0.4s ease 1.85s forwards;"/>
+                    <text x="350" y="209" fill="white" font-size="10" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 1.9s forwards;">Eventual Consistency</text>
+
+                    <rect x="480" y="190" width="140" height="28" fill="#f87171" rx="5" opacity="0" style="animation: fadeIn 0.4s ease 2s forwards;"/>
+                    <text x="550" y="209" fill="white" font-size="10" font-weight="600" text-anchor="middle" opacity="0" style="animation: fadeIn 0.4s ease 2.05s forwards;">Stale Context for AI</text>
+
+                    <!-- Result -->
+                    <rect x="780" y="190" width="180" height="45" fill="#f87171" rx="8" opacity="0" style="animation: fadeIn 0.5s ease 2.2s forwards;"/>
+                    <text x="870" y="212" fill="white" font-size="12" font-weight="700" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 2.3s forwards;">HALLUCINATIONS</text>
+                    <text x="870" y="227" fill="white" font-size="9" text-anchor="middle" opacity="0" style="animation: fadeIn 0.5s ease 2.3s forwards;">with authority</text>
+                </svg>
+            </div>
+            <p style="margin-top: 0.4rem;"><span class="highlight">Five databases. Five sync pipelines. AI hallucinates on stale context.</span></p>
+        </div>
+        <aside class="notes">
+<strong>This is what the false choice built: polyglot persistence, a database for every shape.</strong><br><br>
+▸ <strong>Walk the top row</strong>: MongoDB for documents, Neo4j for graph, InfluxDB for time series, Pinecone for vectors, PostgreSQL for analytics. Each one is good at its job. That is not the problem.<br>
+▸ <strong>The red bar is the problem</strong>: five change-data-capture pipelines copying data between them. CDC just means "watch one database for changes and replay them into another". Five pipelines means five consistency models and five ways to fail at 3 a.m.<br>
+▸ <strong>Now add AI</strong>: a RAG application, retrieval-augmented generation, needs the vector neighbors, the document, the relationships and the recent history in one answer. In this architecture that is five network hops, and each store is at a different point in time.<br>
+▸ <strong>Eventual consistency plus conflicting facts equals a confident wrong answer</strong>. The model does not know the inventory system is 8 seconds behind the order system. It just answers, with authority. When agents take actions instead of answering questions, that stale context becomes a business incident.<br>
+▸ <strong>The hidden tax</strong>: every extra database is another attack surface, another CVE list, another patch cycle, another authentication model, another team.<br><br>
+<em>Land: AI did not create the polyglot problem. It exposed it.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 8: Unified Model Theory (source slides 21-22, corrected vocabulary) ==================== -->
+        <div class="slide" data-slide="7">
+            <h2 style="margin-bottom: 0.4rem;">Unified Model Theory</h2>
+            <p style="font-size: 1.25rem;">Model the domain. <span class="highlight">Project the access.</span></p>
+            <div class="umt-flow">
+                <svg viewBox="0 0 1200 420" style="width: 100%; height: auto;" role="img" aria-label="Unified Model Theory: Canonical Form, Projections, Access Surfaces, Projected Shapes">
+                    <defs><marker id="umtAr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/></marker></defs>
+                    <g opacity="0" style="animation: fadeIn 0.5s ease 0.20s forwards;">
+                        <rect x="24" y="20" width="232" height="324" rx="14" fill="#2d2d2d" stroke="#4a9eff" stroke-width="2"/>
+                        <path d="M 24,34 a 14,14 0 0 1 14,-14 h 204 a 14,14 0 0 1 14,14 v 54 h -232 z" fill="#4a9eff"/>
+                        <text x="140.0" y="52" fill="#1a1a1a" font-size="21" font-weight="700" text-anchor="middle">Canonical Form</text>
+                        <text x="140.0" y="76" fill="#1a1a1a" font-size="14" font-weight="600" text-anchor="middle">The logical model</text>
+                        <rect x="40" y="102" width="200" height="44" rx="8" fill="#4a9eff" fill-opacity="0.13" stroke="#4a9eff" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="140.0" y="130" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Entities</text>
+                        <rect x="40" y="156" width="200" height="44" rx="8" fill="#4a9eff" fill-opacity="0.13" stroke="#4a9eff" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="140.0" y="184" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Properties</text>
+                        <rect x="40" y="210" width="200" height="44" rx="8" fill="#4a9eff" fill-opacity="0.13" stroke="#4a9eff" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="140.0" y="238" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Relationships</text>
+                        <text x="140.0" y="278" fill="#4a9eff" font-size="15" font-weight="700" text-anchor="middle">What the business is.</text>
+                        <text x="140.0" y="298" fill="#4a9eff" font-size="15" font-weight="700" text-anchor="middle">Not a table design.</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.4s ease 0.35s forwards;">
+                        <line x1="262" y1="190" x2="322" y2="190" stroke="#b0b0b0" stroke-width="3" marker-end="url(#umtAr)"/>
+                        <text x="292" y="176" fill="#b0b0b0" font-size="13" font-weight="600" text-anchor="middle">project</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.5s ease 0.45s forwards;">
+                        <rect x="328" y="20" width="232" height="324" rx="14" fill="#2d2d2d" stroke="#4ade80" stroke-width="2"/>
+                        <path d="M 328,34 a 14,14 0 0 1 14,-14 h 204 a 14,14 0 0 1 14,14 v 54 h -232 z" fill="#4ade80"/>
+                        <text x="444.0" y="52" fill="#1a1a1a" font-size="21" font-weight="700" text-anchor="middle">Projections</text>
+                        <text x="444.0" y="76" fill="#1a1a1a" font-size="14" font-weight="600" text-anchor="middle">How it is physically stored</text>
+                        <rect x="344" y="102" width="200" height="44" rx="8" fill="#4ade80" fill-opacity="0.13" stroke="#4ade80" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="444.0" y="130" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Rows on tables</text>
+                        <rect x="344" y="156" width="200" height="44" rx="8" fill="#4ade80" fill-opacity="0.13" stroke="#4ade80" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="444.0" y="184" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Embedded documents</text>
+                        <rect x="344" y="210" width="200" height="44" rx="8" fill="#4ade80" fill-opacity="0.13" stroke="#4ade80" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="444.0" y="238" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Graph nodes + edges</text>
+                        <text x="444.0" y="278" fill="#4ade80" font-size="15" font-weight="700" text-anchor="middle">Relational is ONE</text>
+                        <text x="444.0" y="298" fill="#4ade80" font-size="15" font-weight="700" text-anchor="middle">projection.</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.4s ease 0.60s forwards;">
+                        <line x1="566" y1="190" x2="626" y2="190" stroke="#b0b0b0" stroke-width="3" marker-end="url(#umtAr)"/>
+                        <text x="596" y="176" fill="#b0b0b0" font-size="13" font-weight="600" text-anchor="middle">query</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.5s ease 0.70s forwards;">
+                        <rect x="632" y="20" width="232" height="324" rx="14" fill="#2d2d2d" stroke="#a78bfa" stroke-width="2"/>
+                        <path d="M 632,34 a 14,14 0 0 1 14,-14 h 204 a 14,14 0 0 1 14,14 v 54 h -232 z" fill="#a78bfa"/>
+                        <text x="748.0" y="52" fill="#1a1a1a" font-size="21" font-weight="700" text-anchor="middle">Access Surfaces</text>
+                        <text x="748.0" y="76" fill="#1a1a1a" font-size="14" font-weight="600" text-anchor="middle">How applications ask</text>
+                        <rect x="648" y="102" width="200" height="44" rx="8" fill="#a78bfa" fill-opacity="0.13" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="748.0" y="130" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">SQL</text>
+                        <rect x="648" y="156" width="200" height="44" rx="8" fill="#a78bfa" fill-opacity="0.13" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="748.0" y="184" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">SQL/JSON</text>
+                        <rect x="648" y="210" width="200" height="44" rx="8" fill="#a78bfa" fill-opacity="0.13" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="748.0" y="238" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">SQL/PGQ (graph)</text>
+                        <rect x="648" y="264" width="200" height="44" rx="8" fill="#a78bfa" fill-opacity="0.13" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="748.0" y="292" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">MongoDB API</text>
+                        <text x="748.0" y="332" fill="#a78bfa" font-size="13.5" font-weight="700" text-anchor="middle">Same data, every surface.</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.4s ease 0.85s forwards;">
+                        <line x1="870" y1="190" x2="930" y2="190" stroke="#b0b0b0" stroke-width="3" marker-end="url(#umtAr)"/>
+                        <text x="900" y="176" fill="#b0b0b0" font-size="13" font-weight="600" text-anchor="middle">render</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.5s ease 0.95s forwards;">
+                        <rect x="936" y="20" width="232" height="324" rx="14" fill="#2d2d2d" stroke="#fb923c" stroke-width="2"/>
+                        <path d="M 936,34 a 14,14 0 0 1 14,-14 h 204 a 14,14 0 0 1 14,14 v 54 h -232 z" fill="#fb923c"/>
+                        <text x="1052.0" y="52" fill="#1a1a1a" font-size="21" font-weight="700" text-anchor="middle">Projected Shapes</text>
+                        <text x="1052.0" y="76" fill="#1a1a1a" font-size="14" font-weight="600" text-anchor="middle">What consumers read</text>
+                        <rect x="952" y="102" width="200" height="44" rx="8" fill="#fb923c" fill-opacity="0.13" stroke="#fb923c" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="1052.0" y="130" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">API document</text>
+                        <rect x="952" y="156" width="200" height="44" rx="8" fill="#fb923c" fill-opacity="0.13" stroke="#fb923c" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="1052.0" y="184" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Report rows</text>
+                        <rect x="952" y="210" width="200" height="44" rx="8" fill="#fb923c" fill-opacity="0.13" stroke="#fb923c" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="1052.0" y="238" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">Graph paths</text>
+                        <rect x="952" y="264" width="200" height="44" rx="8" fill="#fb923c" fill-opacity="0.13" stroke="#fb923c" stroke-opacity="0.55" stroke-width="1.2"/>
+                        <text x="1052.0" y="292" fill="#ffffff" font-size="15" font-weight="600" text-anchor="middle">RAG context for AI</text>
+                        <text x="1052.0" y="332" fill="#fb923c" font-size="13.5" font-weight="700" text-anchor="middle">Shaped per consumer.</text>
+                    </g>
+                    <g opacity="0" style="animation: fadeIn 0.5s ease 1.3s forwards;">
+                        <rect x="24" y="362" width="1144" height="46" rx="10" fill="#C74634"/>
+                        <text x="600" y="391" fill="#ffffff" font-size="17" font-weight="700" text-anchor="middle">One engine · one transaction · one consistency model: every write lands once, every shape sees it</text>
+                    </g>
+                </svg>
+            </div>
+        </div>
+        <aside class="notes">
+<strong>This is the framework. Read it left to right, and notice that relational is only one box in the second column.</strong><br><br>
+▸ <strong>Canonical Form</strong> is the logical model: the entities your business cares about, their properties, and the relationships between them. Customer, order, product, and how they connect. It is what the business is. It is NOT a table design. People hear "canonical" and think "normalized tables". That is the mistake I want to retire.<br>
+▸ <strong>Projections</strong> are how that model is physically stored. Rows on tables are one projection. Embedded documents, as JSON collections or duality views, are another. Graph nodes and edges are another. You choose projections per access pattern, the way Codd's quote described.<br>
+▸ <strong>Access Surfaces</strong> are how applications ask: SQL, SQL/JSON, SQL/PGQ for graph pattern matching, and the MongoDB API. Your existing Mongo drivers point at the same engine.<br>
+▸ <strong>Projected Shapes</strong> are what the consumer actually receives: the JSON document an API returns, the rows a report reads, the path a fraud graph walks, the context a RAG pipeline hands to a model. A query on an access surface renders the shape.<br>
+▸ <strong>The bottom bar is the point</strong>: one engine, one transaction, one consistency model. Write a document through a duality view and the engine decomposes it into the underlying rows in the same transaction. Every other shape sees the change immediately. No CDC, no copies.<br>
+▸ <strong>Be honest about the cost</strong>: assembling a document from rows at read time costs more than reading a pre-built document. A join is never free. What you buy is zero write amplification, no sync pipelines, and the cost-based optimizer doing the work your application used to do.<br><br>
+<em>Land: model the domain once. Project the access for every consumer.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 9: One Engine, Every Shape (source slides 24-25) ==================== -->
+        <div class="slide" data-slide="8">
+            <h2 style="margin-bottom: 0.6rem;">One Engine, Every Shape</h2>
+            <div class="engine-grid">
+                <div>
+                    <div class="col-label">One query, five shapes</div>
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="code-dot red"></span>
+                            <span class="code-dot yellow"></span>
+                            <span class="code-dot green"></span>
+                        </div>
+                        <pre><code><span class="keyword">SELECT</span> <span class="function">JSON</span> {                                  <span class="comment">-- Document out</span>
+  <span class="string">'context'</span>: v.chunk_text,                     <span class="comment">-- Vector</span>
+  <span class="string">'product'</span>: (<span class="keyword">SELECT</span> <span class="function">JSON</span> {...} <span class="keyword">FROM</span> products p   <span class="comment">-- Relational</span>
+               <span class="keyword">WHERE</span> p.id = v.product_id),
+  <span class="string">'related'</span>: (<span class="keyword">SELECT</span> <span class="function">JSON_ARRAYAGG</span>(...)
+               <span class="keyword">FROM</span> <span class="function">GRAPH_TABLE</span> (product_graph   <span class="comment">-- Graph</span>
+                 <span class="keyword">MATCH</span> (p)-[:RELATED]->(r)
+                 <span class="keyword">COLUMNS</span> (r.name, r.category))),
+  <span class="string">'trends'</span>:  (<span class="keyword">SELECT</span> <span class="function">JSON</span> {...} <span class="keyword">FROM</span> orders o     <span class="comment">-- Time series</span>
+               <span class="keyword">WHERE</span> o.order_date > <span class="function">SYSTIMESTAMP</span> - <span class="number">30</span>)
+}
+<span class="keyword">FROM</span> product_vectors v
+<span class="keyword">ORDER BY</span> <span class="function">VECTOR_DISTANCE</span>(v.embedding, :query)
+<span class="keyword">FETCH FIRST</span> <span class="number">10</span> <span class="keyword">ROWS ONLY</span>;</code></pre>
+                    </div>
+                </div>
+                <div>
+                    <div class="col-label">Infrastructure you delete</div>
+                    <div class="delete-grid">
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">MongoDB</span><span class="new">→ Duality Views + MongoDB API</span></span>
+                        </div>
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">Neo4j</span><span class="new">→ SQL Property Graph</span></span>
+                        </div>
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">InfluxDB</span><span class="new">→ Temporal queries</span></span>
+                        </div>
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">Pinecone</span><span class="new">→ AI Vector Search</span></span>
+                        </div>
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">CDC pipelines + ETL jobs</span><span class="new">→ Eliminated</span></span>
+                        </div>
+                        <div class="delete-item">
+                            <span class="delete-icon">✗</span>
+                            <span class="delete-text"><span class="old">Saga patterns</span><span class="new">→ ACID across all models</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p style="margin-top: 1.2rem;"><span class="highlight">Vectors + documents + graph + time series + relational</span> in ONE query. ONE transaction. ONE consistency model.</p>
+        </div>
+        <aside class="notes">
+<strong>Here is what "one engine" means in practice: the RAG query from the polyglot slide, as a single statement.</strong><br><br>
+▸ <strong>Walk the query</strong>: start from vector similarity on the embeddings, the ten nearest chunks to the user's question. For each one, pull the product facts relationally, walk the related-products graph with GRAPH_TABLE, which is SQL's standard graph syntax, and summarize the last 30 days of orders as a time series. Return it all as one JSON document.<br>
+▸ <strong>Why that matters for AI</strong>: every piece of context comes from the same snapshot of the data, in the same transaction. The model never sees a vector that points at a product that was deleted a second ago.<br>
+▸ <strong>Precision on cost</strong>: the engine still does the work of combining these. Nothing about it is free. The difference is that the cost-based optimizer plans it, inside one engine, instead of your application stitching five network calls together.<br>
+▸ <strong>The right column is the business case</strong>: each line is a system you stop buying, patching, securing and staffing. Documents through duality views and the MongoDB API. Graph through SQL property graphs. Time series with temporal SQL. Vectors with AI Vector Search. The CDC and ETL pipelines between them disappear because there is nothing to copy. Saga patterns, the compensating-transaction gymnastics you write when there is no shared transaction, become plain ACID.<br><br>
+<em>Land: this is not a better way to manage five databases. It is a way to need one.</em>
+        </aside>
+
+        <!-- ==================== SLIDE 10: Amara's Law over the adoption curve (NEW, interactive; concept from source slides 32 + 36) ==================== -->
+        <div class="slide amara-slide" data-slide="9" data-steps="5" style="padding: 40px 60px;">
+            <h2 style="margin-bottom: 0.3rem;">Amara's Law, Meet the Adoption Curve</h2>
+            <p class="amara-quote"><em>"We overestimate the impact of a technology in the short run and underestimate it in the long run."</em> <span class="who">Roy Amara</span></p>
+            <div class="amara-chart">
+                <svg class="amara-svg" viewBox="0 0 1100 440" role="img" aria-label="Amara's Law over the technology adoption curve: expectations overshoot in the short run, real adoption overtakes them in the long run">
+                    <defs>
+                        <marker id="amaraAr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                            <path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/>
+                        </marker>
+                    </defs>
+                    <!-- chasm band -->
+                    <rect x="439.2" y="200" width="97.0" height="172" fill="#C74634" opacity="0.14"/>
+                    <line x1="439.2" y1="200" x2="439.2" y2="372" stroke="#f87171" stroke-width="1" stroke-dasharray="3 4" opacity="0.6"/>
+                    <line x1="536.2" y1="200" x2="536.2" y2="372" stroke="#f87171" stroke-width="1" stroke-dasharray="3 4" opacity="0.6"/>
+                    <!-- Amara regions -->
+                    <polygon points="90.0,363.8 94.0,362.7 98.1,361.5 102.1,360.2 106.2,358.7 110.2,357.0 114.2,355.2 118.3,353.3 122.3,351.1 126.4,348.8 130.4,346.2 134.5,343.4 138.5,340.5 142.5,337.2 146.6,333.8 150.6,330.1 154.7,326.2 158.7,322.0 162.8,317.5 166.8,312.8 170.8,307.9 174.9,302.7 178.9,297.3 183.0,291.6 187.0,285.7 191.0,279.7 195.1,273.4 199.1,266.9 203.2,260.3 207.2,253.6 211.2,246.7 215.3,239.8 219.3,232.8 223.4,225.9 227.4,218.9 231.5,212.0 235.5,205.2 239.5,198.5 243.6,192.0 247.6,185.6 251.7,179.5 255.7,173.7 259.8,168.3 263.8,163.1 267.8,158.4 271.9,154.0 275.9,150.1 280.0,146.7 284.0,143.8 288.0,141.4 292.1,139.5 296.1,138.2 300.2,137.4 304.2,137.2 308.2,137.6 312.3,138.5 316.3,140.0 320.4,142.0 324.4,144.5 328.5,147.5 332.5,151.1 336.5,155.0 340.6,159.5 344.6,164.3 348.7,169.5 352.7,175.0 356.8,180.8 360.8,186.9 364.8,193.2 368.9,199.7 372.9,206.3 377.0,213.1 381.0,219.9 385.0,226.7 389.1,233.6 393.1,240.4 397.2,247.2 401.2,253.8 405.2,260.4 409.3,266.8 413.3,273.0 417.4,279.0 421.4,284.9 425.5,290.5 429.5,295.8 433.5,301.0 437.6,305.9 441.6,310.5 445.7,314.8 449.7,318.9 453.8,322.8 457.8,326.4 461.8,329.7 465.9,332.7 469.9,335.6 474.0,338.2 478.0,340.5 482.0,342.6 486.1,344.6 490.1,346.3 494.2,347.8 494.2,345.9 490.1,347.0 486.1,348.0 482.0,349.0 478.0,350.0 474.0,350.9 469.9,351.8 465.9,352.6 461.8,353.4 457.8,354.2 453.8,355.0 449.7,355.7 445.7,356.4 441.6,357.1 437.6,357.7 433.5,358.3 429.5,358.9 425.5,359.5 421.4,360.0 417.4,360.5 413.3,361.0 409.3,361.5 405.2,362.0 401.2,362.4 397.2,362.8 393.1,363.2 389.1,363.6 385.0,364.0 381.0,364.3 377.0,364.7 372.9,365.0 368.9,365.3 364.8,365.6 360.8,365.9 356.8,366.2 352.7,366.4 348.7,366.7 344.6,366.9 340.6,367.1 336.5,367.3 332.5,367.5 328.5,367.7 324.4,367.9 320.4,368.1 316.3,368.3 312.3,368.5 308.2,368.6 304.2,368.8 300.2,368.9 296.1,369.0 292.1,369.2 288.0,369.3 284.0,369.4 280.0,369.5 275.9,369.7 271.9,369.8 267.8,369.9 263.8,370.0 259.8,370.0 255.7,370.1 251.7,370.2 247.6,370.3 243.6,370.4 239.5,370.4 235.5,370.5 231.5,370.6 227.4,370.6 223.4,370.7 219.3,370.8 215.3,370.8 211.2,370.9 207.2,370.9 203.2,371.0 199.1,371.0 195.1,371.1 191.0,371.1 187.0,371.1 183.0,371.2 178.9,371.2 174.9,371.3 170.8,371.3 166.8,371.3 162.8,371.4 158.7,371.4 154.7,371.4 150.6,371.4 146.6,371.5 142.5,371.5 138.5,371.5 134.5,371.5 130.4,371.6 126.4,371.6 122.3,371.6 118.3,371.6 114.2,371.6 110.2,371.6 106.2,371.7 102.1,371.7 98.1,371.7 94.0,371.7 90.0,371.7" fill="#fb923c" opacity="0.16"/>
+                    <polygon points="494.2,345.9 498.2,344.8 502.2,343.6 506.3,342.4 510.3,341.2 514.4,339.9 518.4,338.6 522.5,337.2 526.5,335.7 530.5,334.3 534.6,332.7 538.6,331.1 542.7,329.5 546.7,327.8 550.8,326.1 554.8,324.3 558.8,322.4 562.9,320.5 566.9,318.5 571.0,316.5 575.0,314.4 579.0,312.3 583.1,310.1 587.1,307.8 591.2,305.5 595.2,303.2 599.2,300.7 603.3,298.3 607.3,295.7 611.4,293.2 615.4,290.5 619.5,287.8 623.5,285.1 627.5,282.3 631.6,279.5 635.6,276.6 639.7,273.7 643.7,270.8 647.8,267.8 651.8,264.8 655.8,261.7 659.9,258.6 663.9,255.5 668.0,252.4 672.0,249.3 676.0,246.1 680.1,242.9 684.1,239.7 688.2,236.6 692.2,233.4 696.2,230.2 700.3,227.0 704.3,223.8 708.4,220.6 712.4,217.5 716.5,214.3 720.5,211.2 724.5,208.1 728.6,205.0 732.6,202.0 736.7,199.0 740.7,196.0 744.8,193.1 748.8,190.2 752.8,187.4 756.9,184.5 760.9,181.8 765.0,179.1 769.0,176.4 773.0,173.8 777.1,171.2 781.1,168.7 785.2,166.3 789.2,163.9 793.2,161.5 797.3,159.3 801.3,157.0 805.4,154.9 809.4,152.7 813.5,150.7 817.5,148.7 821.5,146.7 825.6,144.8 829.6,143.0 833.7,141.2 837.7,139.5 841.8,137.8 845.8,136.2 849.8,134.7 853.9,133.1 857.9,131.7 862.0,130.3 866.0,128.9 870.0,127.6 874.1,126.3 878.1,125.1 882.2,123.9 886.2,122.8 890.2,121.7 894.3,120.6 898.3,119.6 902.4,118.6 906.4,117.7 910.5,116.8 914.5,115.9 918.5,115.0 922.6,114.2 926.6,113.5 930.7,112.7 934.7,112.0 938.8,111.3 942.8,110.7 946.8,110.0 950.9,109.4 954.9,108.9 959.0,108.3 963.0,107.8 967.0,107.3 971.1,106.8 975.1,106.3 979.2,105.9 983.2,105.4 987.2,105.0 991.3,104.6 995.3,104.2 999.4,103.9 1003.4,103.5 1007.5,103.2 1011.5,102.9 1015.5,102.6 1019.6,102.3 1023.6,102.0 1027.7,101.7 1031.7,101.5 1035.8,101.2 1039.8,101.0 1043.8,100.8 1047.9,100.6 1051.9,100.4 1056.0,100.2 1060.0,100.0 1060.0,282.6 1056.0,282.6 1051.9,282.7 1047.9,282.7 1043.8,282.7 1039.8,282.8 1035.8,282.8 1031.7,282.9 1027.7,282.9 1023.6,283.0 1019.6,283.0 1015.5,283.1 1011.5,283.1 1007.5,283.2 1003.4,283.2 999.4,283.3 995.3,283.4 991.3,283.4 987.2,283.5 983.2,283.6 979.2,283.7 975.1,283.8 971.1,283.9 967.0,284.0 963.0,284.1 959.0,284.2 954.9,284.3 950.9,284.4 946.8,284.5 942.8,284.7 938.8,284.8 934.7,284.9 930.7,285.1 926.6,285.3 922.6,285.4 918.5,285.6 914.5,285.8 910.5,286.0 906.4,286.2 902.4,286.4 898.3,286.6 894.3,286.9 890.2,287.1 886.2,287.4 882.2,287.6 878.1,287.9 874.1,288.2 870.0,288.5 866.0,288.8 862.0,289.2 857.9,289.5 853.9,289.9 849.8,290.3 845.8,290.7 841.8,291.1 837.7,291.5 833.7,292.0 829.6,292.4 825.6,292.9 821.5,293.4 817.5,294.0 813.5,294.5 809.4,295.1 805.4,295.7 801.3,296.3 797.3,296.9 793.2,297.6 789.2,298.3 785.2,299.0 781.1,299.7 777.1,300.5 773.0,301.2 769.0,302.0 765.0,302.9 760.9,303.7 756.9,304.6 752.8,305.5 748.8,306.4 744.8,307.3 740.7,308.3 736.7,309.3 732.6,310.3 728.6,311.3 724.5,312.3 720.5,313.4 716.5,314.4 712.4,315.5 708.4,316.6 704.3,317.8 700.3,318.9 696.2,320.0 692.2,321.2 688.2,322.3 684.1,323.5 680.1,324.7 676.0,325.8 672.0,327.0 668.0,328.2 663.9,329.3 659.9,330.5 655.8,331.6 651.8,332.8 647.8,333.9 643.7,335.1 639.7,336.2 635.6,337.3 631.6,338.4 627.5,339.4 623.5,340.5 619.5,341.5 615.4,342.5 611.4,343.5 607.3,344.5 603.3,345.4 599.2,346.3 595.2,347.2 591.2,348.0 587.1,348.8 583.1,349.6 579.0,350.3 575.0,350.9 571.0,351.6 566.9,352.1 562.9,352.7 558.8,353.1 554.8,353.5 550.8,353.8 546.7,354.1 542.7,354.3 538.6,354.4 534.6,354.4 530.5,354.3 526.5,354.1 522.5,353.8 518.4,353.4 514.4,352.8 510.3,352.1 506.3,351.3 502.2,350.3 498.2,349.1 494.2,347.8" fill="#4ade80" opacity="0.14"/>
+                    <!-- axes -->
+                    <line x1="90" y1="372" x2="1072" y2="372" stroke="#8a929b" stroke-width="2" marker-end="url(#amaraAr)"/>
+                    <line x1="90" y1="372" x2="90" y2="30" stroke="#8a929b" stroke-width="2" marker-end="url(#amaraAr)"/>
+                    <text x="1070" y="362" fill="#8a929b" font-size="12" font-weight="600" text-anchor="end" letter-spacing="1">TIME</text>
+                    <text x="62" y="200" fill="#8a929b" font-size="12" font-weight="600" text-anchor="middle" letter-spacing="1" transform="rotate(-90, 62, 200)">IMPACT</text>
+                    <!-- curves -->
+                    <path d="M 90.0,363.8 L 94.0,362.7 L 98.1,361.5 L 102.1,360.2 L 106.2,358.7 L 110.2,357.0 L 114.2,355.2 L 118.3,353.3 L 122.3,351.1 L 126.4,348.8 L 130.4,346.2 L 134.5,343.4 L 138.5,340.5 L 142.5,337.2 L 146.6,333.8 L 150.6,330.1 L 154.7,326.2 L 158.7,322.0 L 162.8,317.5 L 166.8,312.8 L 170.8,307.9 L 174.9,302.7 L 178.9,297.3 L 183.0,291.6 L 187.0,285.7 L 191.0,279.7 L 195.1,273.4 L 199.1,266.9 L 203.2,260.3 L 207.2,253.6 L 211.2,246.7 L 215.3,239.8 L 219.3,232.8 L 223.4,225.9 L 227.4,218.9 L 231.5,212.0 L 235.5,205.2 L 239.5,198.5 L 243.6,192.0 L 247.6,185.6 L 251.7,179.5 L 255.7,173.7 L 259.8,168.3 L 263.8,163.1 L 267.8,158.4 L 271.9,154.0 L 275.9,150.1 L 280.0,146.7 L 284.0,143.8 L 288.0,141.4 L 292.1,139.5 L 296.1,138.2 L 300.2,137.4 L 304.2,137.2 L 308.2,137.6 L 312.3,138.5 L 316.3,140.0 L 320.4,142.0 L 324.4,144.5 L 328.5,147.5 L 332.5,151.1 L 336.5,155.0 L 340.6,159.5 L 344.6,164.3 L 348.7,169.5 L 352.7,175.0 L 356.8,180.8 L 360.8,186.9 L 364.8,193.2 L 368.9,199.7 L 372.9,206.3 L 377.0,213.1 L 381.0,219.9 L 385.0,226.7 L 389.1,233.6 L 393.1,240.4 L 397.2,247.2 L 401.2,253.8 L 405.2,260.4 L 409.3,266.8 L 413.3,273.0 L 417.4,279.0 L 421.4,284.9 L 425.5,290.5 L 429.5,295.8 L 433.5,301.0 L 437.6,305.9 L 441.6,310.5 L 445.7,314.8 L 449.7,318.9 L 453.8,322.8 L 457.8,326.4 L 461.8,329.7 L 465.9,332.7 L 469.9,335.6 L 474.0,338.2 L 478.0,340.5 L 482.0,342.6 L 486.1,344.6 L 490.1,346.3 L 494.2,347.8 L 498.2,349.1 L 502.2,350.3 L 506.3,351.3 L 510.3,352.1 L 514.4,352.8 L 518.4,353.4 L 522.5,353.8 L 526.5,354.1 L 530.5,354.3 L 534.6,354.4 L 538.6,354.4 L 542.7,354.3 L 546.7,354.1 L 550.8,353.8 L 554.8,353.5 L 558.8,353.1 L 562.9,352.7 L 566.9,352.1 L 571.0,351.6 L 575.0,350.9 L 579.0,350.3 L 583.1,349.6 L 587.1,348.8 L 591.2,348.0 L 595.2,347.2 L 599.2,346.3 L 603.3,345.4 L 607.3,344.5 L 611.4,343.5 L 615.4,342.5 L 619.5,341.5 L 623.5,340.5 L 627.5,339.4 L 631.6,338.4 L 635.6,337.3 L 639.7,336.2 L 643.7,335.1 L 647.8,333.9 L 651.8,332.8 L 655.8,331.6 L 659.9,330.5 L 663.9,329.3 L 668.0,328.2 L 672.0,327.0 L 676.0,325.8 L 680.1,324.7 L 684.1,323.5 L 688.2,322.3 L 692.2,321.2 L 696.2,320.0 L 700.3,318.9 L 704.3,317.8 L 708.4,316.6 L 712.4,315.5 L 716.5,314.4 L 720.5,313.4 L 724.5,312.3 L 728.6,311.3 L 732.6,310.3 L 736.7,309.3 L 740.7,308.3 L 744.8,307.3 L 748.8,306.4 L 752.8,305.5 L 756.9,304.6 L 760.9,303.7 L 765.0,302.9 L 769.0,302.0 L 773.0,301.2 L 777.1,300.5 L 781.1,299.7 L 785.2,299.0 L 789.2,298.3 L 793.2,297.6 L 797.3,296.9 L 801.3,296.3 L 805.4,295.7 L 809.4,295.1 L 813.5,294.5 L 817.5,294.0 L 821.5,293.4 L 825.6,292.9 L 829.6,292.4 L 833.7,292.0 L 837.7,291.5 L 841.8,291.1 L 845.8,290.7 L 849.8,290.3 L 853.9,289.9 L 857.9,289.5 L 862.0,289.2 L 866.0,288.8 L 870.0,288.5 L 874.1,288.2 L 878.1,287.9 L 882.2,287.6 L 886.2,287.4 L 890.2,287.1 L 894.3,286.9 L 898.3,286.6 L 902.4,286.4 L 906.4,286.2 L 910.5,286.0 L 914.5,285.8 L 918.5,285.6 L 922.6,285.4 L 926.6,285.3 L 930.7,285.1 L 934.7,284.9 L 938.8,284.8 L 942.8,284.7 L 946.8,284.5 L 950.9,284.4 L 954.9,284.3 L 959.0,284.2 L 963.0,284.1 L 967.0,284.0 L 971.1,283.9 L 975.1,283.8 L 979.2,283.7 L 983.2,283.6 L 987.2,283.5 L 991.3,283.4 L 995.3,283.4 L 999.4,283.3 L 1003.4,283.2 L 1007.5,283.2 L 1011.5,283.1 L 1015.5,283.1 L 1019.6,283.0 L 1023.6,283.0 L 1027.7,282.9 L 1031.7,282.9 L 1035.8,282.8 L 1039.8,282.8 L 1043.8,282.7 L 1047.9,282.7 L 1051.9,282.7 L 1056.0,282.6 L 1060.0,282.6" fill="none" stroke="#fb923c" stroke-width="3" stroke-dasharray="9 6"/>
+                    <path d="M 90.0,371.7 L 94.0,371.7 L 98.1,371.7 L 102.1,371.7 L 106.2,371.7 L 110.2,371.6 L 114.2,371.6 L 118.3,371.6 L 122.3,371.6 L 126.4,371.6 L 130.4,371.6 L 134.5,371.5 L 138.5,371.5 L 142.5,371.5 L 146.6,371.5 L 150.6,371.4 L 154.7,371.4 L 158.7,371.4 L 162.8,371.4 L 166.8,371.3 L 170.8,371.3 L 174.9,371.3 L 178.9,371.2 L 183.0,371.2 L 187.0,371.1 L 191.0,371.1 L 195.1,371.1 L 199.1,371.0 L 203.2,371.0 L 207.2,370.9 L 211.2,370.9 L 215.3,370.8 L 219.3,370.8 L 223.4,370.7 L 227.4,370.6 L 231.5,370.6 L 235.5,370.5 L 239.5,370.4 L 243.6,370.4 L 247.6,370.3 L 251.7,370.2 L 255.7,370.1 L 259.8,370.0 L 263.8,370.0 L 267.8,369.9 L 271.9,369.8 L 275.9,369.7 L 280.0,369.5 L 284.0,369.4 L 288.0,369.3 L 292.1,369.2 L 296.1,369.0 L 300.2,368.9 L 304.2,368.8 L 308.2,368.6 L 312.3,368.5 L 316.3,368.3 L 320.4,368.1 L 324.4,367.9 L 328.5,367.7 L 332.5,367.5 L 336.5,367.3 L 340.6,367.1 L 344.6,366.9 L 348.7,366.7 L 352.7,366.4 L 356.8,366.2 L 360.8,365.9 L 364.8,365.6 L 368.9,365.3 L 372.9,365.0 L 377.0,364.7 L 381.0,364.3 L 385.0,364.0 L 389.1,363.6 L 393.1,363.2 L 397.2,362.8 L 401.2,362.4 L 405.2,362.0 L 409.3,361.5 L 413.3,361.0 L 417.4,360.5 L 421.4,360.0 L 425.5,359.5 L 429.5,358.9 L 433.5,358.3 L 437.6,357.7 L 441.6,357.1 L 445.7,356.4 L 449.7,355.7 L 453.8,355.0 L 457.8,354.2 L 461.8,353.4 L 465.9,352.6 L 469.9,351.8 L 474.0,350.9 L 478.0,350.0 L 482.0,349.0 L 486.1,348.0 L 490.1,347.0 L 494.2,345.9 L 498.2,344.8 L 502.2,343.6 L 506.3,342.4 L 510.3,341.2 L 514.4,339.9 L 518.4,338.6 L 522.5,337.2 L 526.5,335.7 L 530.5,334.3 L 534.6,332.7 L 538.6,331.1 L 542.7,329.5 L 546.7,327.8 L 550.8,326.1 L 554.8,324.3 L 558.8,322.4 L 562.9,320.5 L 566.9,318.5 L 571.0,316.5 L 575.0,314.4 L 579.0,312.3 L 583.1,310.1 L 587.1,307.8 L 591.2,305.5 L 595.2,303.2 L 599.2,300.7 L 603.3,298.3 L 607.3,295.7 L 611.4,293.2 L 615.4,290.5 L 619.5,287.8 L 623.5,285.1 L 627.5,282.3 L 631.6,279.5 L 635.6,276.6 L 639.7,273.7 L 643.7,270.8 L 647.8,267.8 L 651.8,264.8 L 655.8,261.7 L 659.9,258.6 L 663.9,255.5 L 668.0,252.4 L 672.0,249.3 L 676.0,246.1 L 680.1,242.9 L 684.1,239.7 L 688.2,236.6 L 692.2,233.4 L 696.2,230.2 L 700.3,227.0 L 704.3,223.8 L 708.4,220.6 L 712.4,217.5 L 716.5,214.3 L 720.5,211.2 L 724.5,208.1 L 728.6,205.0 L 732.6,202.0 L 736.7,199.0 L 740.7,196.0 L 744.8,193.1 L 748.8,190.2 L 752.8,187.4 L 756.9,184.5 L 760.9,181.8 L 765.0,179.1 L 769.0,176.4 L 773.0,173.8 L 777.1,171.2 L 781.1,168.7 L 785.2,166.3 L 789.2,163.9 L 793.2,161.5 L 797.3,159.3 L 801.3,157.0 L 805.4,154.9 L 809.4,152.7 L 813.5,150.7 L 817.5,148.7 L 821.5,146.7 L 825.6,144.8 L 829.6,143.0 L 833.7,141.2 L 837.7,139.5 L 841.8,137.8 L 845.8,136.2 L 849.8,134.7 L 853.9,133.1 L 857.9,131.7 L 862.0,130.3 L 866.0,128.9 L 870.0,127.6 L 874.1,126.3 L 878.1,125.1 L 882.2,123.9 L 886.2,122.8 L 890.2,121.7 L 894.3,120.6 L 898.3,119.6 L 902.4,118.6 L 906.4,117.7 L 910.5,116.8 L 914.5,115.9 L 918.5,115.0 L 922.6,114.2 L 926.6,113.5 L 930.7,112.7 L 934.7,112.0 L 938.8,111.3 L 942.8,110.7 L 946.8,110.0 L 950.9,109.4 L 954.9,108.9 L 959.0,108.3 L 963.0,107.8 L 967.0,107.3 L 971.1,106.8 L 975.1,106.3 L 979.2,105.9 L 983.2,105.4 L 987.2,105.0 L 991.3,104.6 L 995.3,104.2 L 999.4,103.9 L 1003.4,103.5 L 1007.5,103.2 L 1011.5,102.9 L 1015.5,102.6 L 1019.6,102.3 L 1023.6,102.0 L 1027.7,101.7 L 1031.7,101.5 L 1035.8,101.2 L 1039.8,101.0 L 1043.8,100.8 L 1047.9,100.6 L 1051.9,100.4 L 1056.0,100.2 L 1060.0,100.0" fill="none" stroke="#4ade80" stroke-width="4" filter="url(#glow)"/>
+                    <!-- curve labels -->
+                    <text x="268" y="96" fill="#fb923c" font-size="15" font-weight="700" text-anchor="end">EXPECTATION</text>
+                    <text x="268" y="114" fill="#b0b0b0" font-size="12" text-anchor="end">the hype</text>
+                    <text x="1058" y="142" fill="#4ade80" font-size="15" font-weight="700" text-anchor="end">ADOPTION</text>
+                    <text x="1058" y="160" fill="#b0b0b0" font-size="12" text-anchor="end">the real impact</text>
+                    <!-- region labels -->
+                    <text x="303.4" y="296" fill="#fdba74" font-size="13" font-weight="700" text-anchor="middle">Overestimated</text>
+                    <text x="303.4" y="313" fill="#fdba74" font-size="12" text-anchor="middle">in the short run</text>
+                    <text x="962" y="214" fill="#86efac" font-size="13" font-weight="700" text-anchor="middle">Underestimated</text>
+                    <text x="962" y="231" fill="#86efac" font-size="12" text-anchor="middle">in the long run</text>
+                    <!-- adoption segments -->
+                    <text x="167.6" y="396" fill="#b0b0b0" font-size="12" font-weight="500" text-anchor="middle">Innovators</text>
+                    <text x="342.2" y="396" fill="#b0b0b0" font-size="12" font-weight="500" text-anchor="middle">Early adopters</text>
+                    <text x="487.7" y="396" fill="#f87171" font-size="12" font-weight="700" text-anchor="middle">The chasm</text>
+                    <text x="652.6" y="396" fill="#b0b0b0" font-size="12" font-weight="500" text-anchor="middle">Early majority</text>
+                    <text x="856.3" y="396" fill="#b0b0b0" font-size="12" font-weight="500" text-anchor="middle">Late majority</text>
+                    <text x="1001.8" y="396" fill="#b0b0b0" font-size="12" font-weight="500" text-anchor="middle">Laggards</text>
+                    <path class="amara-lead" data-lead="1" d="M 318.4,137.2 L 370,137.2" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="4 3" opacity="0"/>
+                    <path class="amara-lead" data-lead="2" d="M 487.7,285.0 L 487.7,174" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="4 3" opacity="0"/>
+                    <path class="amara-lead" data-lead="3" d="M 652.6,249.2 L 652.6,174" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="4 3" opacity="0"/>
+                    <path class="amara-lead" data-lead="4" d="M 730,100 L 866.0,100 L 866.0,113.9" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="4 3" opacity="0"/>
+                    <path class="amara-lead" data-lead="5" d="M 730,56 L 992.1,56 L 992.1,89.5" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-dasharray="4 3" opacity="0"/>
+                </svg>
+                <button class="amara-hot" data-hot="1" style="left: 27.582%; top: 31.188%;" aria-expanded="false" aria-controls="amaraCard1" aria-label="Talking point 1: Short-run hype">1</button>
+                <button class="amara-hot" data-hot="2" style="left: 44.336%; top: 68.182%;" aria-expanded="false" aria-controls="amaraCard2" aria-label="Talking point 2: The chasm">2</button>
+                <button class="amara-hot" data-hot="3" style="left: 59.327%; top: 60.039%;" aria-expanded="false" aria-controls="amaraCard3" aria-label="Talking point 3: What gets teams across">3</button>
+                <button class="amara-hot" data-hot="4" style="left: 78.727%; top: 29.295%;" aria-expanded="false" aria-controls="amaraCard4" aria-label="Talking point 4: The long run was underestimated">4</button>
+                <button class="amara-hot" data-hot="5" style="left: 90.191%; top: 23.759%;" aria-expanded="false" aria-controls="amaraCard5" aria-label="Talking point 5: Here now">5</button>
+                <div class="amara-card c1" id="amaraCard1" data-card="1" role="note" style="left: 33.636%; top: 5.455%; width: 32.727%; min-height: 34.091%;">
+                    <div class="card-head"><span class="num">1</span><span class="ttl">Short-run hype</span></div>
+                    <p>NoSQL promised to <strong>replace relational</strong>.</p>
+                </div>
+                <div class="amara-card c2" id="amaraCard2" data-card="2" role="note" style="left: 33.636%; top: 5.455%; width: 32.727%; min-height: 34.091%;">
+                    <div class="card-head"><span class="num">2</span><span class="ttl">The chasm</span></div>
+                    <p>Most NoSQL projects stall where theory meets production: <strong>data modeling, relationships, consistency</strong>.</p>
+                </div>
+                <div class="amara-card c3" id="amaraCard3" data-card="3" role="note" style="left: 33.636%; top: 5.455%; width: 32.727%; min-height: 34.091%;">
+                    <div class="card-head"><span class="num">3</span><span class="ttl">What gets teams across</span></div>
+                    <p>Understanding <strong>the patterns and the physics</strong>. Not new tools.</p>
+                </div>
+                <div class="amara-card c4" id="amaraCard4" data-card="4" role="note" style="left: 33.636%; top: 5.455%; width: 32.727%; min-height: 34.091%;">
+                    <div class="card-head"><span class="num">4</span><span class="ttl">The long run was underestimated</span></div>
+                    <p><strong>One engine that speaks every data model</strong>, with full transactional integrity.</p>
+                </div>
+                <div class="amara-card c5" id="amaraCard5" data-card="5" role="note" style="left: 33.636%; top: 5.455%; width: 32.727%; min-height: 34.091%;">
+                    <div class="card-head"><span class="num">5</span><span class="ttl">Here now</span></div>
+                    <p>Converged data + UMT in <strong>Oracle AI Database 26ai</strong>.</p>
+                    <p class="bridge">The patterns get you across the chasm. Enablement is how we get your teams there.</p>
+                </div>
+            </div>
+            <p class="amara-hint">Click a number, or press → to step through. Esc closes a callout.</p>
+        </div>
+        <aside class="notes">
+<strong>Roy Amara was a futurist at the Institute for the Future. His law explains the last 15 years of databases better than any analyst report.</strong> Read the quote, then step through the five numbers. Each click opens one talking point.<br><br>
+▸ <strong>The chart</strong>: time runs left to right, impact runs up. The dashed orange line is expectation, the hype. The solid green line is adoption, the real impact. Where orange is above green, we overestimated. Where green climbs above orange, we underestimated. Along the bottom are the classic adoption segments, with the chasm between the early adopters and the early majority.<br><br>
+▸ <strong>1. Short-run hype</strong>: around 2010, NoSQL was going to replace relational. Schemaless, infinitely scalable, joins were obsolete. Conference keynotes said relational was legacy. I was on some of those stages. Expectation shot straight up.<br><br>
+▸ <strong>2. The chasm</strong>: then teams took it to production. Most NoSQL projects stalled right here, where theory meets production. Three things broke them: data modeling, because nobody taught them to model for access patterns; relationships, because the data was still relational and they had thrown away the tools for it; and consistency, because "eventually" is not an answer when money moves. Expectation crashed below reality. Moore called this the chasm; Gartner calls it the trough.<br><br>
+▸ <strong>3. What gets teams across</strong>: not another tool. Every team I have seen cross this chasm did it by understanding the patterns and the physics: why a document should be shaped by how it is read, what a write costs, when to embed and when to reference. At Amazon that understanding is what got thousands of workloads across. The tools mattered less than the people knowing how to use them.<br><br>
+▸ <strong>4. The long run was underestimated</strong>: the hype promised "replace relational". Nobody predicted what actually happened: one engine that speaks every data model, documents, relational, graph, vectors, time series, with full transactional integrity across all of them. Look at the green curve: real impact ends up higher than the hype ever promised. That is Amara's second half.<br><br>
+▸ <strong>5. Here now</strong>: this is not a roadmap slide. Converged data and UMT ship today in Oracle AI Database 26ai. The long run has arrived. For most of you it is a software upgrade on a platform you already run.<br><br>
+<em>Transition, read it straight: "The patterns get you across the chasm. Enablement is how we get your teams there."</em>
+        </aside>
+
+        <!-- ==================== SLIDE 11: The Enablement Program (NEW) ==================== -->
+        <div class="slide" data-slide="10" style="padding: 30px 50px;">
+            <h2 style="margin-bottom: 0.1rem; font-size: 2.2rem;">The Enablement Program</h2>
+            <p style="font-size: 1.15rem; line-height: 1.4;">Our investment. <span class="highlight-green">Your return.</span></p>
+            <div class="enable-grid">
+                <div class="en-card invest">
+                    <h4>What we put in</h4>
+                    <div class="tag">Complimentary · On-site</div>
+                    <ul>
+                        <li><strong>Hands-on labs</strong> on the converged database</li>
+                        <li><strong>Architecture reviews</strong> of your real workloads</li>
+                        <li><strong>Train-the-trainer</strong> path to your own Center of Excellence</li>
+                        <li><strong>No slideware.</strong> Your developers build.</li>
+                    </ul>
+                </div>
+                <div class="en-arrow" aria-hidden="true">
+                    <svg viewBox="0 0 44 60"><defs><marker id="enAr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/></marker></defs><line x1="4" y1="30" x2="36" y2="30" stroke="#b0b0b0" stroke-width="3" marker-end="url(#enAr)"/></svg>
+                </div>
+                <div class="en-flow">
+                    <h4>The program</h4>
+                    <div class="tag">Built to outlive the engagement</div>
+                    <svg viewBox="0 0 400 290" role="img" aria-label="Program steps: hands-on labs, architecture reviews, train-the-trainer, Center of Excellence, with capability compounding">
+                        <defs>
+                            <marker id="enAr2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="context-stroke"/></marker>
+                        </defs>
+                        <line x1="22" y1="206" x2="380" y2="206" stroke="#3d3d3d" stroke-width="2"/>
+                        <rect x="30" y="160" width="72" height="46" rx="8" fill="#4a9eff"/>
+                        <rect x="120" y="126" width="72" height="80" rx="8" fill="#a78bfa"/>
+                        <rect x="210" y="92" width="72" height="114" rx="8" fill="#fb923c"/>
+                        <rect x="300" y="58" width="72" height="148" rx="8" fill="#4ade80"/>
+                        <text x="66" y="190" fill="#1a1a1a" font-size="20" font-weight="800" text-anchor="middle">1</text>
+                        <text x="156" y="156" fill="#1a1a1a" font-size="20" font-weight="800" text-anchor="middle">2</text>
+                        <text x="246" y="122" fill="#1a1a1a" font-size="20" font-weight="800" text-anchor="middle">3</text>
+                        <text x="336" y="88" fill="#1a1a1a" font-size="20" font-weight="800" text-anchor="middle">4</text>
+                        <path d="M 20,112 L 386,15" fill="none" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#enAr2)"/>
+                        <text x="22" y="40" fill="#fbbf24" font-size="14" font-weight="700">Capability compounds</text>
+                        <text x="66" y="228" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">Hands-on</text>
+                        <text x="66" y="245" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">labs</text>
+                        <text x="156" y="228" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">Architecture</text>
+                        <text x="156" y="245" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">reviews</text>
+                        <text x="246" y="228" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">Train-the-</text>
+                        <text x="246" y="245" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">trainer</text>
+                        <text x="336" y="228" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">Center of</text>
+                        <text x="336" y="245" fill="#e5e5e5" font-size="13" font-weight="600" text-anchor="middle">Excellence</text>
+                        <text x="200" y="276" fill="#b0b0b0" font-size="13" font-style="italic" text-anchor="middle">Your people keep teaching after we leave</text>
+                    </svg>
+                </div>
+                <div class="en-arrow" aria-hidden="true">
+                    <svg viewBox="0 0 44 60"><line x1="4" y1="30" x2="36" y2="30" stroke="#b0b0b0" stroke-width="3" marker-end="url(#enAr)"/></svg>
+                </div>
+                <div class="en-returns">
+                    <div class="en-card you">
+                        <h4>What it returns: for you</h4>
+                        <ul>
+                            <li><strong>Evidence-based decisions</strong> on your own workloads</li>
+                            <li><strong>Modernize on what you own:</strong> 26ai is a software upgrade, not a migration</li>
+                            <li><strong>Faster delivery</strong></li>
+                            <li><strong>Fewer stores</strong> to run and secure</li>
+                        </ul>
+                    </div>
+                    <div class="en-card oracle">
+                        <h4>For Oracle</h4>
+                        <ul>
+                            <li>Adoption and expansion of the platform you already run</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="en-proof">
+                <div class="lbl"><strong>Proven at scale:</strong> the program I led at Amazon</div>
+                <div class="stat"><div class="n">25K+</div><div class="l">Developers trained</div></div>
+                <div class="stat"><div class="n">4K+</div><div class="l">Workloads migrated</div></div>
+                <div class="stat"><div class="n">35+</div><div class="l">Cities</div></div>
+                <div class="stat"><div class="n">0</div><div class="l">Tier-1 issues</div></div>
+            </div>
+            <div class="en-headline">This is an investment we make, because we know the return is large, for you and for us.</div>
+        </div>
+        <aside class="notes">
+<strong>So how do your teams get across the chasm? Here is exactly what we put in, and exactly what comes back.</strong><br><br>
+▸ <strong>What we put in (left)</strong>: this is complimentary and it happens on-site. Hands-on labs where every developer builds on a live 26ai instance: duality views, the MongoDB API, vector search, graph. Architecture reviews where we sit with your architects at a whiteboard and go through your real workloads, pattern by pattern: what to keep, what to retire, what to replace. Architecture only, no production data. And no slideware: after this talk, the slides are over.<br>
+▸ <strong>The program (middle)</strong>: four steps, and each one builds on the last. Labs, then architecture reviews, then train-the-trainer, where we certify a core group of your engineers to teach the rest, and finally your own Center of Excellence: champions, a reusable pattern library, internal office hours. The point of steps 3 and 4 is that the capability stays after we leave. That is why the line keeps climbing.<br>
+▸ <strong>The proof strip</strong>: this is not a pilot. I ran this model at Amazon: more than 25,000 developers trained, more than 4,000 workloads migrated, more than 35 cities, and zero Tier-1 issues. The zero is the number engineers care about. What made it last was train-the-trainer; the Center of Excellence kept going without us.<br>
+▸ <strong>What it returns for you (right, green)</strong>: decisions based on evidence from your own workloads, not vendor claims, including mine. Modernization on the platform you already own: if you run Oracle today, 26ai is a software upgrade, not a migration project. Faster delivery, because your developers stop building plumbing between databases. Fewer data stores to run, patch and secure.<br>
+▸ <strong>What it returns for Oracle (right, red)</strong>: I will be direct about this. When your teams are good at the converged platform, they use more of it. Adoption and expansion of the platform you already run is our return. Both sides win, and I would rather say that plainly than pretend this is charity.<br><br>
+<em>Land, slow down and read the banner: "This is an investment we make, because we know the return is large, for you and for us."</em>
+        </aside>
+
+        <!-- ==================== SLIDE 12: Close (source slides 44-45) ==================== -->
+        <div class="slide" data-slide="11">
+            <p class="closing-quote close-quote-sm" style="margin-bottom: 0.8rem;">
+                <span>Model once.</span><br>
+                Project as documents, graphs, time series, or relations.<br>
+                <span>Serve every consumer from one source of truth.</span>
+            </p>
+            <ul class="close-list">
+                <li><span class="bullet">✓</span> <span><strong>NoSQL does not mean non-relational.</strong> The ERD still matters.</span></li>
+                <li><span class="bullet">✓</span> <span><strong>Access patterns drive cost.</strong> Design for the 90%, keep the relationships for the 10%.</span></li>
+                <li><span class="bullet">✓</span> <span><strong>Relational and document are projections of one model.</strong> Model the domain, project the access.</span></li>
+                <li><span class="bullet">✓</span> <span><strong>AI needs one consistent truth.</strong> One engine, one transaction, every shape.</span></li>
+            </ul>
+            <div class="cta"><strong>Next step:</strong> bring one real workload to a Developer Day. Hands-on labs, an architecture review, and a path to your own Center of Excellence.</div>
+            <div class="oracle-badge" style="margin-top: 1.2rem; padding: 14px 32px;">
+                <span style="color: var(--oracle-red); font-size: 1.6rem;">◆</span>
+                <span>Oracle AI Database 26ai</span>
+                <span style="color: var(--text-secondary); font-weight: 400; font-size: 1.1rem;">Unified Model Theory, implemented.</span>
+            </div>
+        </div>
+        <aside class="notes">
+<strong>Close on the one sentence I want you to remember, then make the ask.</strong><br><br>
+▸ <strong>Read the quote</strong>: model once; project as documents, graphs, time series or relations; serve every consumer from one source of truth. That is Unified Model Theory in one breath.<br>
+▸ <strong>Four takeaways</strong>:<br>
+&nbsp;&nbsp;1. NoSQL never meant non-relational. Your data has relationships whether your database admits it or not.<br>
+&nbsp;&nbsp;2. Access patterns drive cost. Amazon's 70/20/10 says design the storage for the common case, and keep the relationships for the rest.<br>
+&nbsp;&nbsp;3. Relational and document are two projections of one model. Stop choosing a database per shape; choose a projection per access pattern.<br>
+&nbsp;&nbsp;4. AI raises the stakes. Agents acting on stale, conflicting context is a business risk. One engine and one transaction is how you give them one truth.<br>
+▸ <strong>The ask</strong>: pick one real workload, the one your team argues about, and bring it to a Developer Day. We run the labs, we review the architecture with your people, and we set you up to keep going without us.<br>
+▸ <strong>If someone asks "isn't Oracle legacy?"</strong>: the engine that runs documents, graph, vectors and relational in one transaction is the newest thing in this talk. Legacy is running five databases and five sync pipelines to fake it.<br><br>
+<em>Land: one truth, many shapes. Thank you.</em>
+        </aside>
+
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav" id="navDots"></div>
+
+    <button class="notes-toggle" id="notesToggle" title="Speaker notes (N)">📝</button>
+
+    <div class="nav-arrows">
+        <button class="nav-arrow" id="prev">←</button>
+        <button class="nav-arrow" id="next">→</button>
+    </div>
+
+    <div class="slide-counter" id="slideCounter">1 / 12</div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const navContainer = document.getElementById('navDots');
+        const slideCounter = document.getElementById('slideCounter');
+        let currentSlide = 0;
+        let currentStep = 0; // Track step within slides that have steps
+
+        // Speaker notes: each slide's notes live in the <aside class="notes"> right after it
+        const speakerNotes = Array.from(slides).map(s => {
+            const n = s.nextElementSibling;
+            return (n && n.matches('aside.notes')) ? n.innerHTML.trim() : '';
+        });
+
+        // Create nav dots
+        slides.forEach((_, i) => {
+            const dot = document.createElement('span');
+            dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+            dot.dataset.goto = i;
+            dot.addEventListener('click', () => goToSlide(i));
+            navContainer.appendChild(dot);
+        });
+
+        const dots = document.querySelectorAll('.nav-dot');
+
+        // Get the total steps for a slide (0 if no steps)
+        function getSlideSteps(slide) {
+            return parseInt(slide.dataset.steps) || 0;
+        }
+
+        // Amara slide: step N opens callout N (0 = none open)
+        function updateAmara(slide, step) {
+            slide.querySelectorAll('.amara-card').forEach(c => c.classList.toggle('open', parseInt(c.dataset.card) === step));
+            slide.querySelectorAll('.amara-lead').forEach(l => l.style.opacity = parseInt(l.dataset.lead) === step ? '0.9' : '0');
+            slide.querySelectorAll('.amara-hot').forEach(h => {
+                const n = parseInt(h.dataset.hot);
+                h.classList.toggle('on', n === step);
+                h.classList.toggle('visited', n < step);
+                h.setAttribute('aria-expanded', n === step ? 'true' : 'false');
+            });
+        }
+
+        function closeAmara(slide) {
+            slide.querySelectorAll('.amara-card.open').forEach(c => c.classList.remove('open'));
+            slide.querySelectorAll('.amara-lead').forEach(l => l.style.opacity = '0');
+            slide.querySelectorAll('.amara-hot.on').forEach(h => { h.classList.remove('on'); h.setAttribute('aria-expanded', 'false'); });
+        }
+
+        // Show/hide steps for the timeline slide (and the Amara slide)
+        function updateSteps(slide, step) {
+            const svgSteps = slide.querySelectorAll('.timeline-step');
+            const imgSteps = slide.querySelectorAll('.timeline-img');
+
+            svgSteps.forEach(el => {
+                const elStep = parseInt(el.dataset.step);
+                el.style.opacity = elStep <= step ? '1' : '0';
+            });
+
+            imgSteps.forEach(el => {
+                const elStep = parseInt(el.dataset.step);
+                el.style.opacity = elStep <= step ? '1' : '0';
+            });
+
+            if (slide.classList.contains('amara-slide')) updateAmara(slide, step);
+            syncHash();
+        }
+
+        // Reset steps when leaving a slide
+        function resetSteps(slide) {
+            const svgSteps = slide.querySelectorAll('.timeline-step');
+            const imgSteps = slide.querySelectorAll('.timeline-img');
+
+            svgSteps.forEach(el => {
+                const elStep = parseInt(el.dataset.step);
+                el.style.opacity = elStep === 0 ? '1' : '0';
+            });
+
+            imgSteps.forEach(el => {
+                el.style.opacity = '0';
+            });
+
+            if (slide.classList.contains('amara-slide')) updateAmara(slide, 0);
+        }
+
+        // Show all steps (for when navigating backward into a completed slide)
+        function showAllSteps(slide) {
+            const totalSteps = getSlideSteps(slide);
+            if (totalSteps > 0) {
+                currentStep = totalSteps;
+                updateSteps(slide, totalSteps);
+            }
+        }
+
+        function showSlide(index, fromDirection = 'forward') {
+            if (index < 0) index = slides.length - 1;
+            if (index >= slides.length) index = 0;
+
+            // Reset steps on the slide we're leaving
+            if (slides[currentSlide]) {
+                resetSteps(slides[currentSlide]);
+            }
+
+            slides.forEach(slide => slide.classList.remove('active'));
+            dots.forEach(dot => dot.classList.remove('active'));
+
+            slides[index].classList.add('active');
+            dots[index].classList.add('active');
+            currentSlide = index;
+            slideCounter.textContent = `${index + 1} / ${slides.length}`;
+
+            // Handle steps for the new slide
+            const totalSteps = getSlideSteps(slides[index]);
+            if (totalSteps > 0) {
+                if (fromDirection === 'backward') {
+                    // Coming from next slide, show all steps
+                    showAllSteps(slides[index]);
+                } else {
+                    // Coming from previous slide, start at step 0
+                    currentStep = 0;
+                    updateSteps(slides[index], 0);
+                }
+            } else {
+                currentStep = 0;
+            }
+            syncHash();
+            updateNotesWindow();
+        }
+
+        function goToSlide(index) {
+            showSlide(index, 'forward');
+        }
+
+        function nextAction() {
+            const slide = slides[currentSlide];
+            const totalSteps = getSlideSteps(slide);
+
+            if (totalSteps > 0 && currentStep < totalSteps) {
+                // Advance to next step
+                currentStep++;
+                updateSteps(slide, currentStep);
+            } else {
+                // Go to next slide
+                showSlide(currentSlide + 1, 'forward');
+            }
+        }
+
+        function prevAction() {
+            const slide = slides[currentSlide];
+            const totalSteps = getSlideSteps(slide);
+
+            if (totalSteps > 0 && currentStep > 0) {
+                // Go back one step
+                currentStep--;
+                updateSteps(slide, currentStep);
+            } else {
+                // Go to previous slide
+                showSlide(currentSlide - 1, 'backward');
+            }
+        }
+
+        // Deep links: #N opens slide N (1-based); #N.S also sets step S
+        function syncHash() {
+            const h = '#' + (currentSlide + 1) + (currentStep > 0 ? '.' + currentStep : '');
+            if (location.hash !== h) history.replaceState(null, '', h);
+        }
+
+        function openFromHash() {
+            const m = /^#(\d+)(?:\.(\d+))?$/.exec(location.hash);
+            if (!m) return;
+            const idx = Math.min(Math.max(parseInt(m[1]) - 1, 0), slides.length - 1);
+            if (idx !== currentSlide) showSlide(idx, 'forward');
+            const total = getSlideSteps(slides[idx]);
+            const step = Math.min(parseInt(m[2] || '0'), total);
+            if (total > 0) { currentStep = step; updateSteps(slides[idx], step); }
+        }
+        window.addEventListener('hashchange', openFromHash);
+
+        // Amara hotspots: click / Enter / Space opens that callout, again closes it
+        document.querySelectorAll('.amara-hot').forEach(h => {
+            h.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const slide = h.closest('.slide');
+                const n = parseInt(h.dataset.hot);
+                if (currentStep === n && h.classList.contains('on')) {
+                    closeAmara(slide);
+                } else {
+                    currentStep = n;
+                    updateSteps(slide, n);
+                }
+            });
+        });
+        document.querySelectorAll('.amara-card').forEach(c => c.addEventListener('click', e => e.stopPropagation()));
+
+        document.getElementById('next').addEventListener('click', nextAction);
+        document.getElementById('prev').addEventListener('click', prevAction);
+        document.getElementById('notesToggle').addEventListener('click', toggleNotes);
+
+        document.addEventListener('keydown', (e) => {
+            // Let a focused hotspot handle its own Enter/Space
+            if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.amara-hot')) return;
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                e.preventDefault();
+                nextAction();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                e.preventDefault();
+                prevAction();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                showSlide(0, 'forward');
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                showSlide(slides.length - 1, 'forward');
+            } else if (e.key === 'Escape') {
+                closeAmara(slides[currentSlide]);
+            } else if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                toggleNotes();
+            }
+        });
+
+        // Touch support
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const diff = touchStartX - touchEndX;
+
+            if (Math.abs(diff) > 50) {
+                if (diff > 0) {
+                    nextAction();
+                } else {
+                    prevAction();
+                }
+            }
+        });
+
+        // Click on slide to advance (for presentation mode)
+        document.querySelector('.presentation').addEventListener('click', (e) => {
+            // Don't trigger on nav elements or the interactive chart
+            if (!e.target.closest('.nav') && !e.target.closest('.nav-arrows') && !e.target.closest('.slide-counter')
+                && !e.target.closest('.amara-hot') && !e.target.closest('.amara-card')) {
+                nextAction();
+            }
+        });
+
+        // Speaker notes popup window (N or the notes button)
+        let notesWindow = null;
+
+        function getNotesHTML(i) {
+            const title = slides[i].querySelector('h1, h2, .closing-quote')?.textContent.trim().replace(/\s+/g, ' ') || `Slide ${i + 1}`;
+            const notes = speakerNotes[i] || '<em style="color:#888;">No speaker notes for this slide.</em>';
+            return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Speaker Notes</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 30px 30px 70px; line-height: 1.7; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C74634; padding-bottom: 15px; margin-bottom: 25px; }
+    .slide-num { font-size: 0.9rem; color: #C74634; font-weight: 700; background: rgba(199,70,52,0.15); padding: 4px 14px; border-radius: 20px; white-space: nowrap; }
+    .slide-title { font-size: 1.3rem; font-weight: 700; color: #fff; flex: 1; margin-left: 15px; }
+    .notes-body { font-size: 1.12rem; line-height: 1.75; color: #ccc; }
+    .notes-body strong { color: #fff; }
+    .notes-body em { color: #ff8a7a; font-style: normal; font-weight: 600; }
+    .nav-hint { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a1a; text-align: center; font-size: 0.8rem; color: #666; border-top: 1px solid #333; padding: 10px; }
+</style></head>
+<body>
+    <div class="header"><span class="slide-num">Slide ${i + 1} / ${slides.length}</span><span class="slide-title">${title}</span></div>
+    <div class="notes-body">${notes}</div>
+    <div class="nav-hint">Navigate in the main window; notes follow automatically</div>
+</body></html>`;
+        }
+
+        function toggleNotes() {
+            const btn = document.getElementById('notesToggle');
+            if (notesWindow && !notesWindow.closed) {
+                notesWindow.close();
+                notesWindow = null;
+                btn.classList.remove('active');
+            } else {
+                notesWindow = window.open('', 'speakerNotes',
+                    'width=560,height=700,left=' + (screen.width - 600) + ',top=60,scrollbars=yes,resizable=yes');
+                if (notesWindow) {
+                    updateNotesWindow();
+                    btn.classList.add('active');
+                    const checkClosed = setInterval(() => {
+                        if (!notesWindow || notesWindow.closed) {
+                            notesWindow = null;
+                            btn.classList.remove('active');
+                            clearInterval(checkClosed);
+                        }
+                    }, 500);
+                }
+            }
+        }
+
+        function updateNotesWindow() {
+            if (notesWindow && !notesWindow.closed) {
+                notesWindow.document.open();
+                notesWindow.document.write(getNotesHTML(currentSlide));
+                notesWindow.document.close();
+            }
+        }
+
+        // Fit the verbatim timeline canvas (1300px wide) to the viewport
+        function fitTimeline() {
+            document.querySelectorAll('.timeline-slide .timeline-chart-container').forEach(c => {
+                c.style.zoom = Math.min(1, (window.innerWidth - 120) / 1300, (window.innerHeight - 80 - 185) / 560);
+            });
+        }
+        fitTimeline();
+        window.addEventListener('resize', fitTimeline);
+
+        openFromHash();
+    </script>
+</body>
+</html>

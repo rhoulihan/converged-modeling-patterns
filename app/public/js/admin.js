@@ -75,10 +75,11 @@ function eventCard(code) {
 
 function deckCard() {
   const c = h('div', 'card');
-  const a = h('a', 'btn primary', 'Open the instructor deck');
-  a.href = '/deck/'; a.target = '_blank'; a.rel = 'noopener';
-  const row = h('div', 'actions'); row.append(a);
-  c.append(h('h3', null, 'Presentation'), h('p', 'note', 'Workshop 1: Model the domain, not the engine. Opens in a new tab; press N for the speaker notes, arrow keys to move.'), row);
+  const link = (label, href, cls) => { const a = h('a', cls, label); a.href = href; a.target = '_blank'; a.rel = 'noopener'; return a; };
+  const row = h('div', 'actions');
+  row.append(link('Open the instructor deck', '/deck/', 'btn primary'), link('Dev Day intro deck', '/deck/dev-day-intro.html', 'btn'));
+  c.append(h('h3', null, 'Presentations'),
+    h('p', 'note', 'Workshop 1: Model the domain, not the engine. Dev Day intro: From RDBMS to NoSQL at Enterprise Scale, the 15-minute edition. Each opens in a new tab; press N for the speaker notes, arrow keys to move.'), row);
   return c;
 }
 
