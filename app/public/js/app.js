@@ -62,9 +62,16 @@ function measureCard(p, m) {
   const c = h('div', 'card measure');
   const title = h('h3', null, `Measure it · ${m.tag}`);
   const th = helpTrigger(p.meta.help.tabs.measure, { label: 'Measure it', patternId: p.id }); if (th) title.append(th);
+  c.append(title);
+  if (p.meta.measure?.verdict) {
+    // The first sentence is the verdict itself; set it in bold ahead of the reasoning.
+    const v = p.meta.measure.verdict; const cut = v.indexOf('. ') + 1 || v.length;
+    const box = h('p', 'measure-verdict'); box.append(h('strong', null, v.slice(0, cut)), v.slice(cut));
+    c.append(box);
+  }
   const kd = h('div', 'kicker', 'Document model'); const kdh = helpTrigger(m.help?.document, { label: 'document write', patternId: p.id }); if (kdh) kd.append(kdh);
   const kc = h('div', 'kicker', 'Converged'); const kch = helpTrigger(m.help?.converged, { label: 'converged write', patternId: p.id }); if (kch) kc.append(kch);
-  c.append(title, kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
+  c.append(kd, h('pre', 'code', m.documentSql), kc, h('pre', 'code', m.convergedSql));
   const out = h('div', 'card-out');
   const b = btn('Measure it', async () => {
     b.disabled = true; out.textContent = 'measuring… (waits for an exclusive slot)';
