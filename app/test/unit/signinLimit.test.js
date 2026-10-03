@@ -21,7 +21,7 @@ function deps(limit) {
   return {
     cfg, patterns: [], sessionSecret: 's', runner: {}, cache: {}, mongo: {},
     gate: { run: (_o, fn) => fn() },
-    workspaces: { assign: async () => ({ schema: 'WS_TEST' }) },
+    workspaces: { assign: async () => ({ schema: 'WS_TEST' }), findByEmail: async () => null, storage: async () => ({ full: false }) },
     signinLimit: limit,
   };
 }
@@ -56,5 +56,25 @@ describe('attendee sign-in rate limit', () => {
       expect((await request(app).post('/api/signin').set('X-Forwarded-For', xff).send(bad)).status).toBe(403);
     }
     expect((await request(app).post('/api/signin').set('X-Forwarded-For', '3.3.3.3').send(good)).status).toBe(429);
+  });
+});
+
+describe('workspace storage cap', () => {
+  const capped = (full, existing) => ({ ...deps(new FailureLimit()),
+    workspaces: { assign: async () => ({ schema: 'WS_TEST' }), findByEmail: async () => (existing ? { schema: 'WS_OLD' } : null), storage: async () => ({ full }) } });
+  it('refuses a new attendee with 503 once the workspaces are full', async () => {
+    const r = await request(createApp(capped(true, false))).post('/api/signin').send(good);
+    expect(r.status).toBe(503);
+    expect(r.body.error).toMatch(/lab is full/);
+  });
+  it('still lets a returning attendee back in when full', async () => {
+    expect((await request(createApp(capped(true, true))).post('/api/signin').send(good)).status).toBe(200);
+  });
+  it('lets new attendees in below the cap', async () => {
+    expect((await request(createApp(capped(false, false))).post('/api/signin').send(good)).status).toBe(200);
+  });
+  it('defaults the cap to 10 GB and reads WORKSPACE_STORAGE_CAP_GB', () => {
+    expect(loadConfig({}).storageCapBytes).toBe(10 * 1024 ** 3);
+    expect(loadConfig({ WORKSPACE_STORAGE_CAP_GB: '2' }).storageCapBytes).toBe(2 * 1024 ** 3);
   });
 });

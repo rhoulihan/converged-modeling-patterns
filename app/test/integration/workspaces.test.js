@@ -75,6 +75,15 @@ afterAll(async () => {
 }, 300000);
 
 describe('event workspaces', () => {
+  it('reports workspace and user-data storage from the segment dictionary', async () => {
+    const s = await ws.storage({ maxAgeMs: 0 });
+    expect(s.userBytes).toBeGreaterThan(0);                  // CMP_USER and LAB_ADMIN hold data
+    expect(s.workspaceBytes).toBeGreaterThanOrEqual(0);
+    expect(s.userBytes).toBeGreaterThanOrEqual(s.workspaceBytes);
+    expect(s.capBytes).toBe(cfg.storageCapBytes);
+    expect(s.full).toBe(s.workspaceBytes >= s.capBytes);
+  });
+
   it('keeps a stable session secret', async () => {
     const a = await ws.sessionSecret();
     expect(a).toMatch(/^[0-9a-f]{64}$/);

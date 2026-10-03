@@ -61,5 +61,8 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     cache: { maxEntries: int(env, 'CACHE_MAX_ENTRIES', 500), enabled: env.CACHE_ENABLED !== 'false' },
     limits: { maxRows: 500, maxBytes: 1048576, maxStatements: 20 },
     event: { code: env.EVENT_CODE || null, adminPassword },
+    // New attendees are refused once the workspaces hold this much data: 26ai Free caps user
+    // data at 12 GB for the whole database.
+    storageCapBytes: int(env, 'WORKSPACE_STORAGE_CAP_GB', 10) * 1024 ** 3,
   });
 }

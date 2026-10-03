@@ -127,6 +127,28 @@ export class Workspaces {
     return { userId: schema, schema, password, email, name };
   }
 
+  // Bytes held by the attendee workspaces (WS_*) and by every user (non-Oracle) schema, from the
+  // segment dictionary. Cached briefly: sign-in checks it, and dba_segments is not free.
+  async storage({ maxAgeMs = 30000 } = {}) {
+    if (this.#storage && Date.now() - this.#storage.at < maxAgeMs) return this.#storage.value;
+    const value = await this.withControl(async (c) => {
+      const r = await c.execute(
+        `SELECT NVL(SUM(CASE WHEN s.owner LIKE 'WS\\_%' ESCAPE '\\' THEN s.bytes END), 0) AS ws_bytes,
+                COUNT(DISTINCT CASE WHEN s.owner LIKE 'WS\\_%' ESCAPE '\\' THEN s.owner END) AS ws_count,
+                NVL(SUM(s.bytes), 0) AS user_bytes
+           FROM dba_segments s JOIN dba_users u ON u.username = s.owner
+          WHERE u.oracle_maintained = 'N'`, [], OBJ);
+      const row = r.rows[0];
+      const workspaceBytes = Number(row.WS_BYTES);
+      return { workspaceBytes, workspaces: Number(row.WS_COUNT), userBytes: Number(row.USER_BYTES),
+        capBytes: this.cfg.storageCapBytes, full: workspaceBytes >= this.cfg.storageCapBytes };
+    });
+    this.#storage = { at: Date.now(), value };
+    return value;
+  }
+
+  #storage = null;
+
   async assign({ email, name }) {
     const existing = await this.findByEmail(email);
     if (existing) return existing;

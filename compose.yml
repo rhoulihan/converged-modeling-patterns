@@ -51,6 +51,7 @@ services:
     environment:
       LAB_MODE: '${LAB_MODE:-solo}'           # solo | event
       PUBLIC_PORT: '3001'
+      WORKSPACE_STORAGE_CAP_GB: '${WORKSPACE_STORAGE_CAP_GB:-10}'   # new attendees refused above this (26ai Free: 12 GB user data)
       ADMIN_PASSWORD: '${ADMIN_PASSWORD:-}'   # required when LAB_MODE=event
       EVENT_CODE: '${EVENT_CODE:-}'
       ORACLE_PASSWORD: '${ORACLE_PASSWORD:-Sandbox2026}'

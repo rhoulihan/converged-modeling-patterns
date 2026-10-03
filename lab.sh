@@ -96,7 +96,7 @@ wait_db() {  # compose's depends_on: service_healthy, done by polling the same c
   echo " timed out after 10 minutes. See: ./lab.sh logs oracle"; exit 1
 }
 
-ui_env=(LAB_MODE ADMIN_PASSWORD EVENT_CODE ORACLE_PASSWORD CMP_PASSWORD LAB_ADMIN_PASSWORD DB_POOL_MAX MONGO_POOL_MAX)
+ui_env=(LAB_MODE ADMIN_PASSWORD EVENT_CODE ORACLE_PASSWORD CMP_PASSWORD LAB_ADMIN_PASSWORD DB_POOL_MAX MONGO_POOL_MAX WORKSPACE_STORAGE_CAP_GB)
 ui_config() {  # fingerprint of everything that should force a console recreate (compose recreates on change)
   { for k in "${ui_env[@]}"; do printf '%s=%s\n' "$k" "${!k}"; done
     echo "$CMP_UI_BIND:$CMP_UI_PORT:$CMP_PUBLIC_PORT"; e image inspect -f '{{.Id}}' "$IMG_UI"; } | cksum | cut -d' ' -f1
