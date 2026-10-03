@@ -40,8 +40,16 @@ function frontMatter(file) {
     if (fm.measure.verdict !== undefined && (typeof fm.measure.verdict !== 'string' || !fm.measure.verdict.trim())) {
       throw new Error(`${file}: measure.verdict must be a non-empty string when present`);
     }
+    // Optional sizes the live sweep measures at (Measure it runs the pair once per size).
+    let sizes = null;
+    if (fm.measure.sizes !== undefined) {
+      sizes = Array.isArray(fm.measure.sizes) ? fm.measure.sizes.map(Number) : [];
+      if (sizes.length < 3 || sizes.some((n) => !Number.isInteger(n) || n <= 0) || sizes.some((n, i) => i && n <= sizes[i - 1])) {
+        throw new Error(`${file}: measure.sizes must be 3 or more ascending positive integers`);
+      }
+    }
     measure = { xLabel: String(fm.measure.x_label), labX, deckSlides: String(fm.measure.deck_slides ?? fm.deck), calibration: cal,
-      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null };
+      verdict: fm.measure.verdict ? fm.measure.verdict.trim() : null, sizes };
   }
   return {
     title: String(fm.title),
@@ -99,11 +107,15 @@ function loadOne(root, id) {
   if (!measures.length) throw new Error(`${dir}: needs at least one @measure pair`);
 
   const setup = { document: doc.filter(isSetup), converged: conv.filter(isSetup) };
+  // calibrate.sql resizes the measured data to :n on both sides; the live sweep runs it per size.
+  const calFile = path.join(dir, 'calibrate.sql');
+  const calibrate = fs.existsSync(calFile) ? parseSqlFile(fs.readFileSync(calFile, 'utf8')).map((s) => s.sql) : null;
+  if (meta.measure?.sizes && !calibrate) throw new Error(`${dir}: measure.sizes needs a calibrate.sql`);
   const version = crypto.createHash('sha256')
     .update([...setup.document, ...setup.converged].map((s) => s.sql).join('\n;\n'))
     .digest('hex')
     .slice(0, 16);
-  return { id, meta, lanes, setup, measures, version };
+  return { id, meta, lanes, setup, measures, calibrate, version };
 }
 
 export function loadPatterns(root) {

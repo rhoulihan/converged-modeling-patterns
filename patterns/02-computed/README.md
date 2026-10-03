@@ -27,6 +27,7 @@ help:
 measure:
   x_label: "KB in the subscriber document"
   lab_x: 6
+  sizes: [1, 2, 4, 6, 7]
   deck_slides: "18–21"
   calibration:
     - { x: 1, ratio: 2.82 }   # doc 4356 B, conv 1544 B

@@ -23,6 +23,7 @@ help:
 measure:
   x_label: "claims kept inline in the policy document"
   lab_x: 3
+  sizes: [3, 10, 100, 1000]
   deck_slides: "26–29"
   calibration:
     - { x: 3, ratio: 1.62 }   # doc 1680 B, conv 1036 B

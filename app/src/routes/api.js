@@ -96,6 +96,15 @@ export function apiRouter({ cfg, runner, workspaces, gate, patterns, sessionSecr
     return res.json(await runner.measure({ user: req.user, patternId, tag }));
   }));
 
+  r.post('/measure/sweep', wrap(async (req, res) => {
+    const { patternId, tag } = req.body ?? {};
+    const p = patterns.find((x) => x.id === patternId);
+    if (!p || !p.measures.some((m) => m.tag === tag) || !p.meta.measure?.sizes || !p.calibrate) {
+      return res.status(400).json({ error: 'unknown pattern or measure tag, or no sweep sizes' });
+    }
+    return res.json(await runner.sweep({ user: req.user, patternId, tag }));
+  }));
+
   r.post('/reset', wrap(async (req, res) => {
     const { patternId } = req.body ?? {};
     if (!patterns.some((p) => p.id === patternId)) return res.status(400).json({ error: 'unknown pattern' });

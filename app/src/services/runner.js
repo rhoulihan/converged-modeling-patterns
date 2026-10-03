@@ -238,4 +238,73 @@ export class Runner {
         return { tag, document: await side(pair.document), converged: await side(pair.converged) };
       }));
   }
+
+  // Measure it, swept across sizes: for each of the pattern's measure.sizes, calibrate.sql
+  // resizes the measured data on both sides (committed), then each side's write runs once as a
+  // warm-up and three times measured, each rolled back; the run with the median redo is kept.
+  // The sizes rewrite the attendee's pattern data, so the pattern is always rebuilt from its
+  // setup scripts at the end (the same as "Reset this pattern").
+  async sweep({ user, patternId, tag }) {
+    const p = this.#pattern(patternId);
+    const pair = p?.measures.find((m) => m.tag === tag);
+    const sizes = p?.meta.measure?.sizes;
+    if (!pair || !sizes || !p.calibrate) throw new Error(`no measure sweep for ${patternId}/${tag}`);
+    await this.ensureBuilt(user, patternId);
+    const ws = user.workspace;
+    const out = await this.#gate.run({ userId: user.id, label: `${patternId} · measure ${tag} × ${sizes.length} sizes`, exclusive: true }, (ctx) =>
+      this.#withConn(ws, ctx, async (conn, track) => {
+        const points = [];
+        let error = null;
+        try {
+          await conn.execute('ALTER SESSION SET "_in_memory_undo" = false');
+          const once = async (stmt) => {
+            const before = await readStats(conn);
+            const result = track(await executeSql(conn, stmt.sql, this.#limits(false)));
+            const after = await readStats(conn);
+            await conn.rollback();
+            return { result, stats: Object.fromEntries(Object.keys(after).map((n) => [n, after[n] - before[n]])) };
+          };
+          const side = async (stmt) => {
+            track(await executeSql(conn, stmt.sql, this.#limits(false)));   // warm-up, unmeasured
+            await conn.rollback();
+            const runs = [await once(stmt), await once(stmt), await once(stmt)];
+            const failed = runs.find((r) => r.result.kind === 'error');
+            if (failed) return { sql: stmt.sql, stats: {}, result: failed.result };
+            runs.sort((a, b) => a.stats['redo size'] - b.stats['redo size']);
+            return { sql: stmt.sql, ...runs[1] };
+          };
+          for (const n of sizes) {
+            if (ctx.cancelled) { error = labErr('LAB-CANCELLED', 'Measurement was cancelled'); break; }
+            conn.callTimeout = SYSTEM_BUDGET_MS;
+            for (const sql of p.calibrate) await conn.execute(sql, sql.includes(':n') ? { n } : {});
+            await conn.commit();
+            const document = await side(pair.document);
+            const converged = await side(pair.converged);
+            points.push({ x: n, document, converged });
+            if (document.result.kind === 'error' || converged.result.kind === 'error') break;
+          }
+        } catch (e) {
+          error = labErr('LAB-MEASURE', `measurement failed: ${e.message}`);
+          await conn.rollback().catch(() => {});
+        }
+        // Put the lab back exactly as built.
+        const stmts = [...p.setup.document, ...p.setup.converged].map((st) => st.sql);
+        const rebuilt = await this.#runStatements(conn, ctx, track, stmts, SYSTEM_BUDGET_MS);
+        return { points, error, restored: rebuilt.every((r) => r.kind !== 'error') };
+      }));
+    if (out.restored) {
+      await this.#ws.markBuilt(ws.schema, patternId, p.version);
+      await this.#ws.clearDirty(ws.schema, patternId);
+    } else {
+      await this.#ws.markBuilt(ws.schema, patternId, 'stale');   // not the current version: rebuilds on next use
+    }
+    const ratio = (d, c) => (d > 0 && c > 0 ? d / c : null);
+    return {
+      tag,
+      sizes,
+      error: out.error,
+      restored: out.restored,
+      points: out.points.map((pt) => ({ ...pt, ratio: ratio(pt.document.stats['redo size'], pt.converged.stats['redo size']) })),
+    };
+  }
 }
