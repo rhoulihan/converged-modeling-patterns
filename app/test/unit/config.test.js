@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import crypto from 'node:crypto';
 import { loadConfig } from '../../src/config.js';
+
+// Generated per run, so no literal in the repo looks like a credential.
+const OWN_LAB_ADMIN = `lab-admin-${crypto.randomBytes(8).toString('hex')}`;
 
 describe('loadConfig', () => {
   it('defaults to solo mode with a single-permit gate and pools of 1', () => {
@@ -28,15 +32,15 @@ describe('loadConfig', () => {
   });
 
   it('requires ADMIN_PASSWORD in event mode', () => {
-    expect(() => loadConfig({ LAB_MODE: 'event', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' })).toThrow(/ADMIN_PASSWORD/);
-    const c = loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', EVENT_CODE: 'NW26', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' });
+    expect(() => loadConfig({ LAB_MODE: 'event', LAB_ADMIN_PASSWORD: OWN_LAB_ADMIN })).toThrow(/ADMIN_PASSWORD/);
+    const c = loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', EVENT_CODE: 'NW26', LAB_ADMIN_PASSWORD: OWN_LAB_ADMIN });
     expect(c.event).toEqual({ code: 'NW26', adminPassword: 'pw' });
   });
 
   it('refuses to start event mode while LAB_ADMIN_PASSWORD is the repo default', () => {
     expect(() => loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw' })).toThrow(/LAB_ADMIN_PASSWORD.*default/);
     expect(() => loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', LAB_ADMIN_PASSWORD: 'LabAdmin2026' })).toThrow(/LAB_ADMIN_PASSWORD/);
-    expect(loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', LAB_ADMIN_PASSWORD: 'Own-LabAdmin-1' }).db.labAdminPassword).toBe('Own-LabAdmin-1');
+    expect(loadConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'pw', LAB_ADMIN_PASSWORD: OWN_LAB_ADMIN }).db.labAdminPassword).toBe(OWN_LAB_ADMIN);
   });
 
   it('keeps solo mode default-friendly', () => {
