@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import oracledb from 'oracledb';
@@ -11,7 +12,10 @@ import { loadPatterns } from '../../src/content/patterns.js';
 import { Workspaces } from '../../src/services/workspaces.js';
 import { Runner } from '../../src/services/runner.js';
 
-const cfg = testConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: 'admin-test' });
+// Generated per run, so no literal in the repo looks like a credential.
+const ADMIN_PW = `admin-${crypto.randomBytes(8).toString('hex')}`;
+
+const cfg = testConfig({ LAB_MODE: 'event', ADMIN_PASSWORD: ADMIN_PW });
 const connectString = `${cfg.db.host}:${cfg.db.port}/${cfg.db.service}`;
 const patterns = loadPatterns(path.resolve(import.meta.dirname, '../../../patterns'));
 let pools; let mongo; let ws; let runner;

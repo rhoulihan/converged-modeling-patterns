@@ -1,5 +1,6 @@
 // app/test/integration/http.test.js
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import request from 'supertest';
 import { testConfig, dropOwn, skipUnlessOnlyOwn } from './env.js';
@@ -11,6 +12,9 @@ import { loadPatterns } from '../../src/content/patterns.js';
 import { Workspaces } from '../../src/services/workspaces.js';
 import { Runner } from '../../src/services/runner.js';
 import { createApp } from '../../src/server.js';
+
+// Generated per run, so no literal in the repo looks like a credential.
+const ADMIN_PW = `admin-${crypto.randomBytes(8).toString('hex')}`;
 
 const patterns = loadPatterns(path.resolve(import.meta.dirname, '../../../patterns'));
 let pools; let mongo;
@@ -83,7 +87,7 @@ describe('solo mode', () => {
 
 describe('event mode', () => {
   let app; let workspaces;
-  beforeAll(async () => { ({ app, workspaces } = await build({ LAB_MODE: 'event', ADMIN_PASSWORD: 'admin-test', EVENT_CODE: 'LAB26' })); });
+  beforeAll(async () => { ({ app, workspaces } = await build({ LAB_MODE: 'event', ADMIN_PASSWORD: ADMIN_PW, EVENT_CODE: 'LAB26' })); });
   // Only the workspace(s) this block signed in: never another run's or a live event's.
   afterAll(async () => {
     const mine = (await Promise.all(['a@example.com'].map((e) => workspaces.findByEmail(e)))).filter(Boolean);
@@ -112,7 +116,7 @@ describe('event mode', () => {
     expect((await request(app).get('/api/admin/status')).status).toBe(401);
     expect((await request(app).post('/api/admin/login').send({ password: 'wrong' })).status).toBe(403);
     const admin = request.agent(app);
-    expect((await admin.post('/api/admin/login').send({ password: 'admin-test' })).status).toBe(200);
+    expect((await admin.post('/api/admin/login').send({ password: ADMIN_PW })).status).toBe(200);
     const st = await admin.get('/api/admin/status');
     expect(st.status).toBe(200);
     expect(st.body.gate.permits).toBe(1);
@@ -127,7 +131,7 @@ describe('event mode', () => {
     // Reset-all rebuilds EVERY workspace: only run when the only one is this test's own.
     if (await skipUnlessOnlyOwn(ctx, workspaces, [a.schema])) return;
     const admin = request.agent(app);
-    expect((await admin.post('/api/admin/login').send({ password: 'admin-test' })).status).toBe(200);
+    expect((await admin.post('/api/admin/login').send({ password: ADMIN_PW })).status).toBe(200);
     const r = await admin.post('/api/admin/reset-attendee').send({ schema: '*' });
     expect(r.status).toBe(202);
     expect(r.body).toEqual({ started: 1 });
