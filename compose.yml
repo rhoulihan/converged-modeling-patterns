@@ -60,6 +60,7 @@ services:
       DB_POOL_MAX: '${DB_POOL_MAX:-1}'
       MONGO_POOL_MAX: '${MONGO_POOL_MAX:-1}'
       GATE_PERMITS: '${GATE_PERMITS:-}'           # concurrent attendee statements; empty = DB_POOL_MAX
+      TRUST_PROXY: '${TRUST_PROXY:-}'             # 1 = console sits behind one reverse proxy (cloud VM with Caddy)
 
   lab-ui-test:
     profiles: ['test']

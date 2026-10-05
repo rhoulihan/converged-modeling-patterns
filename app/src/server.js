@@ -26,6 +26,8 @@ export function createApp(deps, { publicMode = false } = {}) {
   deps = { ...deps, event: deps.event ?? new EventSettings({ cfg: deps.cfg }) };
   const app = express();
   app.disable('x-powered-by');
+  // Behind a reverse proxy (TRUST_PROXY=1) the LAN-style app trusts that one hop too.
+  if (!publicMode && deps.cfg.trustProxy) app.set('trust proxy', 1);
   if (publicMode) {
     // Only the tunnel can reach the public listener (it is bound to localhost), so trust exactly
     // one proxy hop: req.ip becomes the client address the tunnel appended to X-Forwarded-For,
