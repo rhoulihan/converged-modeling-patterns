@@ -56,3 +56,18 @@ describe('public listener (attendee side only)', () => {
     expect(INSTRUCTOR_PATHS).toEqual(['/admin.html', '/js/admin.js', '/api/admin', '/deck']);
   });
 });
+
+describe('TRUST_PROXY (main listener behind one reverse proxy)', () => {
+  it('is off unless TRUST_PROXY=1', () => {
+    expect(loadConfig({}).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: '1' }).trustProxy).toBe(true);
+  });
+
+  it('trusts exactly one proxy hop only when set (req.ip = forwarded client address)', () => {
+    const plain = createApp(deps());
+    const base = deps();
+    const proxied = createApp({ ...base, cfg: { ...base.cfg, trustProxy: true } });
+    expect(plain.get('trust proxy')).toBeFalsy();
+    expect(proxied.get('trust proxy')).toBe(1);
+  });
+});

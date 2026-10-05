@@ -39,6 +39,9 @@ export function loadConfig(env = process.env, { allowDefaultSecrets = false } = 
     port: int(env, 'PORT', 3000),
     // Optional second listener for a public tunnel (e.g. Tailscale Funnel): the attendee side only.
     publicPort: env.PUBLIC_PORT ? int(env, 'PUBLIC_PORT', null) : null,
+    // TRUST_PROXY=1: the main listener sits behind one reverse proxy (e.g. Caddy on a cloud VM), so
+    // req.ip, which keys the sign-in failure limit, is the client address the proxy forwards.
+    trustProxy: env.TRUST_PROXY === '1',
     patternsDir: env.PATTERNS_DIR || path.resolve(here, '../../patterns'),
     presentationsDir: env.PRESENTATIONS_DIR || path.resolve(here, '../../presentations'),
     db: {
